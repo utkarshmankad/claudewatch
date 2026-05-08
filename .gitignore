@@ -1,0 +1,32 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+
+# Databases
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+*.log
+
+# Config secrets
+config.toml
+*.toml
+
+# macOS
+.DS_Store
+
+# Test coverage
+coverage/
+
+# Compiled binaries / release artifacts
+claudewatch-linux-x64
+claudewatch-macos-arm64
+claudewatch-win-x64.exe
+
+# Claude IDE files
+.claude/
