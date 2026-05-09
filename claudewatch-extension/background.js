@@ -90,9 +90,9 @@ async function addTokens(inputTokens, outputTokens, capturedAt, rateLimit) {
   if (history.length > MAX_HISTORY) history.splice(0, history.length - MAX_HISTORY);
   await lset(K_HISTORY, history);
 
-  // 5-hour window: auto-reset when expired
-  let win = (await lget(K_WIN5H)) ?? { startMs: ts, resetMs: ts + WINDOW_5H_MS };
-  if (now >= win.resetMs) {
+  // 5-hour window: create on first token, reset when expired — always persist
+  let win = await lget(K_WIN5H);
+  if (!win || now >= win.resetMs) {
     win = { startMs: ts, resetMs: ts + WINDOW_5H_MS };
     await lset(K_WIN5H, win);
   }
@@ -138,9 +138,21 @@ async function getStats() {
   const rateLimit = (await lget(K_RATELIMIT)) ?? null;
   const now       = Date.now();
 
-  let startMs = win?.startMs ?? now;
-  let resetMs = win?.resetMs ?? (now + WINDOW_5H_MS);
-  if (now >= resetMs) { startMs = now; resetMs = now + WINDOW_5H_MS; }
+  let startMs, resetMs;
+  if (win) {
+    startMs = win.startMs;
+    resetMs = win.resetMs;
+    if (now >= resetMs) { startMs = now; resetMs = now + WINDOW_5H_MS; }
+  } else if (history.length) {
+    // K_WIN5H never saved (old bug) — bootstrap from earliest token in history
+    const minTs = Math.min(...history.map(e => e.ts));
+    startMs = minTs;
+    resetMs = minTs + WINDOW_5H_MS;
+    if (now >= resetMs) { startMs = now; resetMs = now + WINDOW_5H_MS; }
+  } else {
+    startMs = now;
+    resetMs = now + WINDOW_5H_MS;
+  }
 
   const tokens5h = history
     .filter(e => e.ts >= startMs)
