@@ -1,0 +1,10 @@
+{
+  "name": "claudewatch-extension",
+  "version": "0.1.0",
+  "description": "ClaudeWatch Chrome extension — session usage monitoring for claude.ai",
+  "private": true,
+  "scripts": {
+    "validate": "node validate-manifest.js",
+    "zip": "npm run validate && zip -r ../claudewatch-extension.zip . --exclude '*.git*' --exclude 'node_modules/*' --exclude 'package*.json' --exclude 'validate-manifest.js' --exclude '*.zip'"
+  }
+}

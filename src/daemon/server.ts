@@ -1,7 +1,7 @@
 import { createServer, type Server } from 'http';
 import express from 'express';
 import cors from 'cors';
-import { getAlertHistory, getDailyTokensByModel, getLatestSnapshot, getDb } from '../store/db.js';
+import { getAlertHistory, getDailyTokensByModel, getLatestSnapshot, getDb, getSessionTokens, insertSessionTokens, getWeeklyTokens } from '../store/db.js';
 import { getTotalCostSince } from '../store/usage.js';
 import { currentBillingPeriod } from '../api/usageClient.js';
 import { getCostCache } from './costCache.js';
@@ -35,16 +35,39 @@ export function startWebServer(config: Config): Server {
   const app = express();
 
   app.use(cors({
-    // Allow Vite dev server (any localhost port) during development
+    // Allow localhost dev servers and Chrome extension pages
     origin: (origin, cb) => {
-      if (!origin || /^https?:\/\/localhost(:\d+)?$/.test(origin)) {
+      if (!origin ||
+          /^https?:\/\/localhost(:\d+)?$/.test(origin) ||
+          /^chrome-extension:\/\//.test(origin)) {
         cb(null, true);
       } else {
         cb(new Error('Not allowed by CORS'));
       }
     },
-    methods: ['GET'],
+    methods: ['GET', 'POST'],
   }));
+  app.use(express.json());
+
+  // ---------------------------------------------------------------------------
+  // POST /api/session — extension pushes live claude.ai session data
+  // ---------------------------------------------------------------------------
+  app.post('/api/session', (req, res) => {
+    try {
+      const body = req.body as Record<string, unknown>;
+      insertSessionTokens({
+        tokensUsed: typeof body['tokensUsed'] === 'number' ? body['tokensUsed'] : null,
+        tokenLimit: typeof body['tokenLimit'] === 'number' ? body['tokenLimit'] : null,
+        plan:       typeof body['plan']       === 'string' ? body['plan']       : null,
+        resetsAt:   typeof body['resetsAt']   === 'string' ? body['resetsAt']   : null,
+        capturedAt: typeof body['capturedAt'] === 'string' ? body['capturedAt'] : undefined,
+      });
+      res.json({ ok: true });
+    } catch (err) {
+      console.error('[/api/session] error:', err);
+      res.status(500).json({ error: (err as Error).message });
+    }
+  });
 
   // ---------------------------------------------------------------------------
   // GET /api/status
@@ -98,6 +121,20 @@ export function startWebServer(config: Config): Server {
       daily   = getTotalCostSince(dayStart);
     }
 
+    // Session data pushed by the extension
+    const sessionRow = getSessionTokens();
+
+    // Weekly token count (rolling 7-day window from usage_snapshots)
+    const weeklyTokensUsed = getWeeklyTokens();
+    const now = new Date();
+    const dayOfWeek = now.getUTCDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+    const daysSinceMon = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    const weekStart = new Date(Date.UTC(
+      now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - daysSinceMon,
+    ));
+    const weekReset = new Date(weekStart);
+    weekReset.setUTCDate(weekReset.getUTCDate() + 7);
+
     res.json({
       billingPeriod: {
         startingAt: costs?.billingPeriodStart ?? period.startingAt,
@@ -116,6 +153,25 @@ export function startWebServer(config: Config): Server {
       lastPollAt:          snapshot?.polledAt ?? null,
       snapshot,
       version: '0.1.0',
+      session: sessionRow ? {
+        tokensUsed: sessionRow.tokensUsed,
+        tokenLimit: sessionRow.tokenLimit,
+        plan:       sessionRow.plan,
+        resetsAt:   sessionRow.resetsAt,
+        windowEnd:  sessionRow.resetsAt,
+        pct: sessionRow.tokenLimit && sessionRow.tokenLimit > 0 && sessionRow.tokensUsed != null
+          ? (sessionRow.tokensUsed / sessionRow.tokenLimit) * 100
+          : 0,
+      } : null,
+      weekly: {
+        tokensUsed: weeklyTokensUsed,
+        weekStart:  weekStart.toISOString(),
+        weekReset:  weekReset.toISOString(),
+        resetsAt:   weekReset.toISOString(),
+      },
+      config: {
+        weeklyTokenLimit: config.weeklyTokenLimit ?? null,
+      },
     });
   });
 

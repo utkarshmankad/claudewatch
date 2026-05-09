@@ -30,3 +30,6 @@ claudewatch-win-x64.exe
 
 # Claude IDE files
 .claude/
+
+# Extension distribution zip
+claudewatch-extension.zip

@@ -1,0 +1,341 @@
+/* ── Reset ─────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── Design tokens (same palette as popup) ──────────────────────────────── */
+:root {
+  --bg-base:     #0f0f12;
+  --bg-raised:   #16161a;
+  --bg-card:     #131317;
+  --bg-input:    #1a1a20;
+  --bg-hover:    #1e1e28;
+  --border:      #222230;
+  --border-focus:#e8620a;
+
+  --text-primary:   #e2e2e8;
+  --text-secondary: #8888a0;
+  --text-muted:     #44445a;
+
+  --orange:   #e8620a;
+  --orange-dk:#c5520a;
+  --green:    #10b981;
+  --amber:    #f59e0b;
+  --red:      #ef4444;
+
+  --radius-sm: 4px;
+  --radius:    8px;
+  --radius-lg: 12px;
+
+  --mono: 'SF Mono', 'Fira Code', 'Fira Mono', 'Cascadia Code',
+          'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* ── Base ───────────────────────────────────────────────────────────────── */
+html, body { min-height: 100vh; }
+
+body {
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.6;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── App shell ──────────────────────────────────────────────────────────── */
+#app {
+  max-width: 580px;
+  margin: 0 auto;
+  padding-bottom: 48px;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+header {
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+}
+.header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 0;
+}
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.logo-mark {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+h1 {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--orange);
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+}
+.header-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+.version {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 3px 8px;
+  background: var(--bg-hover);
+  border-radius: 20px;
+  border: 1px solid var(--border);
+}
+
+/* ── Main ───────────────────────────────────────────────────────────────── */
+main {
+  padding: 24px 24px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Cards ──────────────────────────────────────────────────────────────── */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px 22px;
+}
+.card-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+}
+.card-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: -8px;
+  margin-bottom: 14px;
+  line-height: 1.5;
+}
+
+/* ── Toggle switch (Enable alerts) ─────────────────────────────────────── */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  cursor: pointer;
+}
+.toggle-text { flex: 1; }
+.toggle-label { font-size: 13px; color: var(--text-primary); display: block; }
+.toggle-hint  { font-size: 11px; color: var(--text-muted); display: block; margin-top: 2px; }
+
+.switch { flex-shrink: 0; position: relative; }
+.switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.switch-track {
+  display: block;
+  width: 40px;
+  height: 22px;
+  border-radius: 11px;
+  background: #2a2a38;
+  border: 1px solid var(--border);
+  transition: background 0.2s ease, border-color 0.2s ease;
+  position: relative;
+  cursor: pointer;
+}
+.switch-track::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+.switch input:checked + .switch-track {
+  background: var(--orange);
+  border-color: var(--orange-dk);
+}
+.switch input:checked + .switch-track::after {
+  transform: translateX(18px);
+  background: #fff;
+}
+.switch input:focus-visible + .switch-track {
+  outline: 2px solid var(--orange);
+  outline-offset: 2px;
+}
+
+/* ── Threshold checkboxes ───────────────────────────────────────────────── */
+.threshold-list { display: flex; flex-direction: column; gap: 2px; }
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 10px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.checkbox-row:hover { background: var(--bg-hover); }
+
+.checkbox-row input[type="checkbox"] { position: absolute; opacity: 0; width: 0; height: 0; }
+
+.checkbox-custom {
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid #3a3a50;
+  background: var(--bg-input);
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.checkbox-custom::after {
+  content: '';
+  width: 8px;
+  height: 5px;
+  border-left: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+  transform: rotate(-45deg) translateY(-1px);
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+.checkbox-row input:checked ~ .checkbox-custom {
+  background: var(--orange);
+  border-color: var(--orange-dk);
+}
+.checkbox-row input:checked ~ .checkbox-custom::after { opacity: 1; }
+.checkbox-row input:focus-visible ~ .checkbox-custom {
+  outline: 2px solid var(--orange);
+  outline-offset: 2px;
+}
+
+.checkbox-body { display: flex; align-items: center; gap: 10px; }
+.threshold-pct {
+  font-size: 13px;
+  font-weight: 700;
+  min-width: 34px;
+  letter-spacing: -0.01em;
+}
+.threshold-pct.green { color: var(--green); }
+.threshold-pct.amber { color: var(--amber); }
+.threshold-pct.red   { color: var(--red);   }
+.threshold-desc { font-size: 11px; color: var(--text-secondary); }
+
+/* Dim thresholds card when alerts are disabled */
+#thresholds-card.disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* ── Core URL field ─────────────────────────────────────────────────────── */
+.field-group { display: flex; flex-direction: column; gap: 6px; }
+.field-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.field-row { display: flex; gap: 8px; }
+
+input[type="url"] {
+  flex: 1;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 8px 11px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+input[type="url"]:focus { border-color: var(--border-focus); }
+input[type="url"]::placeholder { color: var(--text-muted); }
+
+.btn-test {
+  padding: 0 14px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.btn-test:hover { background: #2a2a38; color: var(--text-primary); }
+
+.field-hint {
+  font-size: 11px;
+  min-height: 16px;
+  color: var(--text-muted);
+  transition: color 0.2s ease;
+}
+.field-hint.ok  { color: var(--green); }
+.field-hint.err { color: var(--red); }
+
+/* ── About grid ─────────────────────────────────────────────────────────── */
+.card-about { background: transparent; border-color: #1a1a22; }
+.about-grid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 20px;
+  row-gap: 6px;
+}
+.about-grid dt { color: var(--text-muted); font-size: 11px; }
+.about-grid dd { color: var(--text-secondary); font-size: 11px; }
+.about-grid dd.mono { font-family: var(--mono); letter-spacing: 0.02em; }
+.about-grid dd.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 300px;
+}
+
+/* ── Actions bar ────────────────────────────────────────────────────────── */
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 4px;
+}
+.btn {
+  padding: 9px 20px;
+  border: none;
+  border-radius: var(--radius);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s ease, transform 0.08s ease;
+}
+.btn:active { transform: scale(0.97); }
+.btn-primary { background: var(--orange); color: #fff; }
+.btn-primary:hover { background: var(--orange-dk); }
+.btn-ghost {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+.btn-ghost:hover { background: var(--bg-hover); color: var(--text-secondary); }
+
+.save-confirm {
+  font-size: 12px;
+  color: var(--green);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  margin-left: 4px;
+}
+.save-confirm.visible { opacity: 1; }

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ClaudeWatch</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+<div id="app">
+
+  <!-- ── Header ── -->
+  <header>
+    <div class="header-left">
+      <svg class="logo" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="20" height="20" rx="5" fill="#e8620a"/>
+        <text x="10" y="14.5" font-family="monospace" font-size="11" font-weight="800"
+              fill="#fff" text-anchor="middle">CW</text>
+      </svg>
+      <span class="brand">ClaudeWatch</span>
+      <span class="version" id="version"></span>
+    </div>
+    <span class="last-update" id="last-update" title="Last token captured">—</span>
+  </header>
+
+  <!-- ── Alert banner ── -->
+  <div class="alert alert-warn" id="alert" hidden>
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M8 1L15 14H1L8 1Z" stroke="#f59e0b" stroke-width="1.5" fill="none"/>
+      <path d="M8 6v4M8 11.5v.5" stroke="#f59e0b" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+    <span id="alert-text"></span>
+  </div>
+
+  <!-- ── Empty state ── -->
+  <div class="empty-state" id="empty-state" hidden>
+    <div class="empty-icon">◎</div>
+    <p class="empty-title">Waiting for data…</p>
+    <p class="empty-hint">Open claude.ai and start chatting to see usage</p>
+    <button class="btn btn-primary btn-sm" id="btn-open-claude">Open claude.ai →</button>
+  </div>
+
+  <!-- ── Main content ── -->
+  <div id="main-content" hidden>
+
+    <!-- ── Dual gauge section ── -->
+    <section class="section gauges-section">
+      <div class="gauge-cards">
+
+        <div class="gauge-card">
+          <div class="gc-label">5-Hour Window</div>
+          <div class="gc-tokens" id="tokens-5h">—</div>
+          <div class="gc-bar-wrap">
+            <div class="gc-bar">
+              <div class="gc-fill" id="fill-5h"></div>
+            </div>
+            <span class="gc-pct" id="pct-5h">—</span>
+          </div>
+          <div class="gc-sub" id="resets-in">—</div>
+        </div>
+
+        <div class="gauge-divider"></div>
+
+        <div class="gauge-card">
+          <div class="gc-label">7-Day Rolling</div>
+          <div class="gc-tokens" id="tokens-7d">—</div>
+          <div class="gc-bar-wrap">
+            <div class="gc-bar">
+              <div class="gc-fill" id="fill-7d"></div>
+            </div>
+            <span class="gc-pct" id="pct-7d">—</span>
+          </div>
+          <div class="gc-sub">vs pro 5h × 7</div>
+        </div>
+
+      </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- ── Token history chart ── -->
+    <section class="section chart-section">
+      <div class="chart-header">
+        <span class="section-label">Token History</span>
+        <div class="tab-group">
+          <button class="tab active" id="tab-5h" data-win="5h">5h</button>
+          <button class="tab"        id="tab-7d" data-win="7d">7d</button>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <svg id="sparkline" width="100%" height="52" preserveAspectRatio="none">
+          <text id="chart-empty-msg" x="50%" y="50%" text-anchor="middle"
+                dominant-baseline="middle" class="chart-empty">No data yet</text>
+        </svg>
+      </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- ── Plan comparison ── -->
+    <section class="section table-section">
+      <div class="section-label">Plan Comparison</div>
+      <table class="plan-table">
+        <thead>
+          <tr>
+            <th>Plan</th>
+            <th title="% of 5-hour window limit used">5h %</th>
+            <th title="% of 7-day rolling limit used">7d %</th>
+          </tr>
+        </thead>
+        <tbody id="plan-tbody">
+          <tr class="skeleton"><td colspan="3">Loading…</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+  </div>
+
+  <!-- ── Footer ── -->
+  <footer>
+    <div class="footer-left">
+      <span class="plan-pill" id="plan-pill">—</span>
+      <span class="core-dot" id="core-dot" title="Core daemon"></span>
+    </div>
+    <div class="footer-right">
+      <button class="footer-btn" id="btn-settings">Settings ⚙</button>
+    </div>
+  </footer>
+
+</div>
+<script src="popup.js"></script>
+</body>
+</html>

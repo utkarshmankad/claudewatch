@@ -13,7 +13,7 @@ const DB_PATH = path.join(DATA_DIR, 'usage.db');
 
 // Bump this whenever the schema changes. The migration below handles the
 // upgrade from any lower version.
-const CURRENT_SCHEMA_VERSION = 2;
+const CURRENT_SCHEMA_VERSION = 4;
 
 // ---------------------------------------------------------------------------
 // Exported TypeScript types (camelCase view of the rows)
@@ -150,8 +150,44 @@ function migrate(db: Database.Database): void {
   db.transaction(() => {
     if (version < 1) applyV1(db);
     if (version < 2) applyV2(db);
+    if (version < 3) applyV3(db);
+    if (version < 4) applyV4(db);
     db.pragma(`user_version = ${CURRENT_SCHEMA_VERSION}`);
   })();
+}
+
+function applyV3(db: Database.Database): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS session_tokens (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      recorded_at TEXT    NOT NULL,
+      tokens_used INTEGER,
+      token_limit INTEGER,
+      plan        TEXT,
+      resets_at   TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_session_recorded
+      ON session_tokens (recorded_at DESC);
+  `);
+}
+
+// V4: ensure session_tokens exists for DBs that were already at user_version=3
+// before the table was introduced (safe to re-run due to IF NOT EXISTS).
+function applyV4(db: Database.Database): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS session_tokens (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      recorded_at TEXT    NOT NULL,
+      tokens_used INTEGER,
+      token_limit INTEGER,
+      plan        TEXT,
+      resets_at   TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_session_recorded
+      ON session_tokens (recorded_at DESC);
+  `);
 }
 
 function applyV2(db: Database.Database): void {
@@ -609,6 +645,64 @@ export function getPersonalPeriodTokens(since: string): PersonalPeriodTokens {
     outputTokens: row?.output_tokens ?? 0,
     cacheReadTokens: row?.cache_read_tokens ?? 0,
     cacheWriteTokens: row?.cache_write_tokens ?? 0,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// session_tokens — extension-pushed claude.ai session data
+// ---------------------------------------------------------------------------
+
+export interface SessionTokens {
+  tokensUsed: number | null;
+  tokenLimit: number | null;
+  plan: string | null;
+  resetsAt: string | null;
+  capturedAt: string;
+}
+
+/** Persist the latest session state pushed by the extension. */
+export function insertSessionTokens(data: {
+  tokensUsed?: number | null;
+  tokenLimit?: number | null;
+  plan?: string | null;
+  resetsAt?: string | null;
+  capturedAt?: string;
+}): void {
+  getDb()
+    .prepare<[string, number | null, number | null, string | null, string | null]>(`
+      INSERT INTO session_tokens (recorded_at, tokens_used, token_limit, plan, resets_at)
+      VALUES (?, ?, ?, ?, ?)
+    `)
+    .run(
+      data.capturedAt ?? new Date().toISOString(),
+      data.tokensUsed ?? null,
+      data.tokenLimit ?? null,
+      data.plan ?? null,
+      data.resetsAt ?? null,
+    );
+}
+
+/** Return the most recent session snapshot pushed by the extension, or null. */
+export function getSessionTokens(): SessionTokens | null {
+  const row = getDb()
+    .prepare(`
+      SELECT * FROM session_tokens ORDER BY rowid DESC LIMIT 1
+    `)
+    .get() as {
+      recorded_at: string;
+      tokens_used: number | null;
+      token_limit: number | null;
+      plan: string | null;
+      resets_at: string | null;
+    } | undefined;
+
+  if (!row) return null;
+  return {
+    tokensUsed: row.tokens_used,
+    tokenLimit: row.token_limit,
+    plan: row.plan,
+    resetsAt: row.resets_at,
+    capturedAt: row.recorded_at,
   };
 }
 
