@@ -7,11 +7,10 @@ const TAG = '[ClaudeWatch]';
 // ── Constants ──────────────────────────────────────────────────────────────
 const WINDOW_5H_MS  = 5  * 60 * 60 * 1000;
 const WINDOW_7D_MS  = 7  * 24 * 60 * 60 * 1000;
-const MAX_HISTORY   = 1000;
+const MAX_HISTORY   = 2000;
 const DEFAULT_CORE  = 'http://localhost:7734';
 
 // Approximate token limits per 5-hour window (community-derived estimates).
-// 7-day limit = 5h limit × 7 (one full window used per day).
 const PLAN_LIMITS = {
   free:   { limit5h:  10_000, name: 'Free'    },
   pro:    { limit5h:  44_000, name: 'Pro'     },
@@ -21,11 +20,11 @@ const PLAN_LIMITS = {
 };
 
 // ── Storage keys ──────────────────────────────────────────────────────────
-const K_HISTORY   = 'token_history';   // [{ts,input,output}]
+const K_HISTORY   = 'token_history';   // [{ts,input,output,src}]
 const K_WIN5H     = 'window_5h';       // {startMs, resetMs}
 const K_PLAN      = 'detected_plan';   // plan key string
 const K_STATUS    = 'core_status';     // {connected,lastSync}
-const K_RATELIMIT = 'rate_limit';      // {type, resetsAt, remaining} from message_limit SSE event
+const K_RATELIMIT = 'rate_limit';      // {type, resetsAt, remaining}
 
 // ── Storage helpers ───────────────────────────────────────────────────────
 const lget = (k)    => new Promise(r => chrome.storage.local.get(k,  d => r(d[k]  ?? null)));
@@ -58,6 +57,78 @@ function detectPlan(data) {
   return null;
 }
 
+// ── Conversation token extraction ─────────────────────────────────────────
+// claude.ai loads full conversation data via GET /api/organizations/{o}/
+// chat_conversations/{c}?tree=True&rendering_mode=messages after each reply.
+// That response includes per-message usage — mine it for real token counts.
+
+function extractConvTokens(data) {
+  const events = [];
+  const msgs = data?.chat_messages ?? data?.messages ?? null;
+  if (!Array.isArray(msgs)) return events;
+
+  for (const msg of msgs) {
+    // Timestamp — required for window placement
+    const createdAt = msg.created_at ?? msg.timestamp ?? null;
+    if (!createdAt) continue;
+    const ts = Date.parse(createdAt);
+    if (!ts || isNaN(ts)) continue;
+
+    // Token usage — try several possible field shapes
+    const u = msg.usage ?? msg.token_usage ?? msg.tokens ?? null;
+    if (!u) continue;
+
+    const input  = u.input_tokens  ?? u.inputTokens  ?? u.prompt_tokens     ?? 0;
+    const output = u.output_tokens ?? u.outputTokens ?? u.completion_tokens  ?? 0;
+    if (input === 0 && output === 0) continue;
+
+    // Tag as 'conv' so we can see the source in logs
+    events.push({ ts, input, output, src: 'conv' });
+  }
+
+  return events;
+}
+
+// Merge new token events into K_HISTORY, deduplicating by timestamp bucket.
+// Events within 10 s of an existing entry are considered duplicates.
+async function mergeTokenHistory(events) {
+  if (!events?.length) return 0;
+
+  const history = (await lget(K_HISTORY)) ?? [];
+  const BUCKET  = 10_000; // 10 s dedup window
+  const existing = new Set(history.map(e => Math.round(e.ts / BUCKET)));
+
+  let added = 0;
+  for (const ev of events) {
+    const bucket = Math.round(ev.ts / BUCKET);
+    if (!existing.has(bucket)) {
+      history.push(ev);
+      existing.add(bucket);
+      added++;
+    }
+  }
+
+  if (added > 0) {
+    history.sort((a, b) => a.ts - b.ts);
+    if (history.length > MAX_HISTORY) history.splice(0, history.length - MAX_HISTORY);
+    await lset(K_HISTORY, history);
+
+    // Refresh the 5h window startMs to the earliest token in history
+    // so newly merged historical events are included in the 5h filter.
+    const win = await lget(K_WIN5H);
+    if (win) {
+      const newStart = Math.min(win.startMs, ...events.map(e => e.ts));
+      if (newStart < win.startMs) {
+        await lset(K_WIN5H, { startMs: newStart, resetMs: win.resetMs });
+      }
+    }
+
+    console.log(`${TAG} Merged ${added} events from conversation; history now ${history.length}`);
+  }
+
+  return added;
+}
+
 // ── Core daemon sync (optional, fails silently) ───────────────────────────
 async function syncCore(tokens5h, plan) {
   const { coreUrl } = await sget({ coreUrl: DEFAULT_CORE });
@@ -66,12 +137,7 @@ async function syncCore(tokens5h, plan) {
     const res = await fetch(`${coreUrl}/api/session`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({
-        tokensUsed: tokens5h,
-        tokenLimit: lim,
-        plan,
-        capturedAt: new Date().toISOString(),
-      }),
+      body:    JSON.stringify({ tokensUsed: tokens5h, tokenLimit: lim, plan, capturedAt: new Date().toISOString() }),
     });
     await lset(K_STATUS, { connected: res.ok, lastSync: new Date().toISOString() });
   } catch {
@@ -79,41 +145,32 @@ async function syncCore(tokens5h, plan) {
   }
 }
 
-// ── Token accumulation ────────────────────────────────────────────────────
+// ── Token accumulation (from SSE) ─────────────────────────────────────────
 async function addTokens(inputTokens, outputTokens, capturedAt, rateLimit) {
   const ts  = capturedAt ? Date.parse(capturedAt) : Date.now();
   const now = Date.now();
 
-  // Append to history
   const history = (await lget(K_HISTORY)) ?? [];
-  history.push({ ts, input: inputTokens, output: outputTokens });
+  history.push({ ts, input: inputTokens, output: outputTokens, src: 'sse' });
   if (history.length > MAX_HISTORY) history.splice(0, history.length - MAX_HISTORY);
   await lset(K_HISTORY, history);
 
-  // 5-hour window: create on first token, reset when expired — always persist
+  // 5-hour window — always persist on first creation or expiry
   let win = await lget(K_WIN5H);
   if (!win || now >= win.resetMs) {
     win = { startMs: ts, resetMs: ts + WINDOW_5H_MS };
     await lset(K_WIN5H, win);
   }
 
-  // Compute rolling totals
-  const tokens5h = history
-    .filter(e => e.ts >= win.startMs)
-    .reduce((s, e) => s + e.input + e.output, 0);
+  const tokens5h = history.filter(e => e.ts >= win.startMs).reduce((s, e) => s + e.input + e.output, 0);
+  const tokens7d = history.filter(e => e.ts >= now - WINDOW_7D_MS).reduce((s, e) => s + e.input + e.output, 0);
 
-  const tokens7d = history
-    .filter(e => e.ts >= now - WINDOW_7D_MS)
-    .reduce((s, e) => s + e.input + e.output, 0);
+  const plan  = (await lget(K_PLAN)) ?? 'pro';
+  const limit = PLAN_LIMITS[plan]?.limit5h ?? PLAN_LIMITS.pro.limit5h;
+  const pct5h = (tokens5h / limit) * 100;
 
-  const plan   = (await lget(K_PLAN)) ?? 'pro';
-  const limit  = PLAN_LIMITS[plan]?.limit5h ?? PLAN_LIMITS.pro.limit5h;
-  const pct5h  = (tokens5h / limit) * 100;
-
-  // Persist rate-limit metadata from the SSE message_limit event
   if (rateLimit && (rateLimit.resetsAt || rateLimit.type)) {
     await lset(K_RATELIMIT, { ...rateLimit, savedAt: new Date().toISOString() });
-    // Use resetsAt from claude.ai directly as the window reset time
     if (rateLimit.resetsAt) {
       const resetMs = Date.parse(rateLimit.resetsAt);
       if (!isNaN(resetMs)) {
@@ -125,8 +182,7 @@ async function addTokens(inputTokens, outputTokens, capturedAt, rateLimit) {
 
   updateBadge(pct5h);
   syncCore(tokens5h, plan).catch(() => {});
-
-  console.log(`${TAG} tokens +${inputTokens}in+${outputTokens}out → 5h:${tokens5h} (${pct5h.toFixed(1)}%)`);
+  console.log(`${TAG} SSE +${inputTokens}in+${outputTokens}out → 5h:${tokens5h} (${pct5h.toFixed(1)}%)`);
 }
 
 // ── Build stats payload for popup ─────────────────────────────────────────
@@ -144,7 +200,6 @@ async function getStats() {
     resetMs = win.resetMs;
     if (now >= resetMs) { startMs = now; resetMs = now + WINDOW_5H_MS; }
   } else if (history.length) {
-    // K_WIN5H never saved (old bug) — bootstrap from earliest token in history
     const minTs = Math.min(...history.map(e => e.ts));
     startMs = minTs;
     resetMs = minTs + WINDOW_5H_MS;
@@ -154,44 +209,37 @@ async function getStats() {
     resetMs = now + WINDOW_5H_MS;
   }
 
-  const tokens5h = history
-    .filter(e => e.ts >= startMs)
-    .reduce((s, e) => s + e.input + e.output, 0);
+  const tokens5h = history.filter(e => e.ts >= startMs).reduce((s, e) => s + e.input + e.output, 0);
+  const tokens7d = history.filter(e => e.ts >= now - WINDOW_7D_MS).reduce((s, e) => s + e.input + e.output, 0);
 
-  const tokens7d = history
-    .filter(e => e.ts >= now - WINDOW_7D_MS)
-    .reduce((s, e) => s + e.input + e.output, 0);
-
-  // Per-plan comparison
   const planTable = Object.entries(PLAN_LIMITS).map(([key, { limit5h, name }]) => ({
     key,
     name,
     isCurrent: key === plan,
-    pct5h:  tokens5h > 0 ? (tokens5h / limit5h)        * 100 : null,
-    pct7d:  tokens7d > 0 ? (tokens7d / (limit5h * 7))  * 100 : null,
+    pct5h:  tokens5h > 0 ? (tokens5h / limit5h)       * 100 : null,
+    pct7d:  tokens7d > 0 ? (tokens7d / (limit5h * 7)) * 100 : null,
   }));
 
-  const limit5h  = PLAN_LIMITS[plan]?.limit5h ?? PLAN_LIMITS.pro.limit5h;
-  const lastTs   = history.length ? history[history.length - 1].ts : null;
+  const limit5h = PLAN_LIMITS[plan]?.limit5h ?? PLAN_LIMITS.pro.limit5h;
+  const lastTs  = history.length ? history[history.length - 1].ts : null;
 
   return {
     plan,
-    planName:     PLAN_LIMITS[plan]?.name ?? 'Pro',
+    planName:      PLAN_LIMITS[plan]?.name ?? 'Pro',
     tokens5h,
     tokens7d,
-    pct5h:        tokens5h > 0 ? (tokens5h / limit5h)       * 100 : null,
-    pct7d:        tokens7d > 0 ? (tokens7d / (limit5h * 7)) * 100 : null,
+    pct5h:         tokens5h > 0 ? (tokens5h / limit5h)       * 100 : null,
+    pct7d:         tokens7d > 0 ? (tokens7d / (limit5h * 7)) * 100 : null,
     limit5h,
-    resetMs5h:    resetMs,
-    timeLeft5h:   Math.max(0, resetMs - now),
+    resetMs5h:     resetMs,
+    timeLeft5h:    Math.max(0, resetMs - now),
     history,
     planTable,
     lastTs,
     coreConnected: status?.connected ?? false,
-    // Rate-limit info from claude.ai message_limit SSE event
-    rlType:      rateLimit?.type      ?? null,
-    rlResetsAt:  rateLimit?.resetsAt  ?? null,
-    rlRemaining: rateLimit?.remaining ?? null,
+    rlType:        rateLimit?.type      ?? null,
+    rlResetsAt:    rateLimit?.resetsAt  ?? null,
+    rlRemaining:   rateLimit?.remaining ?? null,
   };
 }
 
@@ -208,8 +256,23 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   }
 
   if (msg.type === 'INTERCEPTED_API' && fromClaude) {
+    // Plan detection
     const p = detectPlan(msg.data);
     if (p) lset(K_PLAN, p).catch(() => {});
+
+    // Extract real token counts from conversation load responses.
+    // claude.ai GETs /chat_conversations/{id}?tree=True&rendering_mode=messages
+    // after every completion — its response contains per-message usage.
+    if (msg.url?.includes('/chat_conversations/') && msg.url?.includes('rendering_mode')) {
+      const events = extractConvTokens(msg.data);
+      if (events.length > 0) {
+        mergeTokenHistory(events).catch(() => {});
+      } else {
+        // Log structure so we can inspect what fields are available
+        console.log(`${TAG} conv response (no usage found):`, JSON.stringify(msg.data).slice(0, 600));
+      }
+    }
+
     reply({ ok: true });
     return false;
   }

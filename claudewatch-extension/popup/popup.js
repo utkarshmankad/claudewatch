@@ -31,6 +31,7 @@ function fmtK(n) {
 
 function fmtPct(p) {
   if (p == null) return '—';
+  if (p > 0 && p < 1) return '< 1%';
   return `${Math.round(p)}%`;
 }
 
@@ -54,13 +55,14 @@ function fmtDuration(ms) {
   return `${m}m`;
 }
 
-function fillBar(fillId, pct, min = 0) {
+function fillBar(fillId, pct) {
   const fill = el(fillId);
   if (!fill) return;
-  const safe = Math.min(100, Math.max(min, pct ?? 0));
-  fill.style.width = `${safe}%`;
+  const p = pct ?? 0;
+  // Use max() so even tiny percentages leave a visible 4 px pip
+  fill.style.width = p > 0 ? `max(4px, ${Math.min(100, p)}%)` : '0%';
   fill.className = ['gc-fill',
-    safe >= 90 ? 'red' : safe >= 70 ? 'amber' : '',
+    p >= 90 ? 'red' : p >= 70 ? 'amber' : '',
   ].filter(Boolean).join(' ');
 }
 
@@ -87,19 +89,19 @@ function renderPlanTable(planTable) {
   }
 
   tbody.innerHTML = planTable.map(row => {
-    const p5  = row.pct5h;
-    const p7  = row.pct7d;
+    const p5 = row.pct5h;
+    const p7 = row.pct7d;
 
     const cls5 = p5 == null ? 'null' : p5 >= 100 ? 'over' : p5 >= 80 ? 'high' : '';
     const cls7 = p7 == null ? 'null' : p7 >= 100 ? 'over' : p7 >= 80 ? 'high' : '';
 
-    const cur  = row.isCurrent;
-    const dot  = cur ? '<span class="current-marker" title="Your plan"></span>' : '';
+    const cur = row.isCurrent;
+    const dot = cur ? '<span class="current-marker" title="Your plan"></span>' : '';
 
     return `<tr class="${cur ? 'current-plan' : ''}">
       <td><span class="plan-name">${dot}${row.name}</span></td>
-      <td class="pct-cell ${cls5}">${p5 != null ? fmtPct(p5) : '—'}</td>
-      <td class="pct-cell ${cls7}">${p7 != null ? fmtPct(p7) : '—'}</td>
+      <td class="pct-cell ${cls5}">${fmtPct(p5)}</td>
+      <td class="pct-cell ${cls7}">${fmtPct(p7)}</td>
     </tr>`;
   }).join('');
 }
