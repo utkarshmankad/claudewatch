@@ -98,13 +98,22 @@ function parseSseTokens(buf, inputAcc, outputAcc, outCharsAcc, rateLimit) {
 
       // ── claude.ai-specific: message_limit carries rate-limit metadata ─────
       if (ev.type === 'message_limit') {
-        const ml = ev.message_limit ?? ev;  // some builds inline the fields directly
-        console.log(`${TAG} message_limit raw:`, JSON.stringify(ev));
-        rateLimit.type      = ml.type           ?? ev.type_of_limit     ?? null;
-        rateLimit.resetsAt  = ml.resetsAt       ?? ml.resets_at         ??
-                              ml.reset_at       ?? ml.windowResetsAt    ??
-                              ml.window_resets_at ?? null;
-        rateLimit.remaining = ml.remaining      ?? ml.messages_remaining ?? null;
+        const ml = ev.message_limit ?? {};
+        const win5h = ml.windows?.['5h'] ?? null;
+        const win7d = ml.windows?.['7d'] ?? null;
+
+        rateLimit.type      = ml.type      ?? null;
+        rateLimit.remaining = ml.remaining ?? null;
+
+        // resets_at is Unix epoch seconds — windows is the authoritative source
+        rateLimit.resetsAt   = win5h?.resets_at ? new Date(win5h.resets_at * 1000).toISOString()
+                             : (ml.resetsAt ?? ml.resets_at ?? null);
+        rateLimit.resetsAt7d = win7d?.resets_at ? new Date(win7d.resets_at * 1000).toISOString()
+                             : null;
+
+        // Authoritative utilization from Claude (0.0–1.0)
+        rateLimit.utilization5h = win5h?.utilization ?? null;
+        rateLimit.utilization7d = win7d?.utilization ?? null;
       }
 
     } catch {}

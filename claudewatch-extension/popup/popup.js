@@ -185,7 +185,7 @@ function render(stats) {
     return;
   }
 
-  const { tokens5h, tokens7d, pct5h, pct7d, limit5h, resetMs5h, timeLeft5h,
+  const { tokens5h, tokens7d, pct5h, pct7d, limit5h, resetMs5h, timeLeft5h, timeLeft7d,
           plan, planName, planTable, history, lastTs, coreConnected,
           rlType, rlResetsAt, rlRemaining } = stats;
 
@@ -205,12 +205,15 @@ function render(stats) {
   fillBar('fill-5h', pct5h);
   fillBar('fill-7d', pct7d);
 
-  // Use claude.ai's authoritative resetsAt if available, else fall back to estimated window
+  // 5h reset — prefer authoritative rlResetsAt, fall back to window estimate
   const effectiveResetMs = rlResetsAt ? Date.parse(rlResetsAt) : (resetMs5h ?? null);
   gResetMs = effectiveResetMs;
   gLastTs  = lastTs ?? null;
   const left5h = effectiveResetMs ? Math.max(0, effectiveResetMs - Date.now()) : (timeLeft5h ?? null);
   setText('resets-in', left5h != null ? `Resets in ${fmtDuration(left5h)}` : '—');
+
+  // 7d reset
+  setText('period-7d', timeLeft7d != null ? `Resets in ${fmtDuration(timeLeft7d)}` : 'Rolling 7 days');
 
   // Alert — use claude.ai's official rate-limit type if available
   if (rlType === 'over_limit') {

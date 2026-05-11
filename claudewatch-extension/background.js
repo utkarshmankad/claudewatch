@@ -242,30 +242,44 @@ async function getStats() {
     }
   }
 
-  const tokens5h = history.filter(e => e.ts >= startMs).reduce((s, e) => s + e.input + e.output, 0);
-  const tokens7d = history.filter(e => e.ts >= now - WINDOW_7D_MS).reduce((s, e) => s + e.input + e.output, 0);
+  const capturedTokens5h = history.filter(e => e.ts >= startMs).reduce((s, e) => s + e.input + e.output, 0);
+  const capturedTokens7d = history.filter(e => e.ts >= now - WINDOW_7D_MS).reduce((s, e) => s + e.input + e.output, 0);
+  const limit5h           = PLAN_LIMITS[plan]?.limit5h ?? PLAN_LIMITS.pro.limit5h;
+  const lastTs            = history.length ? history[history.length - 1].ts : null;
 
-  const planTable = Object.entries(PLAN_LIMITS).map(([key, { limit5h, name }]) => ({
+  // Claude's authoritative utilization (0.0–1.0) beats our captured-token estimate
+  const authPct5h = rateLimit?.utilization5h != null ? rateLimit.utilization5h * 100 : null;
+  const authPct7d = rateLimit?.utilization7d != null ? rateLimit.utilization7d * 100 : null;
+  const pct5h     = authPct5h ?? (capturedTokens5h > 0 ? (capturedTokens5h / limit5h) * 100 : null);
+  const pct7d     = authPct7d ?? (capturedTokens7d > 0 ? (capturedTokens7d / (limit5h * 7)) * 100 : null);
+
+  // Infer token counts from authoritative utilization × plan limit so the gauge
+  // shows a meaningful number even when SSE capture is incomplete.
+  const tokens5h = authPct5h != null ? Math.round((authPct5h / 100) * limit5h)       : capturedTokens5h;
+  const tokens7d = authPct7d != null ? Math.round((authPct7d / 100) * (limit5h * 7)) : capturedTokens7d;
+
+  // Plan table uses inferred counts so every row is calibrated consistently
+  const planTable = Object.entries(PLAN_LIMITS).map(([key, { limit5h: lim5h, name }]) => ({
     key,
     name,
     isCurrent: key === plan,
-    pct5h:  tokens5h > 0 ? (tokens5h / limit5h)       * 100 : null,
-    pct7d:  tokens7d > 0 ? (tokens7d / (limit5h * 7)) * 100 : null,
+    pct5h:  tokens5h > 0 ? (tokens5h / lim5h)       * 100 : null,
+    pct7d:  tokens7d > 0 ? (tokens7d / (lim5h * 7)) * 100 : null,
   }));
 
-  const limit5h = PLAN_LIMITS[plan]?.limit5h ?? PLAN_LIMITS.pro.limit5h;
-  const lastTs  = history.length ? history[history.length - 1].ts : null;
+  const resetMs7d = rateLimit?.resetsAt7d ? Date.parse(rateLimit.resetsAt7d) : null;
 
   return {
     plan,
     planName:      PLAN_LIMITS[plan]?.name ?? 'Pro',
     tokens5h,
     tokens7d,
-    pct5h:         tokens5h > 0 ? (tokens5h / limit5h)       * 100 : null,
-    pct7d:         tokens7d > 0 ? (tokens7d / (limit5h * 7)) * 100 : null,
+    pct5h,
+    pct7d,
     limit5h,
     resetMs5h:     resetMs,
     timeLeft5h:    Math.max(0, resetMs - now),
+    timeLeft7d:    resetMs7d ? Math.max(0, resetMs7d - now) : null,
     history,
     planTable,
     lastTs,
