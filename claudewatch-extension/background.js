@@ -65,15 +65,19 @@ function extractRateLimitFromResponse(data) {
     data.rate_limit, data.rateLimit, data.message_limit,
     data.account?.rate_limit, data.usage?.rate_limit,
     data.limits?.rate_limit, data.limits,
+    data.current_period, data.window, data.usage_window,
   ];
   for (const c of candidates) {
     if (!c || typeof c !== 'object') continue;
-    const resetsAt = c.resetsAt ?? c.resets_at ?? c.reset_at ?? null;
+    const resetsAt = c.resetsAt        ?? c.resets_at         ??
+                     c.reset_at        ?? c.windowResetsAt    ??
+                     c.window_resets_at ?? c.period_end       ??
+                     c.current_period_end ?? null;
     if (resetsAt) {
       return {
-        type:      c.type      ?? null,
+        type:      c.type ?? null,
         resetsAt,
-        remaining: c.remaining ?? null,
+        remaining: c.remaining ?? c.messages_remaining ?? null,
       };
     }
   }

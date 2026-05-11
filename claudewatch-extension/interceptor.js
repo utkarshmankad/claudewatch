@@ -98,11 +98,13 @@ function parseSseTokens(buf, inputAcc, outputAcc, outCharsAcc, rateLimit) {
 
       // ── claude.ai-specific: message_limit carries rate-limit metadata ─────
       if (ev.type === 'message_limit') {
-        const ml = ev.message_limit ?? {};
-        console.log(`${TAG} message_limit:`, JSON.stringify(ml));
-        rateLimit.type      = ml.type      ?? null;   // within_limit | approaching_limit | over_limit
-        rateLimit.resetsAt  = ml.resetsAt  ?? null;   // ISO timestamp or null
-        rateLimit.remaining = ml.remaining ?? null;   // messages remaining or null
+        const ml = ev.message_limit ?? ev;  // some builds inline the fields directly
+        console.log(`${TAG} message_limit raw:`, JSON.stringify(ev));
+        rateLimit.type      = ml.type           ?? ev.type_of_limit     ?? null;
+        rateLimit.resetsAt  = ml.resetsAt       ?? ml.resets_at         ??
+                              ml.reset_at       ?? ml.windowResetsAt    ??
+                              ml.window_resets_at ?? null;
+        rateLimit.remaining = ml.remaining      ?? ml.messages_remaining ?? null;
       }
 
     } catch {}

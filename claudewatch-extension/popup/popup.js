@@ -24,9 +24,9 @@ function setText(id, v) {
 
 function fmtK(n) {
   if (n == null || isNaN(n)) return '—';
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
-  if (n >= 1_000)     return `${(n / 1_000).toFixed(1)}k`;
-  return String(n);
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M tok`;
+  if (n >= 1_000)     return `${(n / 1_000).toFixed(1)}k tok`;
+  return `${n} tok`;
 }
 
 function fmtPct(p) {
