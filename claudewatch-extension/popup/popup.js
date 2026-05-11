@@ -186,7 +186,7 @@ function render(stats) {
   }
 
   const { tokens5h, tokens7d, pct5h, pct7d, limit5h, resetMs5h, timeLeft5h, timeLeft7d,
-          plan, planName, planTable, history, lastTs, coreConnected,
+          plan, planName, planTable, history, lastTs,
           rlType, rlResetsAt, rlRemaining } = stats;
 
   // Show main content as long as we have ANY data (tokens OR rate-limit info)
@@ -234,11 +234,6 @@ function render(stats) {
 
   // Footer
   setText('plan-pill', planName ?? plan ?? '—');
-  const dot = el('core-dot');
-  if (dot) {
-    dot.className = `core-dot ${coreConnected ? 'connected' : ''}`;
-    dot.title     = coreConnected ? 'Core: connected' : 'Core: offline (standalone mode)';
-  }
 
   // Plan table
   renderPlanTable(planTable);

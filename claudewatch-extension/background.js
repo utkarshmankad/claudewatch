@@ -1,6 +1,6 @@
 // background.js — service worker
 // Accumulates SSE token counts, maintains 5h/7d rolling windows,
-// detects plan, updates badge, optionally syncs to local Core daemon.
+// detects plan, updates badge.
 
 const TAG = '[ClaudeWatch]';
 
@@ -8,7 +8,6 @@ const TAG = '[ClaudeWatch]';
 const WINDOW_5H_MS  = 5  * 60 * 60 * 1000;
 const WINDOW_7D_MS  = 7  * 24 * 60 * 60 * 1000;
 const MAX_HISTORY   = 2000;
-const DEFAULT_CORE  = 'http://localhost:7734';
 
 // Approximate token limits per 5-hour window (community-derived estimates).
 const PLAN_LIMITS = {
@@ -23,13 +22,11 @@ const PLAN_LIMITS = {
 const K_HISTORY   = 'token_history';   // [{ts,input,output,src}]
 const K_WIN5H     = 'window_5h';       // {startMs, resetMs}
 const K_PLAN      = 'detected_plan';   // plan key string
-const K_STATUS    = 'core_status';     // {connected,lastSync}
 const K_RATELIMIT = 'rate_limit';      // {type, resetsAt, remaining}
 
 // ── Storage helpers ───────────────────────────────────────────────────────
 const lget = (k)    => new Promise(r => chrome.storage.local.get(k,  d => r(d[k]  ?? null)));
 const lset = (k, v) => new Promise(r => chrome.storage.local.set({[k]: v}, r));
-const sget = (d)    => new Promise(r => chrome.storage.sync.get(d, r));
 
 // ── Badge ─────────────────────────────────────────────────────────────────
 function updateBadge(pct) {
@@ -146,22 +143,6 @@ async function mergeTokenHistory(events) {
   return added;
 }
 
-// ── Core daemon sync (optional, fails silently) ───────────────────────────
-async function syncCore(tokens5h, plan) {
-  const { coreUrl } = await sget({ coreUrl: DEFAULT_CORE });
-  try {
-    const lim = PLAN_LIMITS[plan]?.limit5h ?? PLAN_LIMITS.pro.limit5h;
-    const res = await fetch(`${coreUrl}/api/session`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ tokensUsed: tokens5h, tokenLimit: lim, plan, capturedAt: new Date().toISOString() }),
-    });
-    await lset(K_STATUS, { connected: res.ok, lastSync: new Date().toISOString() });
-  } catch {
-    await lset(K_STATUS, { connected: false, lastSync: null });
-  }
-}
-
 // ── Token accumulation (from SSE) ─────────────────────────────────────────
 async function addTokens(inputTokens, outputTokens, capturedAt, rateLimit) {
   const ts  = capturedAt ? Date.parse(capturedAt) : Date.now();
@@ -198,7 +179,6 @@ async function addTokens(inputTokens, outputTokens, capturedAt, rateLimit) {
   }
 
   updateBadge(pct5h);
-  syncCore(tokens5h, plan).catch(() => {});
   console.log(`${TAG} SSE +${inputTokens}in+${outputTokens}out → 5h:${tokens5h} (${pct5h.toFixed(1)}%)`);
 }
 
@@ -207,7 +187,6 @@ async function getStats() {
   const history   = (await lget(K_HISTORY))   ?? [];
   const win       = (await lget(K_WIN5H))     ?? null;
   const plan      = (await lget(K_PLAN))      ?? 'pro';
-  const status    = (await lget(K_STATUS))    ?? null;
   const rateLimit = (await lget(K_RATELIMIT)) ?? null;
   const now       = Date.now();
 
@@ -283,7 +262,6 @@ async function getStats() {
     history,
     planTable,
     lastTs,
-    coreConnected: status?.connected ?? false,
     rlType:        rateLimit?.type      ?? null,
     rlResetsAt:    rateLimit?.resetsAt  ?? null,
     rlRemaining:   rateLimit?.remaining ?? null,
@@ -363,7 +341,6 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name !== 'heartbeat') return;
   const s = await getStats();
   updateBadge(s.pct5h);
-  if (s.tokens5h > 0) syncCore(s.tokens5h, s.plan).catch(() => {});
 });
 
 // ── Init ──────────────────────────────────────────────────────────────────
