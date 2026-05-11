@@ -57,6 +57,29 @@ function detectPlan(data) {
   return null;
 }
 
+// ── Rate-limit window extraction from any API response ───────────────────
+// claude.ai encodes the current window's resetsAt in several response shapes.
+function extractRateLimitFromResponse(data) {
+  if (!data || typeof data !== 'object') return null;
+  const candidates = [
+    data.rate_limit, data.rateLimit, data.message_limit,
+    data.account?.rate_limit, data.usage?.rate_limit,
+    data.limits?.rate_limit, data.limits,
+  ];
+  for (const c of candidates) {
+    if (!c || typeof c !== 'object') continue;
+    const resetsAt = c.resetsAt ?? c.resets_at ?? c.reset_at ?? null;
+    if (resetsAt) {
+      return {
+        type:      c.type      ?? null,
+        resetsAt,
+        remaining: c.remaining ?? null,
+      };
+    }
+  }
+  return null;
+}
+
 // ── Conversation token extraction ─────────────────────────────────────────
 // claude.ai loads full conversation data via GET /api/organizations/{o}/
 // chat_conversations/{c}?tree=True&rendering_mode=messages after each reply.
@@ -113,16 +136,6 @@ async function mergeTokenHistory(events) {
     if (history.length > MAX_HISTORY) history.splice(0, history.length - MAX_HISTORY);
     await lset(K_HISTORY, history);
 
-    // Refresh the 5h window startMs to the earliest token in history
-    // so newly merged historical events are included in the 5h filter.
-    const win = await lget(K_WIN5H);
-    if (win) {
-      const newStart = Math.min(win.startMs, ...events.map(e => e.ts));
-      if (newStart < win.startMs) {
-        await lset(K_WIN5H, { startMs: newStart, resetMs: win.resetMs });
-      }
-    }
-
     console.log(`${TAG} Merged ${added} events from conversation; history now ${history.length}`);
   }
 
@@ -174,7 +187,7 @@ async function addTokens(inputTokens, outputTokens, capturedAt, rateLimit) {
     if (rateLimit.resetsAt) {
       const resetMs = Date.parse(rateLimit.resetsAt);
       if (!isNaN(resetMs)) {
-        win = { startMs: win.startMs, resetMs };
+        win = { startMs: resetMs - WINDOW_5H_MS, resetMs };
         await lset(K_WIN5H, win);
       }
     }
@@ -194,19 +207,35 @@ async function getStats() {
   const rateLimit = (await lget(K_RATELIMIT)) ?? null;
   const now       = Date.now();
 
+  // Resolve an authoritative resetMs from K_RATELIMIT if available and still in the future
+  function resolveFromRateLimit() {
+    if (!rateLimit?.resetsAt) return null;
+    const rlResetMs = Date.parse(rateLimit.resetsAt);
+    if (!isNaN(rlResetMs) && rlResetMs > now) {
+      return { startMs: rlResetMs - WINDOW_5H_MS, resetMs: rlResetMs };
+    }
+    return null;
+  }
+
   let startMs, resetMs;
-  if (win) {
+  if (win && now < win.resetMs) {
     startMs = win.startMs;
     resetMs = win.resetMs;
-    if (now >= resetMs) { startMs = now; resetMs = now + WINDOW_5H_MS; }
-  } else if (history.length) {
-    const minTs = Math.min(...history.map(e => e.ts));
-    startMs = minTs;
-    resetMs = minTs + WINDOW_5H_MS;
-    if (now >= resetMs) { startMs = now; resetMs = now + WINDOW_5H_MS; }
   } else {
-    startMs = now;
-    resetMs = now + WINDOW_5H_MS;
+    // K_WIN5H is missing or expired — try K_RATELIMIT first, then estimate from history
+    const rl = resolveFromRateLimit();
+    if (rl) {
+      startMs = rl.startMs;
+      resetMs = rl.resetMs;
+    } else if (history.length) {
+      const minTs = Math.min(...history.map(e => e.ts));
+      startMs = minTs;
+      resetMs = minTs + WINDOW_5H_MS;
+      if (now >= resetMs) { startMs = now; resetMs = now + WINDOW_5H_MS; }
+    } else {
+      startMs = now;
+      resetMs = now + WINDOW_5H_MS;
+    }
   }
 
   const tokens5h = history.filter(e => e.ts >= startMs).reduce((s, e) => s + e.input + e.output, 0);
@@ -259,6 +288,23 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     // Plan detection
     const p = detectPlan(msg.data);
     if (p) lset(K_PLAN, p).catch(() => {});
+
+    // Scan every API response for an authoritative rate-limit window reset time.
+    // claude.ai encodes this in organization/account responses so we can anchor
+    // the 5h window even when the user is well within their limit.
+    const rlInfo = extractRateLimitFromResponse(msg.data);
+    if (rlInfo?.resetsAt) {
+      const rlResetMs = Date.parse(rlInfo.resetsAt);
+      if (!isNaN(rlResetMs)) {
+        lset(K_RATELIMIT, { ...rlInfo, savedAt: new Date().toISOString() }).catch(() => {});
+        lget(K_WIN5H).then(win => {
+          if (!win || Math.abs(rlResetMs - win.resetMs) > 60_000) {
+            lset(K_WIN5H, { startMs: rlResetMs - WINDOW_5H_MS, resetMs: rlResetMs });
+          }
+        }).catch(() => {});
+        console.log(`${TAG} API rate-limit window anchored via ${msg.url}: resetsAt=${rlInfo.resetsAt}`);
+      }
+    }
 
     // Extract real token counts from conversation load responses.
     // claude.ai GETs /chat_conversations/{id}?tree=True&rendering_mode=messages
