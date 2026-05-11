@@ -24,9 +24,9 @@ function setText(id, v) {
 
 function fmtK(n) {
   if (n == null || isNaN(n)) return '—';
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M tok`;
-  if (n >= 1_000)     return `${(n / 1_000).toFixed(1)}k tok`;
-  return `${n} tok`;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000)     return `${(n / 1_000).toFixed(1)}k`;
+  return String(n);
 }
 
 function fmtPct(p) {
@@ -198,8 +198,8 @@ function render(stats) {
   if (!hasData) return;
 
   // Gauges
-  setText('tokens-5h', fmtK(tokens5h));
-  setText('tokens-7d', fmtK(tokens7d));
+  setText('tokens-5h', `${fmtK(tokens5h)} / ${fmtK(limit5h)}`);
+  setText('tokens-7d', `${fmtK(tokens7d)} / ${fmtK(limit5h * 7)}`);
   setText('pct-5h', fmtPct(pct5h));
   setText('pct-7d', fmtPct(pct7d));
   fillBar('fill-5h', pct5h);

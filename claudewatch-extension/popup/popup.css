@@ -175,16 +175,15 @@ header {
 }
 
 .gc-tokens {
-  font-size: 17px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   line-height: 1.2;
   margin-bottom: 6px;
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .gc-bar-wrap {
