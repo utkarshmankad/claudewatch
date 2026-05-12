@@ -1,13 +1,14 @@
 // popup.js — fetches stats from background service worker via GET_STATS,
 // renders dual gauges (5h / 7d), plan comparison table, and SVG sparkline.
 
-const REFRESH_MS    = 15_000;
-const COUNTDOWN_MS  = 30_000;
+const REFRESH_MS   = 15_000;
+const TICK_MS      = 1_000;
 
 // ── Module state ─────────────────────────────────────────────────────────────
 
-let gResetMs  = null;   // epoch ms when 5h window resets
-let gLastTs   = null;   // epoch ms of last token event
+let gResetMs5h = null;  // epoch ms when 5h window resets
+let gResetMs7d = null;  // epoch ms when 7d window resets
+let gLastTs    = null;  // epoch ms of last token event
 let gActiveWin = '5h';  // which chart window is shown
 let gHistory   = [];    // [{ts, input, output}] from background
 
@@ -53,6 +54,17 @@ function fmtDuration(ms) {
   const m = totalMin % 60;
   if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
   return `${m}m`;
+}
+
+function fmtCountdown(ms) {
+  if (ms == null || ms <= 0) return '00:00:00';
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  const mm = String(m).padStart(2, '0');
+  const ss = String(s).padStart(2, '0');
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
 function fillBar(fillId, pct) {
@@ -166,13 +178,25 @@ function renderSparkline(history, windowKey) {
   svgEl.appendChild(g);
 }
 
-// ── Countdown (no re-fetch) ───────────────────────────────────────────────────
+// ── Countdown tick (fires every second) ──────────────────────────────────────
 
 function tickCountdown() {
-  if (gResetMs != null) {
-    const left = Math.max(0, gResetMs - Date.now());
-    setText('resets-in', `Resets in ${fmtDuration(left)}`);
+  const now = Date.now();
+
+  const el5h = el('countdown-5h');
+  if (el5h && gResetMs5h != null) {
+    const left = Math.max(0, gResetMs5h - now);
+    el5h.textContent = fmtCountdown(left);
+    el5h.className   = 'reset-clock' + (left < 5 * 60_000 ? ' urgent' : left < 30 * 60_000 ? ' warn' : '');
   }
+
+  const el7d = el('countdown-7d');
+  if (el7d && gResetMs7d != null) {
+    const left = Math.max(0, gResetMs7d - now);
+    el7d.textContent = fmtCountdown(left);
+    el7d.className   = 'reset-clock';
+  }
+
   setText('last-update', gLastTs ? fmtAgo(gLastTs) : '—');
 }
 
@@ -205,19 +229,14 @@ function render(stats) {
   fillBar('fill-5h', pct5h);
   fillBar('fill-7d', pct7d);
 
-  // 5h reset — prefer authoritative rlResetsAt, fall back to window estimate
-  const effectiveResetMs = rlResetsAt ? Date.parse(rlResetsAt) : (resetMs5h ?? null);
-  gResetMs = effectiveResetMs;
-  gLastTs  = lastTs ?? null;
-  const left5h = effectiveResetMs ? Math.max(0, effectiveResetMs - Date.now()) : (timeLeft5h ?? null);
-  setText('resets-in', left5h != null ? `Resets in ${fmtDuration(left5h)}` : '—');
-
-  // 7d reset
-  setText('period-7d', timeLeft7d != null ? `Resets in ${fmtDuration(timeLeft7d)}` : 'Rolling 7 days');
+  // Anchor countdown reset times — prefer authoritative rlResetsAt
+  gResetMs5h = rlResetsAt ? Date.parse(rlResetsAt) : (resetMs5h ?? null);
+  gResetMs7d = stats.timeLeft7d != null ? Date.now() + stats.timeLeft7d : null;
+  gLastTs    = lastTs ?? null;
 
   // Alert — use claude.ai's official rate-limit type if available
   if (rlType === 'over_limit') {
-    showAlert('Rate limit reached — window resets ' + (rlResetsAt ? fmtDuration(Math.max(0, Date.parse(rlResetsAt) - Date.now())) : ''), true);
+    showAlert('Rate limit reached — resets in ' + (gResetMs5h ? fmtDuration(Math.max(0, gResetMs5h - Date.now())) : '—'), true);
   } else if (rlType === 'approaching_limit') {
     const rem = rlRemaining != null ? ` (${rlRemaining} msgs left)` : '';
     showAlert(`Approaching limit${rem}`);
@@ -297,5 +316,6 @@ document.addEventListener('DOMContentLoaded', () => {
   setupTabs();
   loadAndRender();
   setInterval(loadAndRender, REFRESH_MS);
-  setInterval(tickCountdown, COUNTDOWN_MS);
+  setInterval(tickCountdown, TICK_MS);
+  tickCountdown();
 });
