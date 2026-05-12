@@ -5,9 +5,10 @@
 const TAG = '[ClaudeWatch]';
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const WINDOW_5H_MS  = 5  * 60 * 60 * 1000;
-const WINDOW_7D_MS  = 7  * 24 * 60 * 60 * 1000;
-const MAX_HISTORY   = 2000;
+const WINDOW_5H_MS       = 5  * 60 * 60 * 1000;
+const WINDOW_7D_MS       = 7  * 24 * 60 * 60 * 1000;
+const MAX_HISTORY        = 2000;
+const POLL_INTERVAL_MIN  = 5;   // background poll for cross-client usage
 
 // Approximate token limits per 5-hour window (community-derived estimates).
 const PLAN_LIMITS = {
@@ -22,7 +23,8 @@ const PLAN_LIMITS = {
 const K_HISTORY   = 'token_history';   // [{ts,input,output,src}]
 const K_WIN5H     = 'window_5h';       // {startMs, resetMs}
 const K_PLAN      = 'detected_plan';   // plan key string
-const K_RATELIMIT = 'rate_limit';      // {type, resetsAt, remaining}
+const K_RATELIMIT = 'rate_limit';      // {type, resetsAt, remaining, utilization5h, ...}
+const K_ORG_ID    = 'org_id';          // discovered org UUID for background polling
 
 // ── Storage helpers ───────────────────────────────────────────────────────
 const lget = (k)    => new Promise(r => chrome.storage.local.get(k,  d => r(d[k]  ?? null)));
@@ -55,9 +57,46 @@ function detectPlan(data) {
 }
 
 // ── Rate-limit window extraction from any API response ───────────────────
-// claude.ai encodes the current window's resetsAt in several response shapes.
+// Handles both the SSE message_limit shape and REST API response shapes.
+// Returns null if no usable data found.
 function extractRateLimitFromResponse(data) {
   if (!data || typeof data !== 'object') return null;
+
+  // Extract from a windows object: {5h: {utilization, resets_at}, 7d: {...}}
+  function fromWindows(windows) {
+    if (!windows || typeof windows !== 'object') return null;
+    const win5h = windows['5h'];
+    const win7d = windows['7d'];
+    if (!win5h && !win7d) return null;
+    return {
+      resetsAt:      win5h?.resets_at ? new Date(win5h.resets_at * 1000).toISOString() : null,
+      resetsAt7d:    win7d?.resets_at ? new Date(win7d.resets_at * 1000).toISOString() : null,
+      utilization5h: win5h?.utilization ?? null,
+      utilization7d: win7d?.utilization ?? null,
+    };
+  }
+
+  // Search common paths where claude.ai encodes the windows structure
+  const windowsSources = [
+    data.windows,
+    data.rate_limit?.windows,
+    data.message_limit?.windows,
+    data.limits?.windows,
+    data.usage?.windows,
+  ];
+  for (const w of windowsSources) {
+    const r = fromWindows(w);
+    if (r && (r.resetsAt || r.utilization5h != null)) {
+      return {
+        type:      data.type ?? data.rate_limit?.type ?? data.message_limit?.type ?? null,
+        remaining: data.remaining ?? data.rate_limit?.remaining
+                   ?? data.message_limit?.remaining ?? null,
+        ...r,
+      };
+    }
+  }
+
+  // Fall back: scan flat candidate objects for a resetsAt timestamp
   const candidates = [
     data.rate_limit, data.rateLimit, data.message_limit,
     data.account?.rate_limit, data.usage?.rate_limit,
@@ -79,6 +118,20 @@ function extractRateLimitFromResponse(data) {
     }
   }
   return null;
+}
+
+// Merge new rate-limit data into storage without losing existing fields.
+// Only overwrites a field when the incoming value is non-null, so that
+// a REST poll (which may lack utilization5h) never wipes SSE-captured data.
+async function mergeRateLimit(newInfo) {
+  if (!newInfo) return;
+  const existing = (await lget(K_RATELIMIT)) ?? {};
+  const merged = { ...existing };
+  for (const [k, v] of Object.entries(newInfo)) {
+    if (v != null) merged[k] = v;
+  }
+  merged.savedAt = new Date().toISOString();
+  await lset(K_RATELIMIT, merged);
 }
 
 // ── Conversation token extraction ─────────────────────────────────────────
@@ -168,7 +221,7 @@ async function addTokens(inputTokens, outputTokens, capturedAt, rateLimit) {
   const pct5h = (tokens5h / limit) * 100;
 
   if (rateLimit && (rateLimit.resetsAt || rateLimit.type)) {
-    await lset(K_RATELIMIT, { ...rateLimit, savedAt: new Date().toISOString() });
+    await mergeRateLimit(rateLimit);
     if (rateLimit.resetsAt) {
       const resetMs = Date.parse(rateLimit.resetsAt);
       if (!isNaN(resetMs)) {
@@ -268,6 +321,85 @@ async function getStats() {
   };
 }
 
+// ── Background polling ────────────────────────────────────────────────────
+// Periodically fetches claude.ai REST endpoints using the user's session
+// cookies so usage from Claude Desktop and other clients stays reflected.
+// The service worker has host_permissions for claude.ai, so fetch() from
+// here automatically includes the browser's cookies for that domain.
+
+async function pollOrgUsage(orgId) {
+  const urls = [
+    `https://claude.ai/api/organizations/${orgId}`,
+    `https://claude.ai/api/organizations/${orgId}/usage`,
+  ];
+  for (const url of urls) {
+    try {
+      const resp = await fetch(url, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
+      if (!resp.ok) continue;
+      const data = await resp.json();
+
+      const p = detectPlan(data);
+      if (p) await lset(K_PLAN, p);
+
+      const rl = extractRateLimitFromResponse(data);
+      if (rl && (rl.resetsAt || rl.utilization5h != null)) {
+        await mergeRateLimit(rl);
+        if (rl.resetsAt) {
+          const resetMs = Date.parse(rl.resetsAt);
+          if (!isNaN(resetMs)) {
+            await lset(K_WIN5H, { startMs: resetMs - WINDOW_5H_MS, resetMs });
+          }
+        }
+        console.log(`${TAG} poll org usage OK — resetsAt=${rl.resetsAt} util5h=${rl.utilization5h}`);
+        return;
+      }
+    } catch (err) {
+      console.log(`${TAG} poll ${url} error:`, err.message);
+    }
+  }
+}
+
+async function backgroundPoll() {
+  console.log(`${TAG} background poll`);
+  try {
+    const resp = await fetch('https://claude.ai/api/organizations', {
+      credentials: 'include',
+      headers: { Accept: 'application/json' },
+    });
+    if (!resp.ok) {
+      console.log(`${TAG} poll /api/organizations → ${resp.status}`);
+      return;
+    }
+    const data = await resp.json();
+
+    const p = detectPlan(data);
+    if (p) await lset(K_PLAN, p);
+
+    const rl = extractRateLimitFromResponse(data);
+    if (rl) await mergeRateLimit(rl);
+
+    // Extract org UUID — claude.ai returns an array of org objects
+    const orgs  = Array.isArray(data) ? data : (data.organizations ?? [data]);
+    const orgId = orgs[0]?.uuid ?? orgs[0]?.id ?? null;
+    if (orgId) {
+      await lset(K_ORG_ID, orgId);
+      await pollOrgUsage(orgId);
+    } else {
+      // Try with a previously discovered org ID
+      const stored = await lget(K_ORG_ID);
+      if (stored) await pollOrgUsage(stored);
+    }
+
+    const stats = await getStats();
+    updateBadge(stats.pct5h);
+  } catch (err) {
+    console.log(`${TAG} backgroundPoll error:`, err.message);
+  }
+}
+
 // ── Message router ─────────────────────────────────────────────────────────
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   const fromClaude    = sender.tab?.url?.startsWith('https://claude.ai/');
@@ -285,6 +417,13 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     const p = detectPlan(msg.data);
     if (p) lset(K_PLAN, p).catch(() => {});
 
+    // Cache org UUID when we see it from the /api/organizations intercept
+    if (msg.url?.includes('/api/organizations')) {
+      const orgs  = Array.isArray(msg.data) ? msg.data : (msg.data?.organizations ?? [msg.data]);
+      const orgId = orgs[0]?.uuid ?? orgs[0]?.id ?? null;
+      if (orgId) lset(K_ORG_ID, orgId).catch(() => {});
+    }
+
     // Scan every API response for an authoritative rate-limit window reset time.
     // claude.ai encodes this in organization/account responses so we can anchor
     // the 5h window even when the user is well within their limit.
@@ -292,7 +431,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     if (rlInfo?.resetsAt) {
       const rlResetMs = Date.parse(rlInfo.resetsAt);
       if (!isNaN(rlResetMs)) {
-        lset(K_RATELIMIT, { ...rlInfo, savedAt: new Date().toISOString() }).catch(() => {});
+        mergeRateLimit(rlInfo).catch(() => {});
         lget(K_WIN5H).then(win => {
           if (!win || Math.abs(rlResetMs - win.resetMs) > 60_000) {
             lset(K_WIN5H, { startMs: rlResetMs - WINDOW_5H_MS, resetMs: rlResetMs });
@@ -336,11 +475,14 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   return false;
 });
 
-// ── Heartbeat alarm ────────────────────────────────────────────────────────
+// ── Alarms ────────────────────────────────────────────────────────────────
 chrome.alarms.onAlarm.addListener(async (alarm) => {
-  if (alarm.name !== 'heartbeat') return;
-  const s = await getStats();
-  updateBadge(s.pct5h);
+  if (alarm.name === 'heartbeat') {
+    const s = await getStats();
+    updateBadge(s.pct5h);
+  } else if (alarm.name === 'poll') {
+    backgroundPoll().catch(() => {});
+  }
 });
 
 // ── Init ──────────────────────────────────────────────────────────────────
@@ -348,16 +490,26 @@ chrome.runtime.onInstalled.addListener(({ reason }) => {
   chrome.alarms.clear('heartbeat', () => {
     chrome.alarms.create('heartbeat', { periodInMinutes: 1 });
   });
+  chrome.alarms.clear('poll', () => {
+    chrome.alarms.create('poll', { periodInMinutes: POLL_INTERVAL_MIN });
+  });
   chrome.action.setBadgeText({ text: '' });
   if (reason === 'install') {
     chrome.tabs.create({ url: chrome.runtime.getURL('onboarding/onboarding.html') });
   }
+  // Fetch current state immediately on install/update
+  backgroundPoll().catch(() => {});
 });
 
 chrome.runtime.onStartup.addListener(() => {
   chrome.alarms.get('heartbeat', e => {
     if (!e) chrome.alarms.create('heartbeat', { periodInMinutes: 1 });
   });
+  chrome.alarms.get('poll', e => {
+    if (!e) chrome.alarms.create('poll', { periodInMinutes: POLL_INTERVAL_MIN });
+  });
+  // Fetch fresh data on browser start — catches usage from Desktop overnight
+  backgroundPoll().catch(() => {});
 });
 
 console.log(`${TAG} service worker initialised`);

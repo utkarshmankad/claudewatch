@@ -65,7 +65,7 @@ for (const perm of REQUIRED_PERMS) {
     `missing permission: ${perm}`);
 }
 
-const REQUIRED_HOSTS = ['https://claude.ai/*', 'http://localhost:7734/*'];
+const REQUIRED_HOSTS = ['https://claude.ai/*'];
 for (const host of REQUIRED_HOSTS) {
   check(manifest.host_permissions?.includes(host),
     `host_permission: ${host}`,
