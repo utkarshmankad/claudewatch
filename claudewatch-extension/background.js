@@ -280,9 +280,13 @@ async function getStats() {
   const limit5h           = PLAN_LIMITS[plan]?.limit5h ?? PLAN_LIMITS.pro.limit5h;
   const lastTs            = history.length ? history[history.length - 1].ts : null;
 
-  // Claude's authoritative utilization (0.0–1.0) beats our captured-token estimate
-  const authPct5h = rateLimit?.utilization5h != null ? rateLimit.utilization5h * 100 : null;
-  const authPct7d = rateLimit?.utilization7d != null ? rateLimit.utilization7d * 100 : null;
+  // Claude's authoritative utilization (0.0–1.0) beats our captured-token estimate,
+  // but only while the window it came from is still open. Stale utilization after
+  // a reset must not prevent the gauge from zeroing out.
+  const rlWindowOpen  = rateLimit?.resetsAt   && Date.parse(rateLimit.resetsAt)   > now;
+  const rl7dWindowOpen = rateLimit?.resetsAt7d && Date.parse(rateLimit.resetsAt7d) > now;
+  const authPct5h = (rlWindowOpen   && rateLimit.utilization5h != null) ? rateLimit.utilization5h * 100 : null;
+  const authPct7d = (rl7dWindowOpen && rateLimit.utilization7d != null) ? rateLimit.utilization7d * 100 : null;
   const pct5h     = authPct5h ?? (capturedTokens5h > 0 ? (capturedTokens5h / limit5h) * 100 : null);
   const pct7d     = authPct7d ?? (capturedTokens7d > 0 ? (capturedTokens7d / (limit5h * 7)) * 100 : null);
 
@@ -398,7 +402,13 @@ async function backfillFromConversations(orgId) {
       return !isNaN(t) && t >= cutoffMs;
     });
 
+    // Log the shape of the conv list so we know what field names are in play
+    if (convs.length > 0) {
+      console.log(`${TAG} backfill: conv list sample keys:`, Object.keys(convs[0]).join(', '));
+    }
+
     let totalAdded = 0;
+    let loggedSample = false;
     for (const conv of toFetch) {
       const convId = conv.uuid ?? conv.id;
       if (!convId) continue;
@@ -409,8 +419,19 @@ async function backfillFromConversations(orgId) {
           { credentials: 'include', headers: { Accept: 'application/json' } }
         );
         if (!r.ok) continue;
-        const events = extractConvTokens(await r.json());
-        if (events.length) totalAdded += await mergeTokenHistory(events);
+        const convData = await r.json();
+        const events   = extractConvTokens(convData);
+        if (events.length) {
+          totalAdded += await mergeTokenHistory(events);
+        } else if (!loggedSample) {
+          // Log the first conv that yielded no tokens so we can see the real shape
+          const msgs = convData?.chat_messages ?? convData?.messages ?? [];
+          const sampleMsg = msgs.find(m => m.sender === 'assistant' || m.role === 'assistant') ?? msgs[0];
+          console.log(`${TAG} backfill sample — top-level keys:`, Object.keys(convData).join(', '));
+          console.log(`${TAG} backfill sample — msg keys:`, sampleMsg ? Object.keys(sampleMsg).join(', ') : 'no messages');
+          console.log(`${TAG} backfill sample — msg usage field:`, JSON.stringify(sampleMsg?.usage ?? sampleMsg?.token_usage ?? sampleMsg?.tokens ?? null));
+          loggedSample = true;
+        }
       } catch {}
     }
 
