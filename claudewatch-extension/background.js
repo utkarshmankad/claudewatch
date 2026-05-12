@@ -23,8 +23,9 @@ const PLAN_LIMITS = {
 const K_HISTORY   = 'token_history';   // [{ts,input,output,src}]
 const K_WIN5H     = 'window_5h';       // {startMs, resetMs}
 const K_PLAN      = 'detected_plan';   // plan key string
-const K_RATELIMIT = 'rate_limit';      // {type, resetsAt, remaining, utilization5h, ...}
-const K_ORG_ID    = 'org_id';          // discovered org UUID for background polling
+const K_RATELIMIT     = 'rate_limit';      // {type, resetsAt, remaining, utilization5h, ...}
+const K_ORG_ID        = 'org_id';          // discovered org UUID for background polling
+const K_LAST_BACKFILL = 'last_backfill_ts'; // epoch ms of last conversation backfill
 
 // ── Storage helpers ───────────────────────────────────────────────────────
 const lget = (k)    => new Promise(r => chrome.storage.local.get(k,  d => r(d[k]  ?? null)));
@@ -362,6 +363,70 @@ async function pollOrgUsage(orgId) {
   }
 }
 
+// ── Conversation backfill ─────────────────────────────────────────────────
+// Fetches recent conversations from the server and mines per-message token
+// usage from each one. Solves two problems:
+//  1. History lost after an extension reinstall — server still has the data.
+//  2. Usage from Claude Desktop / mobile / other browsers — those
+//     conversations exist on the server regardless of which client sent them.
+// Uses mergeTokenHistory() so repeated runs never double-count.
+async function backfillFromConversations(orgId) {
+  const lastBackfill = (await lget(K_LAST_BACKFILL)) ?? null;
+  const now = Date.now();
+
+  // First run: look back a full 7-day window.
+  // Subsequent runs: re-check convs updated since the last backfill
+  // (2-min overlap catches any that were still in-flight).
+  const cutoffMs = lastBackfill
+    ? lastBackfill - 2 * 60_000
+    : now - WINDOW_7D_MS;
+
+  try {
+    const listResp = await fetch(
+      `https://claude.ai/api/organizations/${orgId}/chat_conversations?limit=50`,
+      { credentials: 'include', headers: { Accept: 'application/json' } }
+    );
+    if (!listResp.ok) return;
+
+    const listData = await listResp.json();
+    const convs = Array.isArray(listData) ? listData
+                  : (listData.conversations ?? listData.chat_conversations ?? []);
+
+    // Only process conversations updated since the cutoff
+    const toFetch = convs.filter(c => {
+      const t = Date.parse(c.updated_at ?? c.created_at ?? '');
+      return !isNaN(t) && t >= cutoffMs;
+    });
+
+    let totalAdded = 0;
+    for (const conv of toFetch) {
+      const convId = conv.uuid ?? conv.id;
+      if (!convId) continue;
+      try {
+        const r = await fetch(
+          `https://claude.ai/api/organizations/${orgId}/chat_conversations/${convId}` +
+          `?tree=True&rendering_mode=messages`,
+          { credentials: 'include', headers: { Accept: 'application/json' } }
+        );
+        if (!r.ok) continue;
+        const events = extractConvTokens(await r.json());
+        if (events.length) totalAdded += await mergeTokenHistory(events);
+      } catch {}
+    }
+
+    await lset(K_LAST_BACKFILL, now);
+    if (totalAdded > 0) {
+      console.log(`${TAG} backfill: +${totalAdded} token events from ${toFetch.length} convs`);
+      const stats = await getStats();
+      updateBadge(stats.pct5h);
+    } else {
+      console.log(`${TAG} backfill: ${toFetch.length} convs checked, no new events`);
+    }
+  } catch (err) {
+    console.log(`${TAG} backfill error:`, err.message);
+  }
+}
+
 async function backgroundPoll() {
   console.log(`${TAG} background poll`);
   try {
@@ -384,13 +449,12 @@ async function backgroundPoll() {
     // Extract org UUID — claude.ai returns an array of org objects
     const orgs  = Array.isArray(data) ? data : (data.organizations ?? [data]);
     const orgId = orgs[0]?.uuid ?? orgs[0]?.id ?? null;
-    if (orgId) {
-      await lset(K_ORG_ID, orgId);
-      await pollOrgUsage(orgId);
-    } else {
-      // Try with a previously discovered org ID
-      const stored = await lget(K_ORG_ID);
-      if (stored) await pollOrgUsage(stored);
+    const resolvedOrgId = orgId ?? (await lget(K_ORG_ID));
+    if (orgId) await lset(K_ORG_ID, orgId);
+
+    if (resolvedOrgId) {
+      await pollOrgUsage(resolvedOrgId);
+      await backfillFromConversations(resolvedOrgId);
     }
 
     const stats = await getStats();
