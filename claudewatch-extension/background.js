@@ -320,9 +320,11 @@ async function getStats() {
     history,
     planTable,
     lastTs,
-    rlType:        rateLimit?.type      ?? null,
-    rlResetsAt:    rateLimit?.resetsAt  ?? null,
-    rlRemaining:   rateLimit?.remaining ?? null,
+    // Gate all rate-limit fields on window-open so a stale type ('over_limit',
+    // 'approaching_limit') from a previous session doesn't keep the banner alive.
+    rlType:        rlWindowOpen ? (rateLimit?.type      ?? null) : null,
+    rlResetsAt:    rlWindowOpen ? (rateLimit?.resetsAt  ?? null) : null,
+    rlRemaining:   rlWindowOpen ? (rateLimit?.remaining ?? null) : null,
   };
 }
 
