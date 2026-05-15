@@ -3,6 +3,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { Command } from 'commander';
+import { VERSION } from '../version.js';
 import Database from 'better-sqlite3';
 import { installDaemon, uninstallDaemon } from './commands/install.js';
 import { configExists, loadConfig, saveConfigFile, getConfigFilePath } from '../config/manager.js';
@@ -18,7 +19,7 @@ const program = new Command();
 program
   .name('claudewatch')
   .description('Monitor Anthropic API token usage and spend')
-  .version('0.1.0');
+  .version(VERSION);
 
 // ---------------------------------------------------------------------------
 // setup — interactive first-run wizard
@@ -363,10 +364,13 @@ program
     guardConfigured();
     const config = await loadConfig().catch(exit1);
     const { startWebServer } = await import('../daemon/server.js');
-    startWebServer(config);
+    const server = startWebServer(config);
     const { default: open } = await import('open');
     await open('http://localhost:7734');
-    console.log('✓ Dashboard running at http://localhost:7734');
+    console.log('✓ Dashboard running at http://localhost:7734 (press Ctrl+C to stop)');
+    const shutdown = (): void => { server.close(); process.exit(0); };
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
   });
 
 // ---------------------------------------------------------------------------
@@ -448,50 +452,52 @@ program
     const dbPath = path.join(os.homedir(), '.claudewatch', 'usage.db');
     const db = new Database(dbPath, { readonly: true });
 
-    const tables = db.prepare(
-      `SELECT name FROM sqlite_master WHERE type='table'`,
-    ).all() as { name: string }[];
-    console.log('\nTables:', tables.map(t => t.name).join(', '));
+    try {
+      const tables = db.prepare(
+        `SELECT name FROM sqlite_master WHERE type='table'`,
+      ).all() as { name: string }[];
+      console.log('\nTables:', tables.map(t => t.name).join(', '));
 
-    // usage_snapshots (admin mode)
-    const schema = db.prepare(`PRAGMA table_info(usage_snapshots)`).all();
-    console.log('\nusage_snapshots schema:');
-    console.table(schema);
+      // usage_snapshots (admin mode)
+      const schema = db.prepare(`PRAGMA table_info(usage_snapshots)`).all();
+      console.log('\nusage_snapshots schema:');
+      console.table(schema);
 
-    const rows = db.prepare(
-      `SELECT * FROM usage_snapshots ORDER BY rowid DESC LIMIT 3`,
-    ).all();
-    console.log('\nLatest 3 usage_snapshots rows:');
-    console.log(JSON.stringify(rows, null, 2));
-
-    const count = db.prepare(
-      `SELECT COUNT(*) as cnt FROM usage_snapshots`,
-    ).get() as { cnt: number };
-    console.log(`Total usage_snapshots rows: ${count.cnt}`);
-
-    // personal_session_tokens (personal mode)
-    const hasPersonal = tables.some(t => t.name === 'personal_session_tokens');
-    if (hasPersonal) {
-      const personalSchema = db.prepare(`PRAGMA table_info(personal_session_tokens)`).all();
-      console.log('\npersonal_session_tokens schema:');
-      console.table(personalSchema);
-
-      const personalRows = db.prepare(
-        `SELECT * FROM personal_session_tokens ORDER BY rowid DESC LIMIT 5`,
+      const rows = db.prepare(
+        `SELECT * FROM usage_snapshots ORDER BY rowid DESC LIMIT 3`,
       ).all();
-      console.log('\nLatest 5 personal_session_tokens rows:');
-      console.log(JSON.stringify(personalRows, null, 2));
+      console.log('\nLatest 3 usage_snapshots rows:');
+      console.log(JSON.stringify(rows, null, 2));
 
-      const personalCount = db.prepare(
-        `SELECT COUNT(*) as cnt FROM personal_session_tokens`,
+      const count = db.prepare(
+        `SELECT COUNT(*) as cnt FROM usage_snapshots`,
       ).get() as { cnt: number };
-      console.log(`Total personal_session_tokens rows: ${personalCount.cnt}`);
+      console.log(`Total usage_snapshots rows: ${count.cnt}`);
+
+      // personal_session_tokens (personal mode)
+      const hasPersonal = tables.some(t => t.name === 'personal_session_tokens');
+      if (hasPersonal) {
+        const personalSchema = db.prepare(`PRAGMA table_info(personal_session_tokens)`).all();
+        console.log('\npersonal_session_tokens schema:');
+        console.table(personalSchema);
+
+        const personalRows = db.prepare(
+          `SELECT * FROM personal_session_tokens ORDER BY rowid DESC LIMIT 5`,
+        ).all();
+        console.log('\nLatest 5 personal_session_tokens rows:');
+        console.log(JSON.stringify(personalRows, null, 2));
+
+        const personalCount = db.prepare(
+          `SELECT COUNT(*) as cnt FROM personal_session_tokens`,
+        ).get() as { cnt: number };
+        console.log(`Total personal_session_tokens rows: ${personalCount.cnt}`);
+      }
+
+      const dbSize = fs.statSync(dbPath).size;
+      console.log(`\nDB size: ${(dbSize / 1024).toFixed(1)} KB  (${dbPath})`);
+    } finally {
+      db.close();
     }
-
-    const dbSize = fs.statSync(dbPath).size;
-    console.log(`\nDB size: ${(dbSize / 1024).toFixed(1)} KB  (${dbPath})`);
-
-    db.close();
   });
 
 program.parseAsync(process.argv).catch(exit1);

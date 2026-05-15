@@ -1,5 +1,5 @@
-import { execSync } from 'child_process';
-import { writeFileSync } from 'fs';
+import { execSync, spawnSync } from 'child_process';
+import { mkdirSync, writeFileSync, existsSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
 
@@ -8,8 +8,8 @@ export async function installDaemon(): Promise<void> {
   const nodePath = execSync('which node').toString().trim();
   const claudewatchPath = execSync('which claudewatch').toString().trim();
   const homeDir = homedir();
-  const logPath = join(homeDir, '.claudewatch/daemon.log');
-  const plistPath = join(homeDir, 'Library/LaunchAgents/com.claudewatch.daemon.plist');
+  const logPath = join(homeDir, '.claudewatch', 'daemon.log');
+  const plistPath = join(homeDir, 'Library', 'LaunchAgents', 'com.claudewatch.daemon.plist');
 
   if (!claudewatchPath) {
     console.error('✗ claudewatch binary not found. Run: npm link');
@@ -24,7 +24,8 @@ export async function installDaemon(): Promise<void> {
   // node explicitly so launchd doesn't need to resolve shebangs via a minimal PATH.
   let programArgs: string[];
   try {
-    const firstLine = execSync(`head -1 ${claudewatchPath}`).toString().trim();
+    const result = spawnSync('head', ['-1', claudewatchPath], { encoding: 'utf8' });
+    const firstLine = result.stdout.trim();
     if (firstLine.includes('node')) {
       programArgs = [nodePath, claudewatchPath, 'daemon'];
     } else {
@@ -38,7 +39,7 @@ export async function installDaemon(): Promise<void> {
     .map(arg => `    <string>${arg}</string>`)
     .join('\n');
 
-  const userPath = execSync('echo $PATH').toString().trim();
+  const userPath = process.env['PATH'] ?? '/usr/local/bin:/usr/bin:/bin';
 
   const plist = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
@@ -84,8 +85,8 @@ ${plistArgs}
 </dict>
 </plist>`;
 
-  execSync(`mkdir -p ${join(homeDir, '.claudewatch')}`);
-  execSync(`touch ${logPath}`);
+  mkdirSync(join(homeDir, '.claudewatch'), { recursive: true });
+  if (!existsSync(logPath)) writeFileSync(logPath, '');
 
   writeFileSync(plistPath, plist);
   console.log(`✓ Plist written → ${plistPath}`);
@@ -99,7 +100,7 @@ ${plistArgs}
     const status = execSync('launchctl list com.claudewatch.daemon').toString();
     const pid = status.match(/"PID"\s*=\s*(\d+)/)?.[1];
     if (pid) {
-      writeFileSync(join(homeDir, '.claudewatch/daemon.pid'), pid);
+      writeFileSync(join(homeDir, '.claudewatch', 'daemon.pid'), pid);
       console.log(`✓ Daemon running (PID ${pid})`);
       console.log(`  Logs → ${logPath}`);
       console.log(`  Tip  → claudewatch logs -f`);
@@ -114,8 +115,8 @@ ${plistArgs}
 }
 
 export async function uninstallDaemon(): Promise<void> {
-  const plistPath = join(homedir(), 'Library/LaunchAgents/com.claudewatch.daemon.plist');
+  const plistPath = join(homedir(), 'Library', 'LaunchAgents', 'com.claudewatch.daemon.plist');
   execSync(`launchctl unload ${plistPath} 2>/dev/null || true`);
-  execSync(`rm -f ${plistPath}`);
+  spawnSync('rm', ['-f', plistPath]);
   console.log('✓ ClaudeWatch daemon uninstalled');
 }

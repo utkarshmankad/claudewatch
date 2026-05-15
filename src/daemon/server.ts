@@ -7,6 +7,7 @@ import { currentBillingPeriod } from '../api/usageClient.js';
 import { getCostCache } from './costCache.js';
 import { generateDashboardHTML } from '../web/template.js';
 import type { Config } from '../config/schema.js';
+import { VERSION } from '../version.js';
 
 export const WEB_PORT = 7734;
 
@@ -92,8 +93,6 @@ export function startWebServer(config: Config): Server {
     const raw = getDb().prepare(
       'SELECT * FROM usage_snapshots ORDER BY rowid DESC LIMIT 1'
     ).get() as RawSnapRow | undefined;
-    console.log('[api/status] raw row:', JSON.stringify(raw));
-    console.log('[api/status] costCache:', JSON.stringify(costs));
 
     const snapshot = raw ? {
       polledAt:         raw.recorded_at                                                       ?? null,
@@ -152,7 +151,7 @@ export function startWebServer(config: Config): Server {
       pollIntervalMinutes: config.pollIntervalMinutes ?? 5,
       lastPollAt:          snapshot?.polledAt ?? null,
       snapshot,
-      version: '0.1.0',
+      version: VERSION,
       session: sessionRow ? {
         tokensUsed: sessionRow.tokensUsed,
         tokenLimit: sessionRow.tokenLimit,

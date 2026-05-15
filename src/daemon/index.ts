@@ -7,14 +7,50 @@ import {
   getWeeklySpend, getWeeklyTokens, hasAlertFired, recordAlert,
 } from '../store/db.js';
 import { UsageClient, computePeriodCosts, currentBillingPeriod, totalCostUSD } from '../api/usageClient.js';
+import type { BillingPeriod } from '../api/usageClient.js';
 import { PersonalUsageClient, estimateTokenCost } from '../api/personalClient.js';
 import { evaluateThresholdsWithCosts, periodStart } from '../alerts/threshold.js';
+import type { TriggeredThreshold } from '../alerts/threshold.js';
 import { sendDesktopAlert } from '../alerts/desktop.js';
 import { sendEmailAlert } from '../alerts/email.js';
 import type { AlertPayload } from '../alerts/types.js';
 import type { Config, SpendThreshold } from '../config/schema.js';
 import { setCostCache } from './costCache.js';
 import { startWebServer } from './server.js';
+
+// ---------------------------------------------------------------------------
+// Shared alert dispatcher
+// ---------------------------------------------------------------------------
+
+async function dispatchAlerts(
+  config: Config,
+  triggered: TriggeredThreshold[],
+  period: BillingPeriod,
+): Promise<void> {
+  for (const { threshold: t, actualUsd } of triggered) {
+    const payload: AlertPayload = {
+      threshold: t,
+      currentPct: (actualUsd / t.amountUsd) * 100,
+      estimatedCost: actualUsd,
+      billingPeriod: period,
+    };
+
+    if (t.notifyDesktop && config.desktop) {
+      sendDesktopAlert(payload);
+    }
+
+    if (t.notifyEmail && config.email && config.emailPassword) {
+      await sendEmailAlert(config.email, config.emailPassword, payload).catch(
+        (err: unknown) => console.error('[email error]', err),
+      );
+    }
+
+    console.log(
+      `[ClaudeWatch] ALERT: $${actualUsd.toFixed(6)} spent — ` +
+      `${payload.currentPct.toFixed(1)}% of $${t.amountUsd} ${t.period} threshold`,
+    );
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Single poll tick
@@ -70,32 +106,9 @@ async function runTick(config: Config, client: UsageClient): Promise<void> {
     console.log(`[ClaudeWatch] $${totalUsd.toFixed(4)} this billing period`);
   }
 
-  if (config.thresholds.length === 0) return;
-
-  const triggered = evaluateThresholdsWithCosts(config.thresholds, periodCosts);
-
-  for (const { threshold: t, actualUsd } of triggered) {
-    const payload: AlertPayload = {
-      threshold: t,
-      currentPct: (actualUsd / t.amountUsd) * 100,
-      estimatedCost: actualUsd,
-      billingPeriod: period,
-    };
-
-    if (t.notifyDesktop && config.desktop) {
-      sendDesktopAlert(payload);
-    }
-
-    if (t.notifyEmail && config.email && config.emailPassword) {
-      await sendEmailAlert(config.email, config.emailPassword, payload).catch(
-        (err: unknown) => console.error('[email error]', err),
-      );
-    }
-
-    console.log(
-      `[ClaudeWatch] ALERT: $${actualUsd.toFixed(4)} spent — ` +
-      `${payload.currentPct.toFixed(1)}% of $${t.amountUsd} ${t.period} threshold`,
-    );
+  if (config.thresholds.length > 0) {
+    const triggered = evaluateThresholdsWithCosts(config.thresholds, periodCosts);
+    await dispatchAlerts(config, triggered, period);
   }
 
   // Weekly spend limit checks (fires at 80% and 100% of weeklySpendLimitUsd)
@@ -152,8 +165,9 @@ async function runTick(config: Config, client: UsageClient): Promise<void> {
       const tokenKey = config.weeklyTokenLimit * pctLevel / 100;
       if (hasAlertFired(tokenKey, 'weekly-tokens', weekStart)) continue;
 
-      recordAlert(tokenKey, 'weekly-tokens', weeklyTokens, ['desktop']);
+      const channels: string[] = [];
       if (config.desktop) {
+        channels.push('desktop');
         const syntheticThreshold: SpendThreshold = {
           amountUsd: tokenKey,
           period: 'weekly',
@@ -167,6 +181,7 @@ async function runTick(config: Config, client: UsageClient): Promise<void> {
           billingPeriod: period,
         });
       }
+      recordAlert(tokenKey, 'weekly-tokens', weeklyTokens, channels);
       console.log(
         `[ClaudeWatch] WEEKLY TOKEN LIMIT: ${weeklyTokens.toLocaleString()} / ` +
         `${config.weeklyTokenLimit.toLocaleString()} tokens (${weeklyTokenPct.toFixed(1)}%)`,
@@ -235,32 +250,9 @@ async function runPersonalTick(config: Config, client: PersonalUsageClient): Pro
     `(~$${periodCosts.monthly.toFixed(6)})`,
   );
 
-  if (config.thresholds.length === 0) return;
-
-  const triggered = evaluateThresholdsWithCosts(config.thresholds, periodCosts);
-
-  for (const { threshold: t, actualUsd } of triggered) {
-    const payload: AlertPayload = {
-      threshold: t,
-      currentPct: (actualUsd / t.amountUsd) * 100,
-      estimatedCost: actualUsd,
-      billingPeriod: period,
-    };
-
-    if (t.notifyDesktop && config.desktop) {
-      sendDesktopAlert(payload);
-    }
-
-    if (t.notifyEmail && config.email && config.emailPassword) {
-      await sendEmailAlert(config.email, config.emailPassword, payload).catch(
-        (err: unknown) => console.error('[email error]', err),
-      );
-    }
-
-    console.log(
-      `[ClaudeWatch] ALERT: $${actualUsd.toFixed(6)} spent — ` +
-      `${payload.currentPct.toFixed(1)}% of $${t.amountUsd} ${t.period} threshold`,
-    );
+  if (config.thresholds.length > 0) {
+    const triggered = evaluateThresholdsWithCosts(config.thresholds, periodCosts);
+    await dispatchAlerts(config, triggered, period);
   }
 }
 

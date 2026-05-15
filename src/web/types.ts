@@ -27,13 +27,37 @@ export interface SnapshotData {
   cacheWrite5mTokens: number;
 }
 
+export interface SessionData {
+  tokensUsed: number | null;
+  tokenLimit: number | null;
+  plan: string | null;
+  resetsAt: string | null;
+  windowEnd: string | null;
+  pct: number;
+}
+
+export interface WeeklyData {
+  tokensUsed: number;
+  weekStart: string;
+  weekReset: string;
+  resetsAt: string;
+}
+
 export interface StatusResponse {
   billingPeriod: BillingPeriod;
   costs: PeriodCosts;
   spendLimitUsd: number | null;
+  weeklySpendLimitUsd: number | null;
+  weeklyTokenLimit: number | null;
+  pollIntervalMinutes: number;
   lastPollAt: string | null;
   snapshot: SnapshotData | null;
   version: string;
+  session: SessionData | null;
+  weekly: WeeklyData;
+  config: {
+    weeklyTokenLimit: number | null;
+  };
 }
 
 export interface UsageRow {

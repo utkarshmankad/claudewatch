@@ -29,12 +29,10 @@ async function fetchStatusData(config: Config): Promise<StatusData> {
   const client = new UsageClient(config.anthropicAdminKey);
   const period = currentBillingPeriod();
 
-  const [costBuckets, lastSnap, alerts, dailyTokens] = await Promise.all([
-    client.fetchCostReport({ startingAt: new Date(period.startingAt) }),
-    Promise.resolve(getLatestSnapshot()),
-    Promise.resolve(getAlertHistory(5)),
-    Promise.resolve(getDailyTokenTotals(30)),
-  ]);
+  const costBuckets = await client.fetchCostReport({ startingAt: new Date(period.startingAt) });
+  const lastSnap = getLatestSnapshot();
+  const alerts = getAlertHistory(5);
+  const dailyTokens = getDailyTokenTotals(30);
 
   const costs = computePeriodCosts(costBuckets);
 

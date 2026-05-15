@@ -150,30 +150,13 @@ function migrate(db: Database.Database): void {
   db.transaction(() => {
     if (version < 1) applyV1(db);
     if (version < 2) applyV2(db);
-    if (version < 3) applyV3(db);
     if (version < 4) applyV4(db);
     db.pragma(`user_version = ${CURRENT_SCHEMA_VERSION}`);
   })();
 }
 
-function applyV3(db: Database.Database): void {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS session_tokens (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      recorded_at TEXT    NOT NULL,
-      tokens_used INTEGER,
-      token_limit INTEGER,
-      plan        TEXT,
-      resets_at   TEXT
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_session_recorded
-      ON session_tokens (recorded_at DESC);
-  `);
-}
-
-// V4: ensure session_tokens exists for DBs that were already at user_version=3
-// before the table was introduced (safe to re-run due to IF NOT EXISTS).
+// V4: creates session_tokens with IF NOT EXISTS — safe for all previous versions
+// (versions 3 had the same SQL but was applied inconsistently; IF NOT EXISTS handles both).
 function applyV4(db: Database.Database): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS session_tokens (
@@ -296,8 +279,6 @@ export function insertSnapshot(data: SnapshotData): void {
     cacheWrite5mTokens:  data.cacheWrite5mTokens   ?? 0,
   };
 
-  console.log('[insertSnapshot] writing:', JSON.stringify(params));
-
   const result = db.prepare(`
     INSERT INTO usage_snapshots (
       recorded_at, bucket_starting_at, bucket_ending_at,
@@ -314,8 +295,6 @@ export function insertSnapshot(data: SnapshotData): void {
 
   if (result.changes === 0) {
     console.error('[insertSnapshot] wrote 0 rows — check column names');
-  } else {
-    console.log(`[insertSnapshot] saved rowid ${result.lastInsertRowid}`);
   }
 }
 
@@ -531,22 +510,31 @@ export function getDailyTokenTotals(days: number): DailyTokenTotal[] {
 // Weekly aggregations for limit checks
 // ---------------------------------------------------------------------------
 
-/** Sum cost_snapshots for the last 7 days (rolling window). */
+/** Compute Sunday-anchored calendar week start in UTC (matches periodStart('weekly')). */
+function calendarWeekStart(): string {
+  const now = new Date();
+  const d = new Date(now);
+  d.setUTCDate(d.getUTCDate() - d.getUTCDay());
+  d.setUTCHours(0, 0, 0, 0);
+  return d.toISOString();
+}
+
+/** Sum cost_snapshots for the current calendar week (Sunday–Saturday, UTC). */
 export function getWeeklySpend(): number {
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const weekStart = calendarWeekStart();
   const row = getDb()
     .prepare<[string]>(`
       SELECT COALESCE(SUM(amount_usd), 0) AS total
       FROM cost_snapshots
       WHERE end_time >= ?
     `)
-    .get(sevenDaysAgo) as { total: number };
+    .get(weekStart) as { total: number };
   return row.total;
 }
 
-/** Sum all token types in usage_snapshots for the last 7 days (rolling window). */
+/** Sum all token types in usage_snapshots for the current calendar week (Sunday–Saturday, UTC). */
 export function getWeeklyTokens(): number {
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const weekStart = calendarWeekStart();
   const row = getDb()
     .prepare<[string]>(`
       SELECT COALESCE(SUM(
@@ -556,7 +544,7 @@ export function getWeeklyTokens(): number {
       FROM usage_snapshots
       WHERE bucket_starting_at >= ?
     `)
-    .get(sevenDaysAgo) as { total: number };
+    .get(weekStart) as { total: number };
   return row.total;
 }
 

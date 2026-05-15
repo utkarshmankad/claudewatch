@@ -33,13 +33,10 @@ vi.mock('../store/db.js', () => ({
   getLatestPlanInfo: vi.fn().mockReturnValue(null),
 }));
 
-// threshold.ts imports getTotalCostSince from usage.ts; prevent the chain
-// from reaching better-sqlite3.
+// threshold.ts no longer imports from usage.ts; keep the mock so any
+// transitive imports of usage.ts don't reach better-sqlite3.
 vi.mock('../store/usage.js', () => ({
   getTotalCostSince: vi.fn().mockReturnValue(0),
-  insertUsageRecords: vi.fn(),
-  insertCostRecords: vi.fn(),
-  logAlert: vi.fn(),
 }));
 
 import { UsageClient, computePeriodCosts } from '../api/usageClient.js';

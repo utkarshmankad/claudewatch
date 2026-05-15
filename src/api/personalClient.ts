@@ -36,10 +36,18 @@ export class PersonalUsageClient {
   }
 }
 
+// claude-haiku-4-5-20251001 public pricing (USD per million tokens).
+// Source: https://www.anthropic.com/pricing
+const PRICE_PER_MTOK = {
+  input:      0.80,
+  output:     4.00,
+  cacheRead:  0.08,
+  cacheWrite: 1.00,
+} as const;
+
 /**
  * Estimate USD cost from token counts using claude-haiku-4-5 public pricing.
  * Used in personal mode where the cost API is unavailable.
- * Rates: $0.80/MTok input, $4.00/MTok output, $0.08/MTok cache-read.
  */
 export function estimateTokenCost(sample: {
   inputTokens: number;
@@ -48,9 +56,9 @@ export function estimateTokenCost(sample: {
   cacheWriteTokens: number;
 }): number {
   return (
-    sample.inputTokens * 0.80 +
-    sample.cacheReadTokens * 0.08 +
-    sample.cacheWriteTokens * 1.00 +
-    sample.outputTokens * 4.00
+    sample.inputTokens      * PRICE_PER_MTOK.input +
+    sample.cacheReadTokens  * PRICE_PER_MTOK.cacheRead +
+    sample.cacheWriteTokens * PRICE_PER_MTOK.cacheWrite +
+    sample.outputTokens     * PRICE_PER_MTOK.output
   ) / 1_000_000;
 }
