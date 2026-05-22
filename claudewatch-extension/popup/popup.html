@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ClaudeWatch</title>
+  <title>Token Watcher</title>
   <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
@@ -13,11 +13,17 @@
   <header>
     <div class="header-left">
       <svg class="logo" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect width="20" height="20" rx="5" fill="#e8620a"/>
-        <text x="10" y="14.5" font-family="monospace" font-size="11" font-weight="800"
-              fill="#fff" text-anchor="middle">CW</text>
+        <defs>
+          <linearGradient id="tw-g" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#6366f1"/>
+            <stop offset="100%" stop-color="#a855f7"/>
+          </linearGradient>
+        </defs>
+        <rect width="20" height="20" rx="5" fill="url(#tw-g)"/>
+        <text x="10" y="14.5" font-family="monospace" font-size="9" font-weight="900"
+              fill="#fff" text-anchor="middle">TW</text>
       </svg>
-      <span class="brand">ClaudeWatch</span>
+      <span class="brand">Token Watcher</span>
       <span class="version" id="version"></span>
     </div>
     <span class="last-update" id="last-update" title="Last token captured">—</span>
@@ -36,19 +42,32 @@
   <div class="empty-state" id="empty-state" hidden>
     <div class="empty-icon">◎</div>
     <p class="empty-title">Waiting for data…</p>
-    <p class="empty-hint">Open claude.ai and start chatting to see usage</p>
-    <button class="btn btn-primary btn-sm" id="btn-open-claude">Open claude.ai →</button>
+    <p class="empty-hint">Open Claude, ChatGPT, or Gemini and start chatting to see usage</p>
+    <div class="empty-links">
+      <button class="btn btn-primary btn-sm" id="btn-open-claude">Open Claude →</button>
+      <button class="btn btn-ghost btn-sm" id="btn-open-chatgpt">ChatGPT →</button>
+      <button class="btn btn-ghost btn-sm" id="btn-open-gemini">Gemini →</button>
+    </div>
   </div>
 
   <!-- ── Main content ── -->
   <div id="main-content" hidden>
 
-    <!-- ── Dual gauge section ── -->
+    <!-- ── Site breakdown ── -->
+    <section class="section site-section">
+      <div class="section-label">Sources</div>
+      <div class="site-list" id="site-list"></div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- ── Dual gauge section (Claude window) ── -->
     <section class="section gauges-section">
+      <div class="section-label">Claude Window</div>
       <div class="gauge-cards">
 
         <div class="gauge-card">
-          <div class="gc-label">5-Hour Window</div>
+          <div class="gc-label">5-Hour</div>
           <div class="gc-tokens" id="tokens-5h">—</div>
           <div class="gc-bar-wrap">
             <div class="gc-bar">
@@ -110,7 +129,7 @@
 
     <!-- ── Plan comparison ── -->
     <section class="section table-section">
-      <div class="section-label">Plan Comparison</div>
+      <div class="section-label">Claude Plan Comparison</div>
       <table class="plan-table">
         <thead>
           <tr>

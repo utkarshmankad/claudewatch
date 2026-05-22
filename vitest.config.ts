@@ -4,7 +4,10 @@ export default defineConfig({
   test: {
     globals: false,
     environment: 'node',
-    include: ['src/**/__tests__/**/*.test.ts'],
+    include: [
+      'src/**/__tests__/**/*.test.ts',
+      'claudewatch-extension/test/**/*.test.mjs',
+    ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],

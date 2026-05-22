@@ -9,14 +9,14 @@
   --bg-input:    #1a1a20;
   --bg-hover:    #1e1e28;
   --border:      #222230;
-  --border-focus:#e8620a;
+  --border-focus:#6366f1;
 
   --text-primary:   #e2e2e8;
   --text-secondary: #8888a0;
   --text-muted:     #44445a;
 
-  --orange:   #e8620a;
-  --orange-dk:#c5520a;
+  --brand:    #6366f1;
+  --brand-dk: #4f46e5;
   --green:    #10b981;
   --amber:    #f59e0b;
   --red:      #ef4444;
@@ -74,7 +74,7 @@ header {
 h1 {
   font-size: 17px;
   font-weight: 700;
-  color: var(--orange);
+  color: var(--brand);
   letter-spacing: 0.02em;
   line-height: 1.2;
 }
@@ -160,15 +160,15 @@ main {
   transition: transform 0.2s ease, background 0.2s ease;
 }
 .switch input:checked + .switch-track {
-  background: var(--orange);
-  border-color: var(--orange-dk);
+  background: var(--brand);
+  border-color: var(--brand-dk);
 }
 .switch input:checked + .switch-track::after {
   transform: translateX(18px);
   background: #fff;
 }
 .switch input:focus-visible + .switch-track {
-  outline: 2px solid var(--orange);
+  outline: 2px solid var(--brand);
   outline-offset: 2px;
 }
 
@@ -210,12 +210,12 @@ main {
   transition: opacity 0.1s ease;
 }
 .checkbox-row input:checked ~ .checkbox-custom {
-  background: var(--orange);
-  border-color: var(--orange-dk);
+  background: var(--brand);
+  border-color: var(--brand-dk);
 }
 .checkbox-row input:checked ~ .checkbox-custom::after { opacity: 1; }
 .checkbox-row input:focus-visible ~ .checkbox-custom {
-  outline: 2px solid var(--orange);
+  outline: 2px solid var(--brand);
   outline-offset: 2px;
 }
 
@@ -322,8 +322,8 @@ input[type="url"]::placeholder { color: var(--text-muted); }
   transition: background 0.12s ease, transform 0.08s ease;
 }
 .btn:active { transform: scale(0.97); }
-.btn-primary { background: var(--orange); color: #fff; }
-.btn-primary:hover { background: var(--orange-dk); }
+.btn-primary { background: var(--brand); color: #fff; }
+.btn-primary:hover { background: var(--brand-dk); }
 .btn-ghost {
   background: transparent;
   color: var(--text-muted);

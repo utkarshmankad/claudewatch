@@ -1,14 +1,16 @@
-# ClaudeWatch Browser Extension
+# Token Watcher — Browser Extension
 
-A Chrome extension that tracks your Claude.ai session usage in real-time and syncs it to the [ClaudeWatch Core](../README.md) background daemon.
+A Chrome extension that tracks your AI token usage in real-time across **Claude**, **ChatGPT**, and **Gemini**. Automatically detects which platform you're on and monitors usage without any configuration.
 
 ## Features
 
-- Live session usage gauge — token count, percentage, and reset countdown
-- Desktop notifications at 80%, 90%, and 95% usage (configurable)
-- Badge on the extension icon shows current percentage at a glance
-- Syncs usage data to ClaudeWatch Core for history, cost tracking, and email alerts
-- Works without Core — monitoring continues even when Core is offline
+- **Multi-platform support** — Claude (claude.ai), ChatGPT (chatgpt.com), and Gemini (gemini.google.com)
+- **Auto site detection** — extension identifies the active AI platform and applies the right parser
+- **Live usage gauge** — token count, percentage, and reset countdown for Claude's 5h window
+- **Per-site breakdown** — popup shows token usage split by Claude / ChatGPT / Gemini
+- **Badge on icon** — shows Claude's current window usage percentage at a glance
+- **Desktop notifications** at 80%, 90%, and 95% usage (configurable)
+- **Syncs with ClaudeWatch Core** for Claude history, cost tracking, and email alerts
 
 ## Loading in Chrome (Developer Mode)
 
@@ -16,24 +18,31 @@ A Chrome extension that tracks your Claude.ai session usage in real-time and syn
 2. Enable **Developer mode** (toggle, top-right corner).
 3. Click **Load unpacked**.
 4. Select this folder: `claudewatch-extension/`
-5. The ClaudeWatch icon appears in the toolbar.
+5. The **TW** icon appears in the toolbar.
 
 > **Brave / Edge:** The same steps apply. Open `brave://extensions` or `edge://extensions`.
 
+## Supported Platforms
+
+| Platform | URL | Token Detection |
+|----------|-----|-----------------|
+| Claude   | claude.ai | Exact (SSE `message_start` / `message_limit`) |
+| ChatGPT  | chatgpt.com | Exact (OpenAI usage field in final SSE chunk) |
+| Gemini   | gemini.google.com | Best-effort (`usageMetadata` or character approximation) |
+
 ## Usage
 
-### Standalone (extension only)
-
-1. Open [claude.ai](https://claude.ai) in any tab.
-2. The extension reads session usage from the page automatically.
-3. Click the CW icon in the toolbar to see the popup.
-4. Notifications fire when your configured thresholds are crossed.
+1. Open any of the supported AI chat sites in a tab.
+2. The extension automatically starts capturing token data.
+3. Click the **TW** icon in the toolbar to see the popup.
+4. The **Sources** section shows per-platform token usage.
+5. The **Claude Window** section shows Claude's 5h/7d gauges and plan comparison.
 
 No API key or configuration needed for basic monitoring.
 
-### With ClaudeWatch Core
+### With ClaudeWatch Core (Claude users)
 
-Core unlocks usage history, cost reports, email alerts, and the web dashboard.
+Core unlocks Claude usage history, cost reports, email alerts, and the web dashboard.
 
 ```bash
 # Install ClaudeWatch CLI (from the repo root)
@@ -44,13 +53,9 @@ claudewatch start
 # Core listens on http://localhost:7734 by default
 ```
 
-Once Core is running, the extension syncs every 30 seconds and the popup footer shows **"Core: connected ✓"**.
-
-The Core URL can be changed in **Extension Settings → ClaudeWatch Core**.
-
 ## Settings
 
-Click **Settings ⚙** in the popup footer, or go to `chrome://extensions` → ClaudeWatch → Extension options.
+Click **Settings ⚙** in the popup footer, or go to `chrome://extensions` → Token Watcher → Extension options.
 
 | Setting | Default | Description |
 |---------|---------|-------------|
@@ -58,7 +63,6 @@ Click **Settings ⚙** in the popup footer, or go to `chrome://extensions` → C
 | 80% threshold | On | Early warning notification |
 | 90% threshold | On | High usage notification |
 | 95% threshold | On | Critical notification |
-| Core URL | `http://localhost:7734` | Address of the local Core daemon |
 
 Settings sync across Chrome profiles via `chrome.storage.sync`.
 
@@ -66,10 +70,10 @@ Settings sync across Chrome profiles via `chrome.storage.sync`.
 
 **All data stays on your device.** The extension:
 
-- Reads session usage data directly from the claude.ai page (no Anthropic API calls)
-- Sends usage data only to `http://localhost:7734` (your own machine, ClaudeWatch Core)
-- Never contacts any external server, analytics service, or third party
-- Never reads message content — only the session usage counters visible in the UI
+- Intercepts streaming responses only to extract token counts — it never reads message content
+- Never contacts any external server or third-party analytics service
+- Optionally syncs usage data to `http://localhost:7734` (your own machine, ClaudeWatch Core)
+- Requires host permissions for claude.ai, chatgpt.com, and gemini.google.com only
 
 ## Supported Browsers
 
@@ -96,16 +100,19 @@ npm run zip
 # → produces ../claudewatch-extension.zip
 ```
 
-The zip excludes `package.json`, `validate-manifest.js`, and any `.git` files.
-
 ## File Structure
 
 ```
 claudewatch-extension/
-├── manifest.json          MV3 manifest
-├── background.js          Service worker — storage, Core sync, alarms, notifications
-├── interceptor.js         MAIN-world fetch/XHR interceptor (runs at document_start)
-├── content.js             Isolated-world DOM scraper + postMessage bridge (document_idle)
+├── manifest.json          MV3 manifest (multi-platform host_permissions)
+├── background.js          Service worker — storage, alarms, badge, Claude polling
+├── interceptor.js         MAIN-world fetch/XHR interceptor (all three platforms)
+├── content.js             Isolated-world postMessage bridge (document_idle)
+├── lib/
+│   └── parsers.mjs        Pure parser functions (testable ESM module)
+├── test/
+│   ├── parsers.test.mjs   Parser and site-detection unit tests
+│   └── background.test.mjs Background logic unit tests
 ├── icons/
 │   ├── icon16.png         Toolbar icon (16×16)
 │   ├── icon32.png         Toolbar icon (32×32)
@@ -115,13 +122,13 @@ claudewatch-extension/
 ├── popup/
 │   ├── popup.html         Action popup structure
 │   ├── popup.css          Dark-theme styles
-│   └── popup.js           Popup logic — status rendering, timers
+│   └── popup.js           Popup logic — site breakdown, gauges, timers
 ├── settings/
 │   ├── settings.html      Options page
 │   ├── settings.css       Options page styles
 │   └── settings.js        Options page logic
 └── onboarding/
-    ├── onboarding.html    First-install guide (3 steps)
+    ├── onboarding.html    First-install guide
     ├── onboarding.css     Onboarding styles
     └── onboarding.js      Onboarding interactions
 ```

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Welcome to ClaudeWatch</title>
+  <title>Welcome to Token Watcher</title>
   <link rel="stylesheet" href="onboarding.css" />
 </head>
 <body>
@@ -12,12 +12,18 @@
     <!-- Hero -->
     <header class="hero">
       <svg class="hero-logo" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <rect width="48" height="48" rx="12" fill="#e8620a"/>
-        <text x="24" y="34" font-family="monospace" font-size="24" font-weight="700"
-              fill="#fff" text-anchor="middle">CW</text>
+        <defs>
+          <linearGradient id="tw-og" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#6366f1"/>
+            <stop offset="100%" stop-color="#a855f7"/>
+          </linearGradient>
+        </defs>
+        <rect width="48" height="48" rx="12" fill="url(#tw-og)"/>
+        <text x="24" y="34" font-family="monospace" font-size="22" font-weight="900"
+              fill="#fff" text-anchor="middle">TW</text>
       </svg>
-      <h1>Welcome to ClaudeWatch</h1>
-      <p class="hero-sub">Session usage monitoring for Claude.ai — three quick steps to get started.</p>
+      <h1>Welcome to Token Watcher</h1>
+      <p class="hero-sub">AI token usage monitoring for Claude, ChatGPT, and Gemini — three quick steps to get started.</p>
     </header>
 
     <!-- Steps -->
@@ -26,23 +32,30 @@
       <article class="step" id="step-1">
         <div class="step-number">1</div>
         <div class="step-body">
-          <h2>Open claude.ai</h2>
-          <p>ClaudeWatch reads your session usage directly from the claude.ai page.
-             Open it in a tab and the extension will start capturing data immediately —
-             no API key or login required.</p>
-          <a class="btn btn-primary" href="https://claude.ai" target="_blank" rel="noopener">
-            Open claude.ai →
-          </a>
+          <h2>Open an AI chat</h2>
+          <p>Token Watcher automatically detects which AI platform you're using and starts
+             capturing token data immediately. No API key or login required.</p>
+          <div class="site-links">
+            <a class="btn btn-primary" href="https://claude.ai" target="_blank" rel="noopener">
+              Claude →
+            </a>
+            <a class="btn btn-ghost" href="https://chatgpt.com" target="_blank" rel="noopener">
+              ChatGPT →
+            </a>
+            <a class="btn btn-ghost" href="https://gemini.google.com" target="_blank" rel="noopener">
+              Gemini →
+            </a>
+          </div>
         </div>
         <div class="step-graphic step-graphic-1" aria-hidden="true">
           <div class="mock-browser">
             <div class="mock-bar">
               <span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-dot"></span>
-              <span class="mock-url">claude.ai</span>
+              <span class="mock-url">claude.ai · chatgpt.com · gemini.google.com</span>
             </div>
             <div class="mock-content">
               <div class="mock-gauge-track"><div class="mock-gauge-fill"></div></div>
-              <div class="mock-label">Session usage</div>
+              <div class="mock-label">Token usage tracked</div>
             </div>
           </div>
         </div>
@@ -53,25 +66,23 @@
       <article class="step" id="step-2">
         <div class="step-number">2</div>
         <div class="step-body">
-          <h2>Start ClaudeWatch Core</h2>
-          <p>The Core daemon (part of the ClaudeWatch CLI) runs locally and stores
-             your usage history, fetches detailed cost data from the Anthropic Admin API,
-             and sends email/desktop alerts when spend thresholds are crossed.</p>
+          <h2>Watch your usage live</h2>
+          <p>Click the TW icon in the toolbar anytime to see a live breakdown of token usage
+             per platform, Claude's 5-hour window gauge, and a usage history chart.</p>
+          <p class="code-note">For Claude users: optionally run <strong>ClaudeWatch Core</strong>
+             to unlock cost tracking, email alerts, and the web dashboard.</p>
           <div class="code-block">
             <span class="code-prompt">$</span>
             <span class="code-cmd">claudewatch start</span>
             <button class="copy-btn" data-copy="claudewatch start" title="Copy command">⧉</button>
           </div>
-          <p class="code-note">Core listens on <code>http://localhost:7734</code> by default.
-             You can change this in <button class="inline-link" id="open-settings">Extension Settings</button>.</p>
         </div>
         <div class="step-graphic step-graphic-2" aria-hidden="true">
           <div class="mock-terminal">
             <div class="mock-term-bar">Terminal</div>
             <div class="mock-term-body">
               <span class="term-prompt">$ </span><span class="term-cmd">claudewatch start</span><br/>
-              <span class="term-out ok">✓ Core listening on :7734</span><br/>
-              <span class="term-out">  Polling Anthropic API…</span>
+              <span class="term-out ok">✓ Core listening on :7734</span>
             </div>
           </div>
         </div>
@@ -82,24 +93,23 @@
       <article class="step" id="step-3">
         <div class="step-number step-number-done">3</div>
         <div class="step-body">
-          <h2>You're set</h2>
-          <p>ClaudeWatch will notify you as your session usage climbs.
-             Click the extension icon any time to see live usage.
+          <h2>You're all set</h2>
+          <p>Token Watcher will alert you as usage climbs across any supported platform.
              Alerts fire automatically at:</p>
           <ul class="threshold-list">
             <li><span class="badge green">80%</span> Approaching limit — wrap up your work</li>
             <li><span class="badge amber">90%</span> High usage — save everything</li>
             <li><span class="badge red">95%</span> Critical — session almost exhausted</li>
           </ul>
-          <p class="fine-print">All thresholds are configurable in
+          <p class="fine-print">Thresholds are configurable in
              <button class="inline-link" id="open-settings-2">Extension Settings</button>.</p>
         </div>
         <div class="step-graphic step-graphic-3" aria-hidden="true">
           <div class="mock-notif">
-            <div class="mock-notif-icon">CW</div>
+            <div class="mock-notif-icon">TW</div>
             <div class="mock-notif-text">
-              <strong>ClaudeWatch — Session Alert</strong>
-              <span>Session 90% used (90,000 / 100,000 tokens)</span>
+              <strong>Token Watcher — Usage Alert</strong>
+              <span>Claude 5h window 90% used</span>
             </div>
           </div>
         </div>
@@ -111,9 +121,8 @@
     <footer class="page-footer">
       <p class="privacy">
         🔒 <strong>Privacy:</strong> All data stays on your device.
-        ClaudeWatch sends nothing to external servers — usage data goes only
-        to the Anthropic API (to fetch your own account data) and optionally
-        to Core running at localhost.
+        Token Watcher reads token counts only from the current page — it never
+        reads message content and never contacts external servers.
       </p>
       <button class="btn btn-ghost" id="btn-close">Close this tab</button>
     </footer>

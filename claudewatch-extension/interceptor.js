@@ -1,30 +1,32 @@
 // interceptor.js — MAIN world, document_start.
-// Wraps fetch/XHR to capture SSE token counts and API usage signals.
+// Wraps fetch/XHR to capture SSE token counts for Claude, ChatGPT, and Gemini.
 
-const TAG = '[ClaudeWatch]';
+const TAG = '[TokenWatcher]';
 
-// ---------------------------------------------------------------------------
-// URL matching
-// ---------------------------------------------------------------------------
+// ── Site detection ────────────────────────────────────────────────────────
 
-const USAGE_URL_PATTERNS = [
-  '/api/usage',
-  '/api/accounts',
-  '/api/auth/session',
-  '/api/bootstrap',
-  '/api/user',
-  '/api/me',
-  '/api/entitlement',
-  '/api/subscription',
-  '/api/billing',
-  '/api/organizations',
+const SITE = (function detectSite() {
+  const h = location.hostname;
+  if (h === 'claude.ai' || h.endsWith('.claude.ai')) return 'claude';
+  if (h === 'chatgpt.com' || h === 'chat.openai.com') return 'chatgpt';
+  if (h === 'gemini.google.com') return 'gemini';
+  return 'unknown';
+})();
+
+// ── URL helpers ───────────────────────────────────────────────────────────
+
+// Claude-specific usage REST endpoints to intercept for plan/rate-limit detection
+const CLAUDE_USAGE_URL_PATTERNS = [
+  '/api/usage', '/api/accounts', '/api/auth/session', '/api/bootstrap',
+  '/api/user', '/api/me', '/api/entitlement', '/api/subscription',
+  '/api/billing', '/api/organizations',
 ];
 
-function isUsageUrl(url) {
+function isClaudeUsageUrl(url) {
   if (!url || typeof url !== 'string') return false;
-  if (url.includes('/experiences/')) return false; // UI experiment flags, not usage data
-  if (url.includes('/completion'))   return false; // handled by SSE interceptor
-  return USAGE_URL_PATTERNS.some(p => url.includes(p));
+  if (url.includes('/experiences/')) return false;
+  if (url.includes('/completion'))   return false;
+  return CLAUDE_USAGE_URL_PATTERNS.some(p => url.includes(p));
 }
 
 function isApiUrl(url) {
@@ -41,6 +43,26 @@ function bodyHasUsageSignal(obj, depth = 0) {
   return false;
 }
 
+// Returns true if a response URL + content-type pair represents a completion stream
+function isCompletionStream(url, contentType) {
+  const isSse = contentType.includes('text/event-stream');
+  if (SITE === 'claude') {
+    return isSse || url.includes('/completion');
+  }
+  if (SITE === 'chatgpt') {
+    return isSse
+      || url.includes('/backend-api/conversation')
+      || url.includes('/backend-api/f/');
+  }
+  if (SITE === 'gemini') {
+    return isSse
+      || url.includes('StreamGenerate')
+      || url.includes('/generateContent')
+      || url.includes('/streamGenerateContent');
+  }
+  return false;
+}
+
 function extractUrl(args) {
   const input = args[0];
   if (typeof input === 'string') return input;
@@ -49,21 +71,17 @@ function extractUrl(args) {
   return '';
 }
 
-// ---------------------------------------------------------------------------
-// Bridge to isolated world
-// ---------------------------------------------------------------------------
+// ── Bridge to isolated world ──────────────────────────────────────────────
 
 function postToIsolated(type, payload) {
-  window.postMessage({ __claudewatch: true, type, ...payload }, window.location.origin);
+  window.postMessage({ __tokenwatcher: true, site: SITE, type, ...payload }, '*');
 }
 
-// ---------------------------------------------------------------------------
-// SSE token parser — handles Anthropic Messages API streaming format
-// ---------------------------------------------------------------------------
+// ── Claude SSE parser ─────────────────────────────────────────────────────
+// Handles Anthropic Messages API streaming format (message_start, message_delta,
+// content_block_delta, message_limit).
 
-// parseSseTokens returns token accumulators AND rate-limit info extracted from
-// the claude.ai-specific "message_limit" event.
-function parseSseTokens(buf, inputAcc, outputAcc, outCharsAcc, rateLimit) {
+function parseClaudeSse(buf, inputAcc, outputAcc, outCharsAcc, rateLimit) {
   const lines = buf.split('\n');
   const remaining = lines.pop() ?? '';
   for (const line of lines) {
@@ -73,30 +91,23 @@ function parseSseTokens(buf, inputAcc, outputAcc, outCharsAcc, rateLimit) {
     try {
       const ev = JSON.parse(payload);
 
-      // ── Public Messages API: message_start has usage ──────────────────────
       if (ev.type === 'message_start') {
         const u = ev.message?.usage;
         if (u) {
-          // Log once so we can see the real field names
-          console.log(`${TAG} message_start.usage:`, JSON.stringify(u));
           inputAcc  += u.input_tokens  ?? u.inputTokens  ?? 0;
           outputAcc += u.output_tokens ?? u.outputTokens ?? 0;
         }
       }
 
-      // ── Public Messages API: message_delta may carry final output count ───
       if (ev.type === 'message_delta' && ev.usage) {
         outputAcc += ev.usage.output_tokens ?? ev.usage.outputTokens ?? 0;
       }
 
-      // ── Approximate output tokens from streaming text chunks ──────────────
-      // claude.ai internal format omits usage fields, so we count characters
-      // in content_block_delta text events as a proxy (≈4 chars per token).
+      // Approximate from text chars (≈4 chars/token) when API omits counts
       if (ev.type === 'content_block_delta' && ev.delta?.type === 'text_delta') {
         outCharsAcc += (ev.delta.text ?? '').length;
       }
 
-      // ── claude.ai-specific: message_limit carries rate-limit metadata ─────
       if (ev.type === 'message_limit') {
         const ml = ev.message_limit ?? {};
         const win5h = ml.windows?.['5h'] ?? null;
@@ -104,26 +115,72 @@ function parseSseTokens(buf, inputAcc, outputAcc, outCharsAcc, rateLimit) {
 
         rateLimit.type      = ml.type      ?? null;
         rateLimit.remaining = ml.remaining ?? null;
-
-        // resets_at is Unix epoch seconds — windows is the authoritative source
-        rateLimit.resetsAt   = win5h?.resets_at ? new Date(win5h.resets_at * 1000).toISOString()
-                             : (ml.resetsAt ?? ml.resets_at ?? null);
-        rateLimit.resetsAt7d = win7d?.resets_at ? new Date(win7d.resets_at * 1000).toISOString()
-                             : null;
-
-        // Authoritative utilization from Claude (0.0–1.0)
+        rateLimit.resetsAt  = win5h?.resets_at
+          ? new Date(win5h.resets_at * 1000).toISOString()
+          : (ml.resetsAt ?? ml.resets_at ?? null);
+        rateLimit.resetsAt7d    = win7d?.resets_at ? new Date(win7d.resets_at * 1000).toISOString() : null;
         rateLimit.utilization5h = win5h?.utilization ?? null;
         rateLimit.utilization7d = win7d?.utilization ?? null;
       }
-
     } catch {}
   }
   return { remaining, inputAcc, outputAcc, outCharsAcc };
 }
 
-// ---------------------------------------------------------------------------
-// Fetch interceptor
-// ---------------------------------------------------------------------------
+// ── ChatGPT SSE parser ────────────────────────────────────────────────────
+// Handles OpenAI-format streaming: chat.completion.chunk events.
+// The usage field appears in the final chunk when stream_options.include_usage=true.
+
+function parseChatGptSse(buf, inputAcc, outputAcc, outCharsAcc) {
+  const lines = buf.split('\n');
+  const remaining = lines.pop() ?? '';
+  for (const line of lines) {
+    if (!line.startsWith('data: ')) continue;
+    const payload = line.slice(6).trim();
+    if (!payload || payload === '[DONE]') continue;
+    try {
+      const ev = JSON.parse(payload);
+      if (ev.usage) {
+        // Usage is authoritative — overwrite accumulated values
+        inputAcc  = ev.usage.prompt_tokens     ?? ev.usage.input_tokens  ?? inputAcc;
+        outputAcc = ev.usage.completion_tokens ?? ev.usage.output_tokens ?? outputAcc;
+      }
+      const text = ev.choices?.[0]?.delta?.content;
+      if (text) outCharsAcc += text.length;
+    } catch {}
+  }
+  return { remaining, inputAcc, outputAcc, outCharsAcc };
+}
+
+// ── Gemini chunk parser ───────────────────────────────────────────────────
+// Handles gemini.google.com responses. Tries usageMetadata JSON extraction first;
+// falls back to counting text chars from candidate parts.
+
+function parseGeminiChunk(chunk, inputAcc, outputAcc, outCharsAcc) {
+  const usageMatch = chunk.match(/"usageMetadata"\s*:\s*\{([^}]+)\}/);
+  if (usageMatch) {
+    try {
+      const fields = usageMatch[1];
+      const pm = fields.match(/"promptTokenCount"\s*:\s*(\d+)/);
+      const cm = fields.match(/"candidatesTokenCount"\s*:\s*(\d+)/);
+      if (pm) inputAcc  = parseInt(pm[1], 10);
+      if (cm) outputAcc = parseInt(cm[1], 10);
+    } catch {}
+  }
+
+  const textPattern = /"text"\s*:\s*"((?:[^"\\]|\\.)*)"/g;
+  let m;
+  while ((m = textPattern.exec(chunk)) !== null) {
+    try {
+      outCharsAcc += JSON.parse('"' + m[1] + '"').length;
+    } catch {
+      outCharsAcc += m[1].length;
+    }
+  }
+  return { inputAcc, outputAcc, outCharsAcc };
+}
+
+// ── Fetch interceptor ─────────────────────────────────────────────────────
 
 const _originalFetch = window.fetch;
 
@@ -135,27 +192,25 @@ window.fetch = async function (...args) {
   const isJson = contentType.includes('application/json') || contentType.includes('text/json');
   const isSse  = contentType.includes('text/event-stream');
 
-  // Log every SSE or /completion response so we know what URLs are streaming
-  if (isSse || url.includes('/completion')) {
-    console.log(`${TAG} [STREAM] ${url} | content-type: ${contentType}`);
+  if (isSse || url.includes('/completion') ||
+      url.includes('/backend-api/conversation') ||
+      url.includes('StreamGenerate') || url.includes('generateContent')) {
+    console.log(`${TAG} [STREAM] ${SITE} ${url} | content-type: ${contentType}`);
   }
 
-  // ── SSE completion stream ── intercept any SSE stream (text/event-stream)
-  // or any URL ending with /completion, regardless of /api/ prefix
-  const isCompletionUrl = isSse || url.includes('/completion');
-
-  if (isCompletionUrl) {
-    console.log(`${TAG} SSE tapping: ${url}`);
+  // ── Completion stream interception ──
+  if (isCompletionStream(url, contentType)) {
+    console.log(`${TAG} tapping stream: ${url}`);
 
     if (response.body) {
-      let [pageStream, ourStream] = response.body.tee();
-
+      const [pageStream, ourStream] = response.body.tee();
       const reader  = ourStream.getReader();
       const decoder = new TextDecoder();
+
       let buf          = '';
       let inputTokens  = 0;
       let outputTokens = 0;
-      let outCharsAcc  = 0;       // char count from text deltas for approximation
+      let outCharsAcc  = 0;
       const rateLimit  = { type: null, resetsAt: null, remaining: null };
 
       const pump = async () => {
@@ -163,33 +218,37 @@ window.fetch = async function (...args) {
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
-            buf += decoder.decode(value, { stream: true });
-            const r = parseSseTokens(buf, inputTokens, outputTokens, outCharsAcc, rateLimit);
-            buf          = r.remaining;
-            inputTokens  = r.inputAcc;
-            outputTokens = r.outputAcc;
-            outCharsAcc  = r.outCharsAcc;
+            const chunk = decoder.decode(value, { stream: true });
+            buf += chunk;
+
+            if (SITE === 'claude') {
+              const r = parseClaudeSse(buf, inputTokens, outputTokens, outCharsAcc, rateLimit);
+              buf = r.remaining; inputTokens = r.inputAcc; outputTokens = r.outputAcc; outCharsAcc = r.outCharsAcc;
+            } else if (SITE === 'chatgpt') {
+              const r = parseChatGptSse(buf, inputTokens, outputTokens, outCharsAcc);
+              buf = r.remaining; inputTokens = r.inputAcc; outputTokens = r.outputAcc; outCharsAcc = r.outCharsAcc;
+            } else if (SITE === 'gemini') {
+              const r = parseGeminiChunk(buf, inputTokens, outputTokens, outCharsAcc);
+              buf = ''; inputTokens = r.inputAcc; outputTokens = r.outputAcc; outCharsAcc = r.outCharsAcc;
+            }
           }
 
-          // If the API didn't give us output tokens, approximate from char count
-          if (outputTokens === 0 && outCharsAcc > 0) {
-            outputTokens = Math.round(outCharsAcc / 4);
-          }
+          if (outputTokens === 0 && outCharsAcc > 0) outputTokens = Math.round(outCharsAcc / 4);
 
-          console.log(`${TAG} SSE done — in:${inputTokens} out:${outputTokens} (approx chars:${outCharsAcc}) rateLimit:`, JSON.stringify(rateLimit));
+          console.log(`${TAG} ${SITE} stream done — in:${inputTokens} out:${outputTokens} (chars:${outCharsAcc})`);
 
           if (inputTokens > 0 || outputTokens > 0 || rateLimit.resetsAt) {
-            postToIsolated('SSE_TOKENS', { url, inputTokens, outputTokens, rateLimit });
+            postToIsolated('SSE_TOKENS', {
+              url, inputTokens, outputTokens,
+              rateLimit: SITE === 'claude' ? rateLimit : null,
+            });
           }
         } catch (err) {
-          console.log(`${TAG} SSE read error:`, err.message);
+          console.log(`${TAG} stream read error:`, err.message);
         }
       };
       pump();
 
-      // Build safe headers: drop Content-Encoding / Transfer-Encoding because
-      // the browser already decoded the body before we called tee(); re-applying
-      // those headers on a new Response would cause double-decompression.
       const safeHeaders = new Headers();
       response.headers.forEach((val, key) => {
         const k = key.toLowerCase();
@@ -206,57 +265,47 @@ window.fetch = async function (...args) {
     return response;
   }
 
-  // ── Known JSON usage endpoints ──
-  if (isUsageUrl(url) && isJson && !isSse) {
-    console.log(`${TAG} API intercepted: ${url}`);
+  // ── Claude-specific: intercept known JSON usage endpoints ──
+  if (SITE === 'claude' && isClaudeUsageUrl(url) && isJson && !isSse) {
+    console.log(`${TAG} Claude API intercepted: ${url}`);
     const clone = response.clone();
-    clone.json()
-      .then(data => {
-        postToIsolated('INTERCEPTED_API', { url, data });
-      })
-      .catch(() => {});
+    clone.json().then(data => postToIsolated('INTERCEPTED_API', { url, data })).catch(() => {});
     return response;
   }
 
-  // ── Discovery sweep ── (log any /api/ JSON that looks usage-related)
-  if (isApiUrl(url) && isJson && !isSse && !url.includes('/experiences/')) {
+  // ── Discovery sweep (Claude only) ──
+  if (SITE === 'claude' && isApiUrl(url) && isJson && !isSse && !url.includes('/experiences/')) {
     const clone = response.clone();
-    clone.json()
-      .then(data => {
-        if (bodyHasUsageSignal(data)) {
-          console.log(`${TAG} [DISCOVERY] ${url}`, JSON.stringify(data).slice(0, 500));
-        }
-      })
-      .catch(() => {});
+    clone.json().then(data => {
+      if (bodyHasUsageSignal(data)) console.log(`${TAG} [DISCOVERY] ${url}`, JSON.stringify(data).slice(0, 500));
+    }).catch(() => {});
   }
 
   return response;
 };
 
-console.log(`${TAG} fetch interceptor installed`);
+console.log(`${TAG} fetch interceptor installed (site: ${SITE})`);
 
-// ---------------------------------------------------------------------------
-// XHR interceptor
-// ---------------------------------------------------------------------------
+// ── XHR interceptor ───────────────────────────────────────────────────────
 
 const _xhrOpen = XMLHttpRequest.prototype.open;
 const _xhrSend = XMLHttpRequest.prototype.send;
 
 XMLHttpRequest.prototype.open = function (method, url, ...rest) {
-  this._cwUrl = typeof url === 'string' ? url : String(url);
+  this._twUrl = typeof url === 'string' ? url : String(url);
   return _xhrOpen.apply(this, [method, url, ...rest]);
 };
 
 XMLHttpRequest.prototype.send = function (...args) {
-  const url = this._cwUrl ?? '';
-  if (isUsageUrl(url) || isApiUrl(url)) {
+  const url = this._twUrl ?? '';
+  if (SITE === 'claude' && (isClaudeUsageUrl(url) || isApiUrl(url))) {
     this.addEventListener('load', function () {
       if (this.status < 200 || this.status >= 300) return;
       const ct = this.getResponseHeader('content-type') ?? '';
       if (!ct.includes('application/json') && !ct.includes('text/json')) return;
       try {
         const data = JSON.parse(this.responseText);
-        if (isUsageUrl(url)) {
+        if (isClaudeUsageUrl(url)) {
           postToIsolated('INTERCEPTED_API', { url, data });
         } else if (bodyHasUsageSignal(data)) {
           console.log(`${TAG} [DISCOVERY XHR] ${url}`, JSON.stringify(data).slice(0, 500));
@@ -267,4 +316,4 @@ XMLHttpRequest.prototype.send = function (...args) {
   return _xhrSend.apply(this, args);
 };
 
-console.log(`${TAG} XHR interceptor installed`);
+console.log(`${TAG} XHR interceptor installed (site: ${SITE})`);

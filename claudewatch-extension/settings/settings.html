@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ClaudeWatch Settings</title>
+  <title>Token Watcher Settings</title>
   <link rel="stylesheet" href="settings.css" />
 </head>
 <body>
@@ -14,12 +14,18 @@
       <div class="header-inner">
         <div class="header-left">
           <svg class="logo-mark" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <rect width="22" height="22" rx="5" fill="#e8620a"/>
-            <text x="11" y="16" font-family="monospace" font-size="12" font-weight="700"
-                  fill="#fff" text-anchor="middle">CW</text>
+            <defs>
+              <linearGradient id="tw-sg" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#6366f1"/>
+                <stop offset="100%" stop-color="#a855f7"/>
+              </linearGradient>
+            </defs>
+            <rect width="22" height="22" rx="5" fill="url(#tw-sg)"/>
+            <text x="11" y="16" font-family="monospace" font-size="10" font-weight="900"
+                  fill="#fff" text-anchor="middle">TW</text>
           </svg>
           <div>
-            <h1>ClaudeWatch</h1>
+            <h1>Token Watcher</h1>
             <p class="header-sub">Extension Settings</p>
           </div>
         </div>

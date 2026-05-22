@@ -1,20 +1,18 @@
 // popup.js — fetches stats from background service worker via GET_STATS,
-// renders dual gauges (5h / 7d), plan comparison table, and SVG sparkline.
+// renders dual gauges (5h / 7d), site breakdown, plan comparison table, and SVG sparkline.
 
-const REFRESH_MS   = 15_000;
-const TICK_MS      = 1_000;
+const REFRESH_MS = 15_000;
+const TICK_MS    = 1_000;
 
 // ── Module state ─────────────────────────────────────────────────────────────
 
-let gResetMs5h = null;  // epoch ms when 5h window resets
-let gResetMs7d = null;  // epoch ms when 7d window resets
-let gLastTs    = null;  // epoch ms of last token event
-let gActiveWin = '5h';  // which chart window is shown
-let gHistory   = [];    // [{ts, input, output}] from background
+let gResetMs5h = null;
+let gResetMs7d = null;
+let gLastTs    = null;
+let gActiveWin = '5h';
+let gHistory   = [];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-const numFmt = new Intl.NumberFormat('en-US');
 
 function el(id) { return document.getElementById(id); }
 
@@ -71,11 +69,8 @@ function fillBar(fillId, pct) {
   const fill = el(fillId);
   if (!fill) return;
   const p = pct ?? 0;
-  // Use max() so even tiny percentages leave a visible 4 px pip
   fill.style.width = p > 0 ? `max(4px, ${Math.min(100, p)}%)` : '0%';
-  fill.className = ['gc-fill',
-    p >= 90 ? 'red' : p >= 70 ? 'amber' : '',
-  ].filter(Boolean).join(' ');
+  fill.className = ['gc-fill', p >= 90 ? 'red' : p >= 70 ? 'amber' : ''].filter(Boolean).join(' ');
 }
 
 // ── Alert banner ──────────────────────────────────────────────────────────────
@@ -88,6 +83,33 @@ function showAlert(msg, isRed = false) {
   textEl.textContent = msg;
   alertEl.className = `alert ${isRed ? 'alert-red' : ''}`;
   alertEl.hidden = false;
+}
+
+// ── Site breakdown ────────────────────────────────────────────────────────────
+
+const SITE_META = [
+  { key: 'claude',  name: 'Claude',  icon: '◐' },
+  { key: 'chatgpt', name: 'ChatGPT', icon: '◯' },
+  { key: 'gemini',  name: 'Gemini',  icon: '◈' },
+];
+
+function renderSiteBreakdown(siteBreakdown, activeSite) {
+  const container = el('site-list');
+  if (!container) return;
+
+  container.innerHTML = SITE_META.map(s => {
+    const data   = siteBreakdown?.[s.key] ?? { tokens5h: 0, tokens7d: 0 };
+    const tokens = data.tokens5h ?? 0;
+    const isActive = s.key === activeSite && tokens > 0;
+    const isEmpty  = tokens === 0;
+
+    return `<div class="site-row${isActive ? ' active' : ''}${isEmpty ? ' empty' : ''}">
+      <span class="site-icon">${s.icon}</span>
+      <span class="site-name">${s.name}</span>
+      <span class="site-tokens">${tokens > 0 ? fmtK(tokens) : '—'}</span>
+      ${isActive ? '<span class="site-active-dot"></span>' : ''}
+    </div>`;
+  }).join('');
 }
 
 // ── Plan table ────────────────────────────────────────────────────────────────
@@ -103,10 +125,8 @@ function renderPlanTable(planTable) {
   tbody.innerHTML = planTable.map(row => {
     const p5 = row.pct5h;
     const p7 = row.pct7d;
-
     const cls5 = p5 == null ? 'null' : p5 >= 100 ? 'over' : p5 >= 80 ? 'high' : '';
     const cls7 = p7 == null ? 'null' : p7 >= 100 ? 'over' : p7 >= 80 ? 'high' : '';
-
     const cur = row.isCurrent;
     const dot = cur ? '<span class="current-marker" title="Your plan"></span>' : '';
 
@@ -121,19 +141,15 @@ function renderPlanTable(planTable) {
 // ── Sparkline SVG ─────────────────────────────────────────────────────────────
 
 function renderSparkline(history, windowKey) {
-  const svgEl = el('sparkline');
+  const svgEl   = el('sparkline');
   const emptyEl = el('chart-empty-msg');
   if (!svgEl) return;
 
   const W = 300, H = 52;
-  const now = Date.now();
-  const MS_5H = 5 * 60 * 60 * 1000;
-  const MS_7D = 7 * 24 * 60 * 60 * 1000;
-  const winMs = windowKey === '7d' ? MS_7D : MS_5H;
+  const now   = Date.now();
+  const winMs = windowKey === '7d' ? 7 * 24 * 60 * 60 * 1000 : 5 * 60 * 60 * 1000;
 
   const filtered = (history ?? []).filter(e => e.ts >= now - winMs);
-
-  // Remove old drawn elements (keep the empty msg)
   svgEl.querySelectorAll('.spark-el').forEach(n => n.remove());
 
   if (filtered.length < 2) {
@@ -142,7 +158,6 @@ function renderSparkline(history, windowKey) {
   }
   if (emptyEl) emptyEl.hidden = true;
 
-  // Bucket into ~30 bars across the window
   const BUCKETS = 30;
   const bucketMs = winMs / BUCKETS;
   const counts = new Array(BUCKETS).fill(0);
@@ -155,30 +170,29 @@ function renderSparkline(history, windowKey) {
   const barW   = W / BUCKETS;
   const pad    = 2;
 
-  // Draw bars
   const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
   g.classList.add('spark-el');
 
   counts.forEach((v, i) => {
     if (v === 0) return;
-    const barH  = Math.max(2, ((v / maxVal) * (H - pad * 2)));
-    const x     = i * barW + 1;
-    const y     = H - pad - barH;
-    const rect  = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    const barH = Math.max(2, ((v / maxVal) * (H - pad * 2)));
+    const x    = i * barW + 1;
+    const y    = H - pad - barH;
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
     rect.setAttribute('x',      x.toFixed(1));
     rect.setAttribute('y',      y.toFixed(1));
     rect.setAttribute('width',  Math.max(1, barW - 2).toFixed(1));
     rect.setAttribute('height', barH.toFixed(1));
     rect.setAttribute('rx',     '1');
-    rect.setAttribute('fill',   '#e8620a');
-    rect.setAttribute('opacity', '0.75');
+    rect.setAttribute('fill',   '#6366f1');
+    rect.setAttribute('opacity', '0.8');
     g.appendChild(rect);
   });
 
   svgEl.appendChild(g);
 }
 
-// ── Countdown tick (fires every second) ──────────────────────────────────────
+// ── Countdown tick ────────────────────────────────────────────────────────────
 
 function tickCountdown() {
   const now = Date.now();
@@ -204,24 +218,31 @@ function tickCountdown() {
 
 function render(stats) {
   if (!stats) {
-    el('empty-state').hidden    = false;
-    el('main-content').hidden   = true;
+    el('empty-state').hidden  = false;
+    el('main-content').hidden = true;
     return;
   }
 
-  const { tokens5h, tokens7d, pct5h, pct7d, limit5h, resetMs5h, timeLeft5h, timeLeft7d,
-          plan, planName, planTable, history, lastTs,
-          rlType, rlResetsAt, rlRemaining } = stats;
+  const {
+    tokens5h, tokens7d, pct5h, pct7d, limit5h, resetMs5h, timeLeft5h, timeLeft7d,
+    plan, planName, planTable, history, lastTs,
+    rlType, rlResetsAt, rlRemaining,
+    siteBreakdown, activeSite,
+  } = stats;
 
-  // Show main content as long as we have ANY data (tokens OR rate-limit info)
-  const hasData = tokens5h > 0 || tokens7d > 0 || rlResetsAt != null;
+  // Show main content as long as we have ANY data across all sites
+  const totalTokens = Object.values(siteBreakdown ?? {}).reduce((a, s) => a + (s.tokens5h ?? 0), 0);
+  const hasData = totalTokens > 0 || tokens5h > 0 || tokens7d > 0 || rlResetsAt != null;
 
   el('empty-state').hidden  =  hasData;
   el('main-content').hidden = !hasData;
 
   if (!hasData) return;
 
-  // Gauges
+  // Site breakdown
+  renderSiteBreakdown(siteBreakdown, activeSite);
+
+  // Claude gauges
   setText('tokens-5h', `${fmtK(tokens5h)} / ${fmtK(limit5h)}`);
   setText('tokens-7d', `${fmtK(tokens7d)} / ${fmtK(limit5h * 7)}`);
   setText('pct-5h', fmtPct(pct5h));
@@ -229,19 +250,19 @@ function render(stats) {
   fillBar('fill-5h', pct5h);
   fillBar('fill-7d', pct7d);
 
-  // Anchor countdown reset times — prefer authoritative rlResetsAt
+  // Countdown anchors
   gResetMs5h = rlResetsAt ? Date.parse(rlResetsAt) : (resetMs5h ?? null);
   gResetMs7d = stats.timeLeft7d != null ? Date.now() + stats.timeLeft7d : null;
   gLastTs    = lastTs ?? null;
 
-  // Alert — use claude.ai's official rate-limit type if available
+  // Alert (Claude rate-limit)
   if (rlType === 'over_limit') {
-    showAlert('Rate limit reached — resets in ' + (gResetMs5h ? fmtDuration(Math.max(0, gResetMs5h - Date.now())) : '—'), true);
+    showAlert('Claude rate limit reached — resets in ' + (gResetMs5h ? fmtDuration(Math.max(0, gResetMs5h - Date.now())) : '—'), true);
   } else if (rlType === 'approaching_limit') {
     const rem = rlRemaining != null ? ` (${rlRemaining} msgs left)` : '';
-    showAlert(`Approaching limit${rem}`);
+    showAlert(`Claude approaching limit${rem}`);
   } else if (pct5h != null && pct5h >= 90) {
-    showAlert(`5-hour window ${Math.round(pct5h)}% used — limit approaching`, pct5h >= 100);
+    showAlert(`Claude 5-hour window ${Math.round(pct5h)}% used`, pct5h >= 100);
   } else {
     showAlert(null);
   }
@@ -257,7 +278,7 @@ function render(stats) {
   // Plan table
   renderPlanTable(planTable);
 
-  // Chart — keep whichever tab is active
+  // Chart
   gHistory = history ?? [];
   renderSparkline(gHistory, gActiveWin);
 }
@@ -299,7 +320,16 @@ function setupButtons() {
     chrome.tabs.create({ url: 'https://claude.ai' });
     window.close();
   });
-
+  el('btn-open-chatgpt')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    chrome.tabs.create({ url: 'https://chatgpt.com' });
+    window.close();
+  });
+  el('btn-open-gemini')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    chrome.tabs.create({ url: 'https://gemini.google.com' });
+    window.close();
+  });
   el('btn-settings')?.addEventListener('click', () => {
     chrome.runtime.openOptionsPage();
   });
@@ -308,7 +338,6 @@ function setupButtons() {
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Show version immediately
   const manifest = chrome.runtime.getManifest();
   setText('version', `v${manifest.version}`);
 

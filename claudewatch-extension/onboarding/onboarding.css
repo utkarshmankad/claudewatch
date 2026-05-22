@@ -12,8 +12,8 @@
   --text-2:    #8888a0;
   --text-3:    #44445a;
 
-  --orange:    #e8620a;
-  --orange-dk: #c5520a;
+  --brand:     #6366f1;
+  --brand-dk:  #4f46e5;
   --green:     #10b981;
   --amber:     #f59e0b;
   --red:       #ef4444;
@@ -53,7 +53,7 @@ body {
 .hero h1 {
   font-size: 28px;
   font-weight: 700;
-  color: var(--orange);
+  color: var(--brand);
   letter-spacing: -0.02em;
   margin-bottom: 10px;
 }
@@ -93,7 +93,7 @@ body {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: var(--orange);
+  background: var(--brand);
   color: #fff;
   font-size: 16px;
   font-weight: 700;
@@ -132,8 +132,8 @@ body {
   transition: background 0.12s ease, transform 0.08s ease;
 }
 .btn:active { transform: scale(0.97); }
-.btn-primary { background: var(--orange); color: #fff; }
-.btn-primary:hover { background: var(--orange-dk); }
+.btn-primary { background: var(--brand); color: #fff; }
+.btn-primary:hover { background: var(--brand-dk); }
 .btn-ghost {
   background: transparent;
   color: var(--text-2);
@@ -144,7 +144,7 @@ body {
 .inline-link {
   background: none;
   border: none;
-  color: var(--orange);
+  color: var(--brand);
   font-family: inherit;
   font-size: inherit;
   cursor: pointer;
@@ -292,7 +292,7 @@ body {
   width: 32px;
   height: 32px;
   border-radius: 7px;
-  background: var(--orange);
+  background: var(--brand);
   color: #fff;
   font-size: 10px;
   font-weight: 700;
@@ -323,6 +323,14 @@ body {
   line-height: 1.6;
 }
 .privacy strong { color: var(--text-2); }
+
+/* ── Site links (step 1) ─────────────────────────────────────────────────── */
+.site-links {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
 
 /* ── Responsive ─────────────────────────────────────────────────────────── */
 @media (max-width: 620px) {

@@ -1,10 +1,10 @@
 {
-  "name": "claudewatch-extension",
-  "version": "0.1.0",
-  "description": "ClaudeWatch Chrome extension — session usage monitoring for claude.ai",
+  "name": "token-watcher-extension",
+  "version": "0.8.0",
+  "description": "Token Watcher — AI token usage monitoring for Claude, ChatGPT, and Gemini",
   "private": true,
   "scripts": {
     "validate": "node validate-manifest.js",
-    "zip": "npm run validate && zip -r ../claudewatch-extension.zip . --exclude '*.git*' --exclude 'node_modules/*' --exclude 'package*.json' --exclude 'validate-manifest.js' --exclude '*.zip'"
+    "zip": "npm run validate && zip -r ../token-watcher-extension.zip . --exclude '*.git*' --exclude 'node_modules/*' --exclude 'package*.json' --exclude 'validate-manifest.js' --exclude '*.zip' --exclude 'test/*' --exclude 'lib/*'"
   }
 }
