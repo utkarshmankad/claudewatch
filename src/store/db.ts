@@ -13,7 +13,7 @@ const DB_PATH = path.join(DATA_DIR, 'usage.db');
 
 // Bump this whenever the schema changes. The migration below handles the
 // upgrade from any lower version.
-const CURRENT_SCHEMA_VERSION = 4;
+const CURRENT_SCHEMA_VERSION = 5;
 
 // ---------------------------------------------------------------------------
 // Exported TypeScript types (camelCase view of the rows)
@@ -36,6 +36,9 @@ export interface UsageSnapshot {
   readonly cacheWrite1hTokens: number;
   /** Cache-write tokens charged at the 5-minute TTL rate */
   readonly cacheWrite5mTokens: number;
+  /** Source of usage: 'api' | 'claude_code' | 'claude_ai' | 'mobile' */
+  readonly sourceTag: string;
+  readonly estimatedCostUsd: number;
 }
 
 /** Input shape for insertSnapshot() — all fields optional; defaults applied inside. */
@@ -50,6 +53,8 @@ export interface SnapshotData {
   cacheReadTokens?: number;
   cacheWrite1hTokens?: number;
   cacheWrite5mTokens?: number;
+  sourceTag?: string | null;
+  estimatedCostUsd?: number;
 }
 
 export interface AlertRecord {
@@ -90,6 +95,8 @@ interface UsageRow {
   cache_read_tokens: number;
   cache_write_1h_tokens: number;
   cache_write_5m_tokens: number;
+  source_tag: string | null;
+  estimated_cost_usd: number | null;
 }
 
 interface AlertRow {
@@ -151,8 +158,16 @@ function migrate(db: Database.Database): void {
     if (version < 1) applyV1(db);
     if (version < 2) applyV2(db);
     if (version < 4) applyV4(db);
+    if (version < 5) applyV5(db);
     db.pragma(`user_version = ${CURRENT_SCHEMA_VERSION}`);
   })();
+}
+
+// V5: add source_tag and estimated_cost_usd to usage_snapshots.
+// ALTER TABLE ADD COLUMN has no IF NOT EXISTS in SQLite; catch duplicate-column errors.
+function applyV5(db: Database.Database): void {
+  try { db.exec(`ALTER TABLE usage_snapshots ADD COLUMN source_tag TEXT DEFAULT 'api'`); } catch { /* already exists */ }
+  try { db.exec(`ALTER TABLE usage_snapshots ADD COLUMN estimated_cost_usd REAL DEFAULT 0`); } catch { /* already exists */ }
 }
 
 // V4: creates session_tokens with IF NOT EXISTS — safe for all previous versions
@@ -277,6 +292,8 @@ export function insertSnapshot(data: SnapshotData): void {
     cacheReadTokens:     data.cacheReadTokens      ?? 0,
     cacheWrite1hTokens:  data.cacheWrite1hTokens   ?? 0,
     cacheWrite5mTokens:  data.cacheWrite5mTokens   ?? 0,
+    sourceTag:           data.sourceTag            ?? 'api',
+    estimatedCostUsd:    data.estimatedCostUsd     ?? 0,
   };
 
   const result = db.prepare(`
@@ -284,12 +301,14 @@ export function insertSnapshot(data: SnapshotData): void {
       recorded_at, bucket_starting_at, bucket_ending_at,
       model, workspace_id,
       uncached_input_tokens, output_tokens,
-      cache_read_tokens, cache_write_1h_tokens, cache_write_5m_tokens
+      cache_read_tokens, cache_write_1h_tokens, cache_write_5m_tokens,
+      source_tag, estimated_cost_usd
     ) VALUES (
       @recordedAt, @bucketStartingAt, @bucketEndingAt,
       @model, @workspaceId,
       @uncachedInputTokens, @outputTokens,
-      @cacheReadTokens, @cacheWrite1hTokens, @cacheWrite5mTokens
+      @cacheReadTokens, @cacheWrite1hTokens, @cacheWrite5mTokens,
+      @sourceTag, @estimatedCostUsd
     )
   `).run(params);
 
@@ -549,6 +568,45 @@ export function getWeeklyTokens(): number {
 }
 
 // ---------------------------------------------------------------------------
+// usage_snapshots — source breakdown
+// ---------------------------------------------------------------------------
+
+export interface SourceUsage {
+  tokens: number;
+  cost: number;
+  calls: number;
+}
+
+/** Return per-source token totals for usage_snapshots recorded on or after `since`. */
+export function getUsageBySource(since: string): Record<string, SourceUsage> {
+  const rows = getDb()
+    .prepare<[string]>(`
+      SELECT
+        COALESCE(source_tag, 'api') AS source,
+        SUM(
+          uncached_input_tokens + output_tokens +
+          cache_read_tokens + cache_write_1h_tokens + cache_write_5m_tokens
+        ) AS tokens,
+        SUM(estimated_cost_usd) AS cost,
+        COUNT(*) AS calls
+      FROM usage_snapshots
+      WHERE recorded_at >= ?
+      GROUP BY COALESCE(source_tag, 'api')
+    `)
+    .all(since) as Array<{ source: string; tokens: number; cost: number; calls: number }>;
+
+  const result: Record<string, SourceUsage> = {};
+  for (const row of rows) {
+    result[row.source] = {
+      tokens: row.tokens ?? 0,
+      cost:   row.cost   ?? 0,
+      calls:  row.calls  ?? 0,
+    };
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
 // personal_session_tokens — query functions (personal mode)
 // ---------------------------------------------------------------------------
 
@@ -711,6 +769,8 @@ function rowToSnapshot(r: UsageRow): UsageSnapshot {
     cacheReadTokens: r.cache_read_tokens,
     cacheWrite1hTokens: r.cache_write_1h_tokens,
     cacheWrite5mTokens: r.cache_write_5m_tokens,
+    sourceTag: r.source_tag ?? 'api',
+    estimatedCostUsd: r.estimated_cost_usd ?? 0,
   };
 }
 

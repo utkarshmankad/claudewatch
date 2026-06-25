@@ -1,7 +1,7 @@
 import { createServer, type Server } from 'http';
 import express from 'express';
 import cors from 'cors';
-import { getAlertHistory, getDailyTokensByModel, getLatestSnapshot, getDb, getSessionTokens, insertSessionTokens, getWeeklyTokens } from '../store/db.js';
+import { getAlertHistory, getDailyTokensByModel, getLatestSnapshot, getDb, getSessionTokens, insertSessionTokens, getWeeklyTokens, getUsageBySource } from '../store/db.js';
 import { getTotalCostSince } from '../store/usage.js';
 import { currentBillingPeriod } from '../api/usageClient.js';
 import { getCostCache } from './costCache.js';
@@ -123,6 +123,12 @@ export function startWebServer(config: Config): Server {
     // Session data pushed by the extension
     const sessionRow = getSessionTokens();
 
+    // Source breakdown for this calendar month
+    const now2 = new Date();
+    const monthStart = new Date(Date.UTC(now2.getUTCFullYear(), now2.getUTCMonth(), 1)).toISOString();
+    const bySource = getUsageBySource(monthStart);
+    const empty = { tokens: 0, cost: 0, calls: 0 };
+
     // Weekly token count (rolling 7-day window from usage_snapshots)
     const weeklyTokensUsed = getWeeklyTokens();
     const now = new Date();
@@ -170,6 +176,12 @@ export function startWebServer(config: Config): Server {
       },
       config: {
         weeklyTokenLimit: config.weeklyTokenLimit ?? null,
+      },
+      sources: {
+        api:         bySource['api']         ?? empty,
+        claude_code: bySource['claude_code'] ?? empty,
+        claude_ai:   bySource['claude_ai']   ?? empty,
+        mobile:      bySource['mobile']      ?? empty,
       },
     });
   });

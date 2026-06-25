@@ -29,6 +29,20 @@ function isClaudeUsageUrl(url) {
   return CLAUDE_USAGE_URL_PATTERNS.some(p => url.includes(p));
 }
 
+// ChatGPT account/subscription endpoints for plan detection
+const CHATGPT_ACCOUNT_URL_PATTERNS = [
+  '/backend-api/me',
+  '/backend-api/accounts/check',
+  '/backend-api/accounts',
+  '/backend-api/settings/account',
+  '/api/auth/session',
+];
+
+function isChatGptAccountUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  return CHATGPT_ACCOUNT_URL_PATTERNS.some(p => url.includes(p));
+}
+
 function isApiUrl(url) {
   return typeof url === 'string' && /\/api\//.test(url);
 }
@@ -57,6 +71,7 @@ function isCompletionStream(url, contentType) {
   if (SITE === 'gemini') {
     return isSse
       || url.includes('StreamGenerate')
+      || url.includes('BardChatUi')
       || url.includes('/generateContent')
       || url.includes('/streamGenerateContent');
   }

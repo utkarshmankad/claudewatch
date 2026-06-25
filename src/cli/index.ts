@@ -5,6 +5,8 @@ import path from 'path';
 import { Command } from 'commander';
 import { VERSION } from '../version.js';
 import Database from 'better-sqlite3';
+import keytar from 'keytar';
+import { input } from '@inquirer/prompts';
 import { installDaemon, uninstallDaemon } from './commands/install.js';
 import { configExists, loadConfig, saveConfigFile, getConfigFilePath } from '../config/manager.js';
 import { runSetupWizard } from '../config/index.js';
@@ -12,7 +14,7 @@ import { getDbPath, getLatestSnapshot, getLatestPersonalTokens } from '../store/
 import { startDaemonProcess, stopDaemonProcess, writeDaemonPid, clearDaemonPid } from './daemon-ctrl.js';
 import { runStatus } from './status.js';
 import type { Period } from '../config/schema.js';
-import { PERIODS, KEYTAR_SERVICE, API_KEY_ACCOUNT } from '../config/schema.js';
+import { PERIODS, KEYTAR_SERVICE, API_KEY_ACCOUNT, SESSION_COOKIE_ACCOUNT } from '../config/schema.js';
 
 const program = new Command();
 
@@ -31,6 +33,27 @@ program
   .option('--reset', 'Overwrite existing config')
   .action(async (opts: { reset?: boolean }) => {
     await runSetupWizard(opts.reset ?? false).catch(exit1);
+  });
+
+// ---------------------------------------------------------------------------
+// set-cookie — store or update claude.ai session cookie
+// ---------------------------------------------------------------------------
+
+program
+  .command('set-cookie')
+  .description('Store or update the claude.ai session cookie for usage polling')
+  .action(async () => {
+    const cookie = await input({
+      message: 'Paste sessionKey cookie value (starts with sk-ant-sid):',
+      validate: (v) => {
+        if (!v.trim()) return 'Cookie value is required';
+        if (!v.trim().startsWith('sk-ant-sid')) return 'Must start with sk-ant-sid';
+        return true;
+      },
+    });
+    await keytar.setPassword(KEYTAR_SERVICE, SESSION_COOKIE_ACCOUNT, cookie.trim());
+    console.log('✓ Session cookie updated');
+    console.log('  Restart daemon to apply: claudewatch restart');
   });
 
 // ---------------------------------------------------------------------------

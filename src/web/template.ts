@@ -208,6 +208,46 @@ export function generateDashboardHTML(data: DashboardData): string {
   </div>
 
   <div class="card" style="margin-top:16px">
+    <h2>Usage by Source — This Month</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Source</th>
+          <th style="text-align:right">Tokens</th>
+          <th style="text-align:right">Est. Cost</th>
+          <th style="text-align:right">Calls</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>&#127760; claude.ai</td>
+          <td style="text-align:right" id="src-claudeai-tokens">—</td>
+          <td style="text-align:right" id="src-claudeai-cost">—</td>
+          <td style="text-align:right" id="src-claudeai-calls">—</td>
+        </tr>
+        <tr>
+          <td>&#9000;&#65039; Claude Code</td>
+          <td style="text-align:right" id="src-claudecode-tokens">—</td>
+          <td style="text-align:right" id="src-claudecode-cost">—</td>
+          <td style="text-align:right" id="src-claudecode-calls">—</td>
+        </tr>
+        <tr>
+          <td>&#128268; API</td>
+          <td style="text-align:right" id="src-api-tokens">—</td>
+          <td style="text-align:right" id="src-api-cost">—</td>
+          <td style="text-align:right" id="src-api-calls">—</td>
+        </tr>
+        <tr>
+          <td>&#128241; Mobile</td>
+          <td style="text-align:right" id="src-mobile-tokens">—</td>
+          <td style="text-align:right" id="src-mobile-cost">—</td>
+          <td style="text-align:right" id="src-mobile-calls">—</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card" style="margin-top:16px">
     <h2>Recent Alerts</h2>
     <div id="alerts-container">${alertsTable(data.alerts)}</div>
   </div>
@@ -317,6 +357,18 @@ export function generateDashboardHTML(data: DashboardData): string {
             '<table><thead><tr><th>Fired At</th><th>Period</th><th>Threshold</th><th>Actual</th><th>Channels</th></tr></thead>'
             + '<tbody>' + rows + '</tbody></table>');
         }
+
+        // Source breakdown
+        var src = data.sources || {};
+        function setSrc(prefix, s) {
+          setText(prefix + '-tokens', s ? num(s.tokens) : '0');
+          setText(prefix + '-cost',   s && s.cost != null ? '$' + Number(s.cost).toFixed(6) : '$0.000000');
+          setText(prefix + '-calls',  s ? String(s.calls) : '0');
+        }
+        setSrc('src-claudeai',   src.claude_ai);
+        setSrc('src-claudecode', src.claude_code);
+        setSrc('src-api',        src.api);
+        setSrc('src-mobile',     src.mobile);
 
         setText('last-updated', new Date().toLocaleTimeString());
         setText('refresh-status', 'Updated ' + new Date().toLocaleTimeString());

@@ -5,7 +5,10 @@ import { loadConfig } from '../config/manager.js';
 import {
   closeDb, insertSnapshot, insertPersonalTokens, getPersonalPeriodTokens,
   getWeeklySpend, getWeeklyTokens, hasAlertFired, recordAlert,
+  insertSessionTokens,
 } from '../store/db.js';
+import { SessionPoller } from '../api/sessionPoller.js';
+import { ClaudeCodeWatcher } from '../api/claudeCodeWatcher.js';
 import { UsageClient, computePeriodCosts, currentBillingPeriod, totalCostUSD } from '../api/usageClient.js';
 import type { BillingPeriod } from '../api/usageClient.js';
 import { PersonalUsageClient, estimateTokenCost } from '../api/personalClient.js';
@@ -17,6 +20,17 @@ import type { AlertPayload } from '../alerts/types.js';
 import type { Config, SpendThreshold } from '../config/schema.js';
 import { setCostCache } from './costCache.js';
 import { startWebServer } from './server.js';
+
+// ---------------------------------------------------------------------------
+// Session poller (module-level singleton)
+// ---------------------------------------------------------------------------
+
+const sessionPoller = new SessionPoller();
+
+const ccWatcher = new ClaudeCodeWatcher((usage) => {
+  insertSnapshot(usage);
+  console.log(`[ClaudeWatch] Claude Code usage stored — model=${usage.model ?? '?'}`);
+});
 
 // ---------------------------------------------------------------------------
 // Shared alert dispatcher
@@ -188,6 +202,18 @@ async function runTick(config: Config, client: UsageClient): Promise<void> {
       );
     }
   }
+
+  // Poll session usage from claude.ai (captures all surfaces)
+  const sessionUsage = await sessionPoller.poll();
+  if (sessionUsage) {
+    insertSessionTokens({
+      capturedAt:  sessionUsage.capturedAt,
+      tokensUsed:  sessionUsage.tokensUsed,
+      tokenLimit:  sessionUsage.tokenLimit,
+      resetsAt:    sessionUsage.resetsAt,
+      plan:        sessionUsage.plan,
+    });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -262,6 +288,7 @@ async function runPersonalTick(config: Config, client: PersonalUsageClient): Pro
 
 export async function runOnce(): Promise<void> {
   const config = await loadConfig();
+  await sessionPoller.init();
   if (config.mode === 'personal') {
     const client = new PersonalUsageClient(config.anthropicAdminKey);
     await runPersonalTick(config, client);
@@ -277,6 +304,15 @@ export async function runOnce(): Promise<void> {
 
 export async function startDaemon(): Promise<void> {
   const config = await loadConfig();
+
+  await ccWatcher.start(); // non-fatal if Claude Code not installed
+
+  const sessionPollerReady = await sessionPoller.init();
+  if (sessionPollerReady) {
+    console.log('[ClaudeWatch] Session poller ready — capturing usage from all Claude surfaces');
+  } else {
+    console.warn('[ClaudeWatch] Session poller disabled — run claudewatch set-cookie for full tracking');
+  }
 
   const safeInterval = Math.min(59, Math.max(1, Math.round(config.pollIntervalMinutes)));
   console.log(
@@ -303,6 +339,7 @@ export async function startDaemon(): Promise<void> {
   const shutdown = (): void => {
     console.log('\n[ClaudeWatch] shutting down');
     task.stop();
+    ccWatcher.stop();
     webServer.close();
     closeDb();
     process.exit(0);

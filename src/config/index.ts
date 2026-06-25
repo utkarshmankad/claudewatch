@@ -8,6 +8,7 @@ import {
   EMAIL_PASS_ACCOUNT,
   KEYTAR_SERVICE,
   PERIODS,
+  SESSION_COOKIE_ACCOUNT,
 } from './schema.js';
 import { configExists, saveConfig } from './manager.js';
 
@@ -63,6 +64,27 @@ export async function runSetupWizard(force = false): Promise<Config> {
       process.stdout.write(
         '\nPersonal mode: usage tracked locally only, not from Anthropic\'s servers\n\n',
       );
+    }
+
+    // --- Session cookie ---
+    process.stdout.write('\n── Claude.ai Session Cookie (optional but recommended) ──\n');
+    process.stdout.write('This allows ClaudeWatch to read your REAL token usage from\n');
+    process.stdout.write('Anthropic\'s servers — including Claude Code, mobile, and\n');
+    process.stdout.write('other browsers. Without it, session data is estimated only.\n');
+    process.stdout.write('\nHow to get your session cookie:\n');
+    process.stdout.write('1. Open claude.ai in your browser\n');
+    process.stdout.write('2. Open DevTools → Application → Cookies → claude.ai\n');
+    process.stdout.write('3. Find the cookie named "sessionKey"\n');
+    process.stdout.write('4. Copy the value (starts with sk-ant-sid01-)\n\n');
+
+    const sessionCookie = await askSecret('Paste sessionKey cookie value (or Enter to skip)');
+    if (sessionCookie) {
+      if (!sessionCookie.startsWith('sk-ant-sid')) {
+        process.stdout.write('  Warning: value does not start with sk-ant-sid — skipping\n');
+      } else {
+        await keytar.setPassword(KEYTAR_SERVICE, SESSION_COOKIE_ACCOUNT, sessionCookie);
+        process.stdout.write('✓ Session cookie stored in keychain\n');
+      }
     }
 
     // --- Basic settings ---

@@ -2,6 +2,7 @@
 export const KEYTAR_SERVICE = 'claudewatch' as const;
 export const API_KEY_ACCOUNT = 'anthropic-admin-key' as const;
 export const EMAIL_PASS_ACCOUNT = 'email-password' as const;
+export const SESSION_COOKIE_ACCOUNT = 'session-cookie' as const;
 
 /** Pointer stored in TOML so a human can see where the secret lives */
 export interface KeytarRef {
