@@ -334,47 +334,77 @@ XMLHttpRequest.prototype.send = function (...args) {
 console.log(`${TAG} XHR interceptor installed (site: ${SITE})`);
 
 // ── Authenticated usage bridge ───────────────────────────────────────────
-// The service worker is an extension origin, so Claude's session cookie is not
-// reliably available to fetches made there.  The isolated content script asks
-// this MAIN-world script to fetch Claude's authoritative usage endpoint using
-// the page's own authenticated fetch context.  This works before any prompt is
-// sent and reflects usage produced by other clients/devices on the account.
+// The isolated content script asks this MAIN-world script to call each site's
+// authenticated quota endpoint. This works before a prompt is sent and avoids
+// copying session credentials into extension storage.
 window.addEventListener('message', async (event) => {
   const req = event.data;
-  if (SITE !== 'claude' || event.source !== window || !req?.__tokenwatcherRequest) return;
-  if (req.type !== 'FETCH_CLAUDE_USAGE' || typeof req.requestId !== 'string') return;
+  if (event.source !== window || !req?.__tokenwatcherRequest) return;
+  if (req.type !== 'FETCH_PROVIDER_USAGE' || typeof req.requestId !== 'string') return;
 
-  const respond = (payload) => postToIsolated('CLAUDE_USAGE_RESPONSE', {
+  const respond = (payload) => postToIsolated('PROVIDER_USAGE_RESPONSE', {
     requestId: req.requestId,
     ...payload,
   });
 
   try {
-    const orgResp = await _originalFetch.call(window, '/api/organizations', {
-      credentials: 'include', cache: 'no-store', headers: { Accept: 'application/json' },
-    });
-    if (!orgResp.ok) {
-      respond({ ok: false, status: orgResp.status, error: 'organizations_fetch_failed' });
-      return;
-    }
-
-    const orgBody = await orgResp.json();
-    const orgs = Array.isArray(orgBody) ? orgBody : (orgBody.organizations ?? []);
-    const results = [];
-    for (const org of orgs) {
-      const orgId = org?.uuid ?? org?.id;
-      if (!orgId) continue;
-      const usageResp = await _originalFetch.call(window, `/api/organizations/${orgId}/usage`, {
+    if (SITE === 'claude') {
+      const orgResp = await _originalFetch.call(window, '/api/organizations', {
         credentials: 'include', cache: 'no-store', headers: { Accept: 'application/json' },
       });
-      if (!usageResp.ok) continue;
-      results.push({ orgId, org, usage: await usageResp.json() });
+      if (!orgResp.ok) return respond({ ok: false, status: orgResp.status, error: 'organizations_fetch_failed' });
+      const orgBody = await orgResp.json();
+      const orgs = Array.isArray(orgBody) ? orgBody : (orgBody.organizations ?? []);
+      const results = [];
+      for (const org of orgs) {
+        const orgId = org?.uuid ?? org?.id;
+        if (!orgId) continue;
+        const usageResp = await _originalFetch.call(window, `/api/organizations/${orgId}/usage`, {
+          credentials: 'include', cache: 'no-store', headers: { Accept: 'application/json' },
+        });
+        if (usageResp.ok) results.push({ orgId, org, usage: await usageResp.json() });
+      }
+      return respond({ ok: results.length > 0, snapshot: { organizations: results }, error: results.length ? null : 'usage_fetch_failed' });
     }
 
-    respond({ ok: results.length > 0, organizations: results, error: results.length ? null : 'usage_fetch_failed' });
+    if (SITE === 'chatgpt') {
+      const sessionResp = await _originalFetch.call(window, '/api/auth/session', { credentials: 'include', cache: 'no-store' });
+      if (!sessionResp.ok) return respond({ ok: false, status: sessionResp.status, error: 'session_fetch_failed' });
+      const session = await sessionResp.json();
+      if (!session?.accessToken) return respond({ ok: false, status: 401, error: 'not_logged_in' });
+      const usageResp = await _originalFetch.call(window, '/backend-api/wham/usage', {
+        credentials: 'include', cache: 'no-store',
+        headers: { Authorization: `Bearer ${session.accessToken}`, Accept: 'application/json' },
+      });
+      if (!usageResp.ok) return respond({ ok: false, status: usageResp.status, error: 'usage_fetch_failed' });
+      const usage = await usageResp.json();
+      return respond({ ok: true, snapshot: { usage, email: usage.email ?? session.user?.email ?? null } });
+    }
+
+    if (SITE === 'gemini') {
+      let atToken = window.WIZ_global_data?.SNlM0e ?? '';
+      if (!atToken) atToken = document.documentElement.innerHTML.match(/"SNlM0e":"([^"]+)"/)?.[1] ?? '';
+      if (!atToken) return respond({ ok: false, status: 401, error: 'xsrf_token_missing' });
+      const rpcId = 'jSf9Qc';
+      const innerReq = JSON.stringify([[[rpcId, '[]', null, 'generic']]]);
+      const body = `f.req=${encodeURIComponent(innerReq)}&at=${encodeURIComponent(atToken)}&`;
+      const usageResp = await _originalFetch.call(window, `/_/BardChatUi/data/batchexecute?rpcids=${rpcId}&source-path=%2Fusage&rt=c`, {
+        method: 'POST', credentials: 'include', cache: 'no-store', body,
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8', 'X-Same-Domain': '1' },
+      });
+      if (!usageResp.ok) return respond({ ok: false, status: usageResp.status, error: 'usage_fetch_failed' });
+      const wiz = window.WIZ_global_data ?? {};
+      return respond({ ok: true, snapshot: {
+        batchText: await usageResp.text(), rpcId,
+        email: wiz.oPEP7c ?? null,
+        accountId: wiz.S06Grb ?? wiz.FdrFJe ?? wiz.oPEP7c ?? null,
+      } });
+    }
+
+    return respond({ ok: false, status: 400, error: 'unsupported_site' });
   } catch (err) {
     respond({ ok: false, status: 0, error: err?.message ?? 'usage_fetch_failed' });
   }
 });
 
-console.log(`${TAG} authenticated Claude usage bridge installed`);
+console.log(`${TAG} authenticated provider usage bridge installed`);

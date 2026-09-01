@@ -251,3 +251,53 @@ export function extractConvTokens(data) {
   }
   return events;
 }
+
+// ── Provider quota normalization ─────────────────────────────────────────
+
+export function classifyChatGptWindows(rateLimit) {
+  const split = Math.sqrt(5 * 3600 * 7 * 24 * 3600);
+  const primary = rateLimit?.primary_window ?? null;
+  const secondary = rateLimit?.secondary_window ?? null;
+  let w5h = null, w7d = null;
+  for (const w of [primary, secondary]) {
+    if (!w || typeof w.limit_window_seconds !== 'number') continue;
+    if (w.limit_window_seconds < split) w5h = w; else w7d = w;
+  }
+  if (!w5h && primary && typeof primary.limit_window_seconds !== 'number') w5h = primary;
+  if (!w7d && secondary && typeof secondary.limit_window_seconds !== 'number') w7d = secondary;
+  return { w5h, w7d };
+}
+
+export function parseBatchResponse(text, rpcId) {
+  for (const line of String(text ?? '').split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed === ")]}'" || /^\d+$/.test(trimmed)) continue;
+    try {
+      const rows = JSON.parse(trimmed);
+      for (const row of Array.isArray(rows) ? rows : []) {
+        if (row?.[0] === 'wrb.fr' && row?.[1] === rpcId && row[2]) return JSON.parse(row[2]);
+      }
+    } catch {}
+  }
+  return null;
+}
+
+export function forecastWindow(history, { site, accountId, key, currentPct, resetsAt, now = Date.now() }) {
+  const resetMs = Date.parse(resetsAt ?? '');
+  if (currentPct == null || !Number.isFinite(resetMs) || resetMs <= now) return null;
+  const pctKey = key === '5h' ? 'pct5h' : 'pct7d';
+  const resetKey = key === '5h' ? 'resetsAt5h' : 'resetsAt7d';
+  const lookbackMs = key === '5h' ? 6 * 3600000 : 7 * 24 * 3600000;
+  const samples = history.filter(h => h.ts >= now - lookbackMs && h.site === site && h.accountId === accountId && h[pctKey] != null)
+    .sort((a, b) => a.ts - b.ts);
+  if (samples.length < 2) return null;
+  const spanHours = (samples.at(-1).ts - samples[0].ts) / 3600000;
+  if (spanHours < 0.5) return null;
+  let growth = 0;
+  for (let i = 1; i < samples.length; i++) {
+    const prev = samples[i - 1], cur = samples[i];
+    growth += prev[resetKey] && cur[resetKey] && prev[resetKey] !== cur[resetKey]
+      ? Math.max(0, cur[pctKey]) : Math.max(0, cur[pctKey] - prev[pctKey]);
+  }
+  return Math.max(currentPct, currentPct + (growth / spanHours) * ((resetMs - now) / 3600000));
+}

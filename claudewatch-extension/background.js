@@ -8,6 +8,7 @@ const TAG = '[TokenWatcher]';
 const WINDOW_5H_MS       = 5  * 60 * 60 * 1000;
 const WINDOW_7D_MS       = 7  * 24 * 60 * 60 * 1000;
 const MAX_HISTORY        = 2000;
+const MAX_USAGE_HISTORY  = 7000;
 const POLL_INTERVAL_MIN  = 5;
 
 // Approximate token limits per 5-hour window (community-derived estimates).
@@ -35,10 +36,13 @@ const K_PLAN          = 'detected_plan';     // plan key string (Claude only)
 const K_RATELIMIT     = 'rate_limit';        // Claude rate-limit info
 const K_ORG_ID        = 'org_id';            // Claude org UUID
 const K_LAST_BACKFILL = 'last_backfill_ts';  // epoch ms of last conversation backfill
+const K_PROVIDER_USAGE = 'provider_usage';   // {site: normalized authoritative snapshot}
+const K_USAGE_HISTORY  = 'usage_history';    // 7d account-scoped quota snapshots
 
 // ── Storage helpers ───────────────────────────────────────────────────────
 const lget = (k)    => new Promise(r => chrome.storage.local.get(k,  d => r(d[k]  ?? null)));
 const lset = (k, v) => new Promise(r => chrome.storage.local.set({[k]: v}, r));
+let providerSaveQueue = Promise.resolve();
 
 // ── Badge ─────────────────────────────────────────────────────────────────
 function updateBadge(pct) {
@@ -136,6 +140,133 @@ async function mergeRateLimit(newInfo) {
   }
   merged.savedAt = new Date().toISOString();
   await lset(K_RATELIMIT, merged);
+}
+
+// ── Provider quota normalization and history ─────────────────────────────
+const asPct = value => value == null ? null : (value <= 1 ? value * 100 : value);
+const fractionPct = value => value == null ? null : value * 100;
+const unixIso = value => Number.isFinite(value) ? new Date(value * 1000).toISOString() : null;
+
+function classifyChatGptWindows(rateLimit) {
+  const split = Math.sqrt(5 * 3600 * 7 * 24 * 3600);
+  const primary = rateLimit?.primary_window ?? null;
+  const secondary = rateLimit?.secondary_window ?? null;
+  let w5h = null, w7d = null;
+  for (const w of [primary, secondary]) {
+    if (!w || typeof w.limit_window_seconds !== 'number') continue;
+    if (w.limit_window_seconds < split) w5h = w; else w7d = w;
+  }
+  if (!w5h && primary && typeof primary.limit_window_seconds !== 'number') w5h = primary;
+  if (!w7d && secondary && typeof secondary.limit_window_seconds !== 'number') w7d = secondary;
+  return { w5h, w7d };
+}
+
+function normalizeChatGptUsage(raw, email) {
+  const usage = raw?.usage;
+  if (!usage?.rate_limit) return null;
+  const { w5h, w7d } = classifyChatGptWindows(usage.rate_limit);
+  const additionalLimits = (Array.isArray(usage.additional_rate_limits) ? usage.additional_rate_limits : [])
+    .map(item => {
+      const window = item?.rate_limit?.primary_window ?? item?.rate_limit?.secondary_window;
+      if (typeof window?.used_percent !== 'number') return null;
+      return {
+        name: item.limit_name ?? item.metered_feature ?? 'Feature limit',
+        feature: item.metered_feature ?? null,
+        pct: window.used_percent, resetsAt: unixIso(window.reset_at),
+        windowSeconds: window.limit_window_seconds ?? null,
+      };
+    }).filter(Boolean).slice(0, 5);
+  return {
+    site: 'chatgpt', accountId: usage.account_id ?? usage.user_id ?? email ?? 'chatgpt', email: email ?? null,
+    plan: usage.plan_type ?? null,
+    pct5h: w5h?.used_percent ?? null, pct7d: w7d?.used_percent ?? null,
+    resetsAt5h: unixIso(w5h?.reset_at), resetsAt7d: unixIso(w7d?.reset_at),
+    windowSeconds5h: w5h?.limit_window_seconds ?? null,
+    windowSeconds7d: w7d?.limit_window_seconds ?? null,
+    additionalLimits,
+  };
+}
+
+function parseBatchResponse(text, rpcId) {
+  for (const line of String(text ?? '').split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed === ")]}'" || /^\d+$/.test(trimmed)) continue;
+    try {
+      const rows = JSON.parse(trimmed);
+      for (const row of Array.isArray(rows) ? rows : []) {
+        if (row?.[0] === 'wrb.fr' && row?.[1] === rpcId && row[2]) return JSON.parse(row[2]);
+      }
+    } catch {}
+  }
+  return null;
+}
+
+function normalizeGeminiUsage(raw) {
+  const data = parseBatchResponse(raw?.batchText, raw?.rpcId ?? 'jSf9Qc');
+  if (!Array.isArray(data) || !Array.isArray(data[1])) return null;
+  let pct5h = null, pct7d = null, resetsAt5h = null, resetsAt7d = null;
+  for (const w of data[1]) {
+    if (!Array.isArray(w) || !Number.isFinite(w[1])) continue;
+    const pct = fractionPct(w[1]);
+    const reset = unixIso(w[3]?.[0]?.[0]);
+    if (w[2] === 1) { pct5h = pct; resetsAt5h = reset; }
+    if (w[2] === 2) { pct7d = pct; resetsAt7d = reset; }
+  }
+  return {
+    site: 'gemini', accountId: raw.accountId ?? raw.email ?? 'gemini', email: raw.email ?? null,
+    plan: data[0] != null ? `Plan ${data[0]}` : null,
+    pct5h, pct7d, resetsAt5h, resetsAt7d,
+    windowSeconds5h: 5 * 3600, windowSeconds7d: 7 * 24 * 3600,
+    additionalLimits: [],
+  };
+}
+
+function forecastWindow(history, site, accountId, key, currentPct, resetsAt) {
+  const resetMs = Date.parse(resetsAt ?? '');
+  if (currentPct == null || !Number.isFinite(resetMs) || resetMs <= Date.now()) return null;
+  const pctKey = key === '5h' ? 'pct5h' : 'pct7d';
+  const resetKey = key === '5h' ? 'resetsAt5h' : 'resetsAt7d';
+  const lookbackMs = key === '5h' ? 6 * 3600000 : WINDOW_7D_MS;
+  const samples = history.filter(h => h.ts >= Date.now() - lookbackMs && h.site === site && h.accountId === accountId && h[pctKey] != null)
+    .sort((a, b) => a.ts - b.ts);
+  if (samples.length < 2) return null;
+  const first = samples[0], last = samples[samples.length - 1];
+  const spanHours = (last.ts - first.ts) / 3600000;
+  if (spanHours < 0.5) return null;
+  let growth = 0;
+  for (let i = 1; i < samples.length; i++) {
+    const prev = samples[i - 1], cur = samples[i];
+    growth += prev[resetKey] && cur[resetKey] && prev[resetKey] !== cur[resetKey]
+      ? Math.max(0, cur[pctKey]) : Math.max(0, cur[pctKey] - prev[pctKey]);
+  }
+  const ratePerHour = growth / spanHours;
+  return Math.max(currentPct, currentPct + ratePerHour * ((resetMs - Date.now()) / 3600000));
+}
+
+async function saveProviderSnapshot(snapshot, capturedAt) {
+  if (!snapshot) return;
+  const ts = Date.parse(capturedAt ?? '') || Date.now();
+  const current = (await lget(K_PROVIDER_USAGE)) ?? {};
+  current[snapshot.site] = { ...snapshot, capturedAt: new Date(ts).toISOString(), ts };
+  await lset(K_PROVIDER_USAGE, current);
+
+  const history = (await lget(K_USAGE_HISTORY)) ?? [];
+  const point = { ts, site: snapshot.site, accountId: snapshot.accountId,
+    pct5h: snapshot.pct5h, pct7d: snapshot.pct7d,
+    resetsAt5h: snapshot.resetsAt5h, resetsAt7d: snapshot.resetsAt7d };
+  const prev = history[history.length - 1];
+  if (!prev || prev.site !== point.site || prev.accountId !== point.accountId ||
+      prev.pct5h !== point.pct5h || prev.pct7d !== point.pct7d || ts - prev.ts >= POLL_INTERVAL_MIN * 60_000) {
+    history.push(point);
+  }
+  const cutoff = Date.now() - WINDOW_7D_MS;
+  const trimmed = history.filter(h => h.ts >= cutoff).slice(-MAX_USAGE_HISTORY);
+  await lset(K_USAGE_HISTORY, trimmed);
+}
+
+function enqueueProviderSnapshot(snapshot, capturedAt) {
+  providerSaveQueue = providerSaveQueue.catch(() => {}).then(() => saveProviderSnapshot(snapshot, capturedAt));
+  return providerSaveQueue;
 }
 
 // ── Conversation token extraction (Claude-specific) ───────────────────────
@@ -237,6 +368,8 @@ async function getStats() {
   const win       = (await lget(K_WIN5H))     ?? null;
   const plan      = (await lget(K_PLAN))      ?? 'pro';
   const rateLimit = (await lget(K_RATELIMIT)) ?? null;
+  const providerUsage = (await lget(K_PROVIDER_USAGE)) ?? {};
+  const usageHistory = (await lget(K_USAGE_HISTORY)) ?? [];
   const now       = Date.now();
 
   function resolveFromRateLimit() {
@@ -273,7 +406,6 @@ async function getStats() {
 
   const rlWindowOpen   = rateLimit?.resetsAt   && Date.parse(rateLimit.resetsAt)   > now;
   const rl7dWindowOpen = rateLimit?.resetsAt7d && Date.parse(rateLimit.resetsAt7d) > now;
-  const asPct = value => value == null ? null : (value <= 1 ? value * 100 : value);
   const authPct5h = rlWindowOpen   ? asPct(rateLimit.utilization5h) : null;
   const authPct7d = rl7dWindowOpen ? asPct(rateLimit.utilization7d) : null;
   const pct5h     = authPct5h ?? (capturedTokens5h > 0 ? (capturedTokens5h / limit5h) * 100 : null);
@@ -303,6 +435,11 @@ async function getStats() {
   const activeSite = history.length > 0 ? (history[history.length - 1].site ?? 'claude') : null;
   const resetMs7d  = rateLimit?.resetsAt7d ? Date.parse(rateLimit.resetsAt7d) : null;
 
+  for (const snapshot of Object.values(providerUsage)) {
+    snapshot.forecast5h = forecastWindow(usageHistory, snapshot.site, snapshot.accountId, '5h', snapshot.pct5h, snapshot.resetsAt5h);
+    snapshot.forecast7d = forecastWindow(usageHistory, snapshot.site, snapshot.accountId, '7d', snapshot.pct7d, snapshot.resetsAt7d);
+  }
+
   return {
     plan,
     planName:    PLAN_LIMITS[plan]?.name ?? 'Pro',
@@ -322,6 +459,8 @@ async function getStats() {
     rlRemaining: rlWindowOpen ? (rateLimit?.remaining ?? null) : null,
     siteBreakdown,
     activeSite,
+    providerUsage,
+    usageHistory,
   };
 }
 
@@ -501,12 +640,16 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     return false;
   }
 
-  if (msg.type === 'CLAUDE_USAGE_SNAPSHOT' && fromAllowedSite) {
-    const snapshots = Array.isArray(msg.organizations) ? msg.organizations : [];
+  if (msg.type === 'PROVIDER_USAGE_SNAPSHOT' && fromAllowedSite) {
+    const site = msg.site ?? 'unknown';
+    let normalized = null;
+    if (site === 'chatgpt') normalized = normalizeChatGptUsage(msg.snapshot, msg.snapshot?.email);
+    if (site === 'gemini') normalized = normalizeGeminiUsage(msg.snapshot);
+    const snapshots = site === 'claude' && Array.isArray(msg.snapshot?.organizations) ? msg.snapshot.organizations : [];
     // Preserve all org snapshots for the upcoming multi-org UI, while using the
     // first successful org for the existing single-org popup contract.
     lset('claude_org_usage', snapshots).catch(() => {});
-    lset('last_usage_poll', {
+    lset(`last_usage_poll_${site}`, {
       ok: Boolean(msg.ok), capturedAt: msg.capturedAt ?? new Date().toISOString(),
       error: msg.error ?? null, status: msg.status ?? null,
     }).catch(() => {});
@@ -518,6 +661,14 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       if (p) lset(K_PLAN, p).catch(() => {});
       const rlInfo = extractRateLimitFromResponse(first.usage);
       if (rlInfo) {
+        normalized = {
+          site: 'claude', accountId: first.orgId, email: null,
+          plan: detectPlan(first.org) ?? detectPlan(first.usage),
+          pct5h: asPct(rlInfo.utilization5h), pct7d: asPct(rlInfo.utilization7d),
+          resetsAt5h: rlInfo.resetsAt, resetsAt7d: rlInfo.resetsAt7d,
+          windowSeconds5h: 5 * 3600, windowSeconds7d: 7 * 24 * 3600,
+          additionalLimits: [],
+        };
         mergeRateLimit(rlInfo).then(async () => {
           if (rlInfo.resetsAt) {
             const resetMs = Date.parse(rlInfo.resetsAt);
@@ -528,8 +679,10 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
         }).catch(() => {});
       }
     }
-    reply({ ok: Boolean(first) });
-    return false;
+    enqueueProviderSnapshot(normalized, msg.capturedAt)
+      .then(() => reply({ ok: Boolean(normalized) }))
+      .catch(e => reply({ ok: false, error: e.message }));
+    return true;
   }
 
   if (msg.type === 'GET_STATS' && (fromExtension || fromAllowedSite)) {

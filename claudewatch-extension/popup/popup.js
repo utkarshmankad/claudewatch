@@ -11,6 +11,9 @@ let gResetMs7d = null;
 let gLastTs    = null;
 let gActiveWin = '5h';
 let gHistory   = [];
+let gUsageHistory = [];
+let gSelectedSite = 'claude';
+let gStats = null;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -32,6 +35,10 @@ function fmtPct(p) {
   if (p == null) return '—';
   if (p > 0 && p < 1) return '< 1%';
   return `${Math.round(p)}%`;
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[c]);
 }
 
 function fmtAgo(epochMs) {
@@ -93,23 +100,36 @@ const SITE_META = [
   { key: 'gemini',  name: 'Gemini',  icon: '◈' },
 ];
 
-function renderSiteBreakdown(siteBreakdown, activeSite) {
+function renderSiteBreakdown(siteBreakdown, activeSite, providerUsage) {
   const container = el('site-list');
   if (!container) return;
 
   container.innerHTML = SITE_META.map(s => {
     const data   = siteBreakdown?.[s.key] ?? { tokens5h: 0, tokens7d: 0 };
+    const quota = providerUsage?.[s.key] ?? null;
     const tokens = data.tokens5h ?? 0;
-    const isActive = s.key === activeSite && tokens > 0;
-    const isEmpty  = tokens === 0;
+    const isActive = s.key === gSelectedSite;
+    const isEmpty  = !quota && tokens === 0;
+    const scoped = quota?.additionalLimits?.find(limit => /codex/i.test(`${limit.name} ${limit.feature ?? ''}`));
+    const usageText = quota
+      ? `5h ${fmtPct(quota.pct5h)} · 7d ${fmtPct(quota.pct7d)}`
+      : (tokens > 0 ? `${fmtK(tokens)} local` : 'Open signed-in tab');
+    const forecast = quota?.forecast7d != null ? ` → ${fmtPct(quota.forecast7d)}` : '';
+    const scopedText = scoped ? ` · Codex ${fmtPct(scoped.pct)}` : '';
+    const account = quota?.email ? `<span class="site-account">${escapeHtml(quota.email)}</span>` : '';
 
-    return `<div class="site-row${isActive ? ' active' : ''}${isEmpty ? ' empty' : ''}">
+    return `<button class="site-row${isActive ? ' active' : ''}${isEmpty ? ' empty' : ''}" data-site="${s.key}">
       <span class="site-icon">${s.icon}</span>
-      <span class="site-name">${s.name}</span>
-      <span class="site-tokens">${tokens > 0 ? fmtK(tokens) : '—'}</span>
-      ${isActive ? '<span class="site-active-dot"></span>' : ''}
-    </div>`;
+      <span class="site-copy"><span class="site-name">${s.name}</span>${account}</span>
+      <span class="site-tokens">${usageText}${forecast}${scopedText}</span>
+      ${s.key === activeSite ? '<span class="site-active-dot"></span>' : ''}
+    </button>`;
   }).join('');
+
+  container.querySelectorAll('[data-site]').forEach(row => row.addEventListener('click', () => {
+    gSelectedSite = row.dataset.site;
+    render(gStats);
+  }));
 }
 
 // ── Plan table ────────────────────────────────────────────────────────────────
@@ -149,7 +169,10 @@ function renderSparkline(history, windowKey) {
   const now   = Date.now();
   const winMs = windowKey === '7d' ? 7 * 24 * 60 * 60 * 1000 : 5 * 60 * 60 * 1000;
 
-  const filtered = (history ?? []).filter(e => e.ts >= now - winMs);
+  const pctKey = windowKey === '7d' ? 'pct7d' : 'pct5h';
+  const accountId = gStats?.providerUsage?.[gSelectedSite]?.accountId;
+  const filtered = (history ?? []).filter(e => e.ts >= now - winMs && e.site === gSelectedSite &&
+    (!accountId || e.accountId === accountId) && e[pctKey] != null).sort((a, b) => a.ts - b.ts);
   svgEl.querySelectorAll('.spark-el').forEach(n => n.remove());
 
   if (filtered.length < 2) {
@@ -158,38 +181,22 @@ function renderSparkline(history, windowKey) {
   }
   if (emptyEl) emptyEl.hidden = true;
 
-  const BUCKETS = 30;
-  const bucketMs = winMs / BUCKETS;
-  const counts = new Array(BUCKETS).fill(0);
-  for (const e of filtered) {
-    const idx = Math.min(BUCKETS - 1, Math.floor((e.ts - (now - winMs)) / bucketMs));
-    counts[idx] += e.input + e.output;
-  }
-
-  const maxVal = Math.max(...counts, 1);
-  const barW   = W / BUCKETS;
-  const pad    = 2;
-
-  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-  g.classList.add('spark-el');
-
-  counts.forEach((v, i) => {
-    if (v === 0) return;
-    const barH = Math.max(2, ((v / maxVal) * (H - pad * 2)));
-    const x    = i * barW + 1;
-    const y    = H - pad - barH;
-    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    rect.setAttribute('x',      x.toFixed(1));
-    rect.setAttribute('y',      y.toFixed(1));
-    rect.setAttribute('width',  Math.max(1, barW - 2).toFixed(1));
-    rect.setAttribute('height', barH.toFixed(1));
-    rect.setAttribute('rx',     '1');
-    rect.setAttribute('fill',   '#6366f1');
-    rect.setAttribute('opacity', '0.8');
-    g.appendChild(rect);
-  });
-
-  svgEl.appendChild(g);
+  const values = filtered.map(e => e[pctKey]);
+  const maxVal = Math.max(100, ...values);
+  const minTs = now - winMs;
+  const points = filtered.map(e => {
+    const x = ((e.ts - minTs) / winMs) * W;
+    const y = H - 3 - (e[pctKey] / maxVal) * (H - 6);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  const line = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+  line.classList.add('spark-el');
+  line.setAttribute('points', points);
+  line.setAttribute('fill', 'none');
+  line.setAttribute('stroke', '#6366f1');
+  line.setAttribute('stroke-width', '2');
+  line.setAttribute('vector-effect', 'non-scaling-stroke');
+  svgEl.appendChild(line);
 }
 
 // ── Countdown tick ────────────────────────────────────────────────────────────
@@ -223,16 +230,17 @@ function render(stats) {
     return;
   }
 
+  gStats = stats;
   const {
     tokens5h, tokens7d, pct5h, pct7d, limit5h, resetMs5h, timeLeft5h, timeLeft7d,
     plan, planName, planTable, history, lastTs,
     rlType, rlResetsAt, rlRemaining,
-    siteBreakdown, activeSite,
+    siteBreakdown, activeSite, providerUsage, usageHistory,
   } = stats;
 
   // Show main content as long as we have ANY data across all sites
   const totalTokens = Object.values(siteBreakdown ?? {}).reduce((a, s) => a + (s.tokens5h ?? 0), 0);
-  const hasData = totalTokens > 0 || tokens5h > 0 || tokens7d > 0 || rlResetsAt != null;
+  const hasData = Object.keys(providerUsage ?? {}).length > 0 || totalTokens > 0 || tokens5h > 0 || tokens7d > 0 || rlResetsAt != null;
 
   el('empty-state').hidden  =  hasData;
   el('main-content').hidden = !hasData;
@@ -240,29 +248,34 @@ function render(stats) {
   if (!hasData) return;
 
   // Site breakdown
-  renderSiteBreakdown(siteBreakdown, activeSite);
+  if (!providerUsage?.[gSelectedSite]) gSelectedSite = providerUsage?.[activeSite] ? activeSite : (Object.keys(providerUsage ?? {})[0] ?? 'claude');
+  renderSiteBreakdown(siteBreakdown, activeSite, providerUsage);
 
-  // Claude gauges
-  setText('tokens-5h', `${fmtK(tokens5h)} / ${fmtK(limit5h)}`);
-  setText('tokens-7d', `${fmtK(tokens7d)} / ${fmtK(limit5h * 7)}`);
-  setText('pct-5h', fmtPct(pct5h));
-  setText('pct-7d', fmtPct(pct7d));
-  fillBar('fill-5h', pct5h);
-  fillBar('fill-7d', pct7d);
+  const selected = providerUsage?.[gSelectedSite] ?? null;
+  const selectedPct5h = selected?.pct5h ?? (gSelectedSite === 'claude' ? pct5h : null);
+  const selectedPct7d = selected?.pct7d ?? (gSelectedSite === 'claude' ? pct7d : null);
+  const selectedName = SITE_META.find(s => s.key === gSelectedSite)?.name ?? gSelectedSite;
+  setText('provider-window-label', `${selectedName} Window`);
+  setText('tokens-5h', selected?.forecast5h != null ? `Forecast ${fmtPct(selected.forecast5h)}` : 'Account quota');
+  setText('tokens-7d', selected?.forecast7d != null ? `Forecast ${fmtPct(selected.forecast7d)}` : 'Account quota');
+  setText('pct-5h', fmtPct(selectedPct5h));
+  setText('pct-7d', fmtPct(selectedPct7d));
+  fillBar('fill-5h', selectedPct5h);
+  fillBar('fill-7d', selectedPct7d);
 
   // Countdown anchors
-  gResetMs5h = rlResetsAt ? Date.parse(rlResetsAt) : (resetMs5h ?? null);
-  gResetMs7d = stats.timeLeft7d != null ? Date.now() + stats.timeLeft7d : null;
-  gLastTs    = lastTs ?? null;
+  gResetMs5h = selected?.resetsAt5h ? Date.parse(selected.resetsAt5h) : (rlResetsAt ? Date.parse(rlResetsAt) : (resetMs5h ?? null));
+  gResetMs7d = selected?.resetsAt7d ? Date.parse(selected.resetsAt7d) : (stats.timeLeft7d != null ? Date.now() + stats.timeLeft7d : null);
+  gLastTs    = selected?.ts ?? lastTs ?? null;
 
   // Alert (Claude rate-limit)
-  if (rlType === 'over_limit') {
+  if (gSelectedSite === 'claude' && rlType === 'over_limit') {
     showAlert('Claude rate limit reached — resets in ' + (gResetMs5h ? fmtDuration(Math.max(0, gResetMs5h - Date.now())) : '—'), true);
-  } else if (rlType === 'approaching_limit') {
+  } else if (gSelectedSite === 'claude' && rlType === 'approaching_limit') {
     const rem = rlRemaining != null ? ` (${rlRemaining} msgs left)` : '';
     showAlert(`Claude approaching limit${rem}`);
-  } else if (pct5h != null && pct5h >= 90) {
-    showAlert(`Claude 5-hour window ${Math.round(pct5h)}% used`, pct5h >= 100);
+  } else if (selectedPct5h != null && selectedPct5h >= 90) {
+    showAlert(`${selectedName} 5-hour window ${Math.round(selectedPct5h)}% used`, selectedPct5h >= 100);
   } else {
     showAlert(null);
   }
@@ -273,14 +286,16 @@ function render(stats) {
   setText('last-update', gLastTs ? fmtAgo(gLastTs) : '—');
 
   // Footer
-  setText('plan-pill', planName ?? plan ?? '—');
+  setText('plan-pill', selected?.plan ?? (gSelectedSite === 'claude' ? (planName ?? plan) : selectedName));
+  el('claude-plan-section').hidden = gSelectedSite !== 'claude';
 
   // Plan table
   renderPlanTable(planTable);
 
   // Chart
   gHistory = history ?? [];
-  renderSparkline(gHistory, gActiveWin);
+  gUsageHistory = usageHistory ?? [];
+  renderSparkline(gUsageHistory, gActiveWin);
 }
 
 // ── Data loading ──────────────────────────────────────────────────────────────
@@ -307,7 +322,7 @@ function setupTabs() {
       el('tab-7d').classList.remove('active');
       btn.classList.add('active');
       gActiveWin = btn.dataset.win;
-      renderSparkline(gHistory, gActiveWin);
+      renderSparkline(gUsageHistory, gActiveWin);
     });
   });
 }

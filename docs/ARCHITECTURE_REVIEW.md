@@ -9,6 +9,9 @@
 - Local per-response token estimates and 5-hour/7-day history.
 - Claude plan detection, limit/reset parsing, plan comparison, popup gauges, badge, onboarding, and settings.
 - Periodic authenticated Claude `/usage` snapshots from the logged-in page context. These snapshots are the authoritative quota source and include account usage from other clients and devices.
+- Periodic authenticated ChatGPT `/backend-api/wham/usage` snapshots, including provider-reported Codex feature limits when present.
+- Periodic authenticated Gemini `jSf9Qc` usage RPC snapshots.
+- Account-scoped seven-day utilization history and reset-aware 5-hour/7-day forecasts for all three providers.
 - Conversation backfill scaffolding and storage for multiple Claude organization snapshots.
 
 ### Core daemon and CLI
@@ -38,7 +41,14 @@ This fixes cross-client **quota utilization**. It cannot recover exact per-messa
 2. **Multi-organization UX:** snapshots are retained per organization, but the popup still renders the first organization. Add active-org detection, selection, namespaced histories, and per-org badges.
 3. **Browserless refresh:** a closed browser cannot refresh a browser session safely. A backend requires explicit account linking and an approved authentication design; copying session cookies is fragile and high risk.
 4. **Data model clarity:** separate authoritative utilization snapshots from estimated local token events. Do not convert utilization into fictional token totals using community-estimated limits.
-5. **ChatGPT/Gemini accuracy:** current stream parsing estimates local tokens but does not actively query their authoritative quota endpoints or model multiple accounts.
+5. **ChatGPT/Gemini account switching:** authoritative quota polling is implemented for the account active in each opened provider tab. Add explicit multi-account selection and separate histories for multiple simultaneous profiles.
+
+## Client/source attribution
+
+- ChatGPT may expose Codex as an `additional_rate_limits` feature bucket. ClaudeWatch stores and displays that utilization separately from the main ChatGPT windows. It is a quota percentage, not an exact token ledger.
+- Claude Code usage on the current machine is available from the Core daemon's JSONL watcher with `sourceTag=claude_code`. Claude's account `/usage` response combines subscription usage across clients, so the browser extension cannot subtract web prompts from Claude Code usage reliably.
+- Gemini's consumer usage RPC does not provide a trustworthy web-versus-code-assistant split. Exact attribution would require a provider-supported usage API or instrumentation installed in every client.
+- Local stream token estimates can identify prompts produced in the current browser, but they cannot reconstruct prompts or tokens from another device.
 6. **Extension integration tests:** add Playwright/Chromium tests with mocked Claude endpoints and a loaded unpacked extension. The current smoke test validates packaging and the CLI entry point, not a real Claude login.
 7. **Security hardening:** minimize broad permissions, validate all MAIN-world bridge payloads, add a strict extension CSP, redact logs, document retention, and threat-model any future sync backend.
 8. **Backend/product capabilities:** account authentication, encrypted cross-device snapshot sync, retention/deletion controls, teams/RBAC, exports, forecasts, notifications, audit logs, billing, and observability are not implemented.

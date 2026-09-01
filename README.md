@@ -55,6 +55,11 @@ they include activity from Claude Desktop, Claude Code, and other devices after
 Claude reports it. Exact per-message token details remain local to the client
 that produced them and are shown only as estimates.
 
+When a signed-in ChatGPT or Gemini tab is open, Token Watcher also polls that
+provider's account quota every five minutes. The popup stores seven days of
+account-scoped utilization snapshots, displays reset-aware forecasts, and shows
+ChatGPT Codex feature-limit utilization when OpenAI includes it in the response.
+
 ---
 
 ## ClaudeWatch Core
