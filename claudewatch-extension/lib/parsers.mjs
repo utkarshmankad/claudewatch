@@ -283,6 +283,10 @@ export function parseBatchResponse(text, rpcId) {
 }
 
 export function forecastWindow(history, { site, accountId, key, currentPct, resetsAt, now = Date.now() }) {
+  return forecastWindowDetails(history, { site, accountId, key, currentPct, resetsAt, now })?.projectedPct ?? null;
+}
+
+export function forecastWindowDetails(history, { site, accountId, key, currentPct, resetsAt, now = Date.now() }) {
   const resetMs = Date.parse(resetsAt ?? '');
   if (currentPct == null || !Number.isFinite(resetMs) || resetMs <= now) return null;
   const pctKey = key === '5h' ? 'pct5h' : 'pct7d';
@@ -299,7 +303,16 @@ export function forecastWindow(history, { site, accountId, key, currentPct, rese
     growth += prev[resetKey] && cur[resetKey] && prev[resetKey] !== cur[resetKey]
       ? Math.max(0, cur[pctKey]) : Math.max(0, cur[pctKey] - prev[pctKey]);
   }
-  return Math.max(currentPct, currentPct + (growth / spanHours) * ((resetMs - now) / 3600000));
+  const ratePerHour = growth / spanHours;
+  const horizonHours = (resetMs - now) / 3600000;
+  const coverageTarget = key === '5h' ? 3 : 48;
+  const confidenceScore = Math.min(1, samples.length / 12) * Math.min(1, spanHours / coverageTarget) * Math.min(1, 12 / Math.max(1, horizonHours));
+  return {
+    projectedPct: Math.max(currentPct, currentPct + ratePerHour * horizonHours),
+    ratePerHour,
+    sampleCount: samples.length,
+    confidence: confidenceScore >= 0.67 ? 'high' : confidenceScore >= 0.34 ? 'medium' : 'low',
+  };
 }
 
 export function stableAccountKey(snapshot) {

@@ -13,7 +13,7 @@ const DB_PATH = path.join(DATA_DIR, 'usage.db');
 
 // Bump this whenever the schema changes. The migration below handles the
 // upgrade from any lower version.
-const CURRENT_SCHEMA_VERSION = 5;
+const CURRENT_SCHEMA_VERSION = 6;
 
 // ---------------------------------------------------------------------------
 // Exported TypeScript types (camelCase view of the rows)
@@ -55,6 +55,38 @@ export interface SnapshotData {
   cacheWrite5mTokens?: number;
   sourceTag?: string | null;
   estimatedCostUsd?: number;
+}
+
+export type UsageConfidence = 'authoritative' | 'observed' | 'estimated' | 'inferred';
+
+export interface UsageEventData {
+  eventId: string;
+  recordedAt?: string;
+  provider: string;
+  accountId?: string | null;
+  organizationId?: string | null;
+  userId?: string | null;
+  teamId?: string | null;
+  deviceId: string;
+  client: string;
+  model?: string | null;
+  inputTokens?: number;
+  outputTokens?: number;
+  utilizationPct?: number | null;
+  windowSeconds?: number | null;
+  source: string;
+  confidence: UsageConfidence;
+  metadata?: Record<string, unknown>;
+}
+
+export interface AttributionSummary {
+  client: string;
+  provider: string;
+  confidence: UsageConfidence;
+  inputTokens: number;
+  outputTokens: number;
+  events: number;
+  lastSeenAt: string;
 }
 
 export interface AlertRecord {
@@ -159,8 +191,36 @@ function migrate(db: Database.Database): void {
     if (version < 2) applyV2(db);
     if (version < 4) applyV4(db);
     if (version < 5) applyV5(db);
+    if (version < 6) applyV6(db);
     db.pragma(`user_version = ${CURRENT_SCHEMA_VERSION}`);
   })();
+}
+
+function applyV6(db: Database.Database): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS usage_events (
+      event_id         TEXT PRIMARY KEY,
+      recorded_at      TEXT NOT NULL,
+      provider         TEXT NOT NULL,
+      account_id       TEXT,
+      organization_id  TEXT,
+      user_id           TEXT,
+      team_id           TEXT,
+      device_id         TEXT NOT NULL,
+      client            TEXT NOT NULL,
+      model             TEXT,
+      input_tokens      INTEGER NOT NULL DEFAULT 0,
+      output_tokens     INTEGER NOT NULL DEFAULT 0,
+      utilization_pct  REAL,
+      window_seconds    INTEGER,
+      source            TEXT NOT NULL,
+      confidence        TEXT NOT NULL,
+      metadata_json     TEXT NOT NULL DEFAULT '{}'
+    );
+    CREATE INDEX IF NOT EXISTS idx_usage_events_time ON usage_events(recorded_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_usage_events_attribution ON usage_events(provider, client, recorded_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_usage_events_team ON usage_events(team_id, user_id, recorded_at DESC);
+  `);
 }
 
 // V5: add source_tag and estimated_cost_usd to usage_snapshots.
@@ -315,6 +375,84 @@ export function insertSnapshot(data: SnapshotData): void {
   if (result.changes === 0) {
     console.error('[insertSnapshot] wrote 0 rows — check column names');
   }
+}
+
+export function insertUsageEvent(event: UsageEventData): boolean {
+  const result = getDb().prepare(`
+    INSERT OR IGNORE INTO usage_events (
+      event_id, recorded_at, provider, account_id, organization_id, user_id, team_id,
+      device_id, client, model, input_tokens, output_tokens, utilization_pct,
+      window_seconds, source, confidence, metadata_json
+    ) VALUES (
+      @eventId, @recordedAt, @provider, @accountId, @organizationId, @userId, @teamId,
+      @deviceId, @client, @model, @inputTokens, @outputTokens, @utilizationPct,
+      @windowSeconds, @source, @confidence, @metadataJson
+    )
+  `).run({
+    eventId: event.eventId,
+    recordedAt: event.recordedAt ?? new Date().toISOString(),
+    provider: event.provider,
+    accountId: event.accountId ?? null,
+    organizationId: event.organizationId ?? null,
+    userId: event.userId ?? null,
+    teamId: event.teamId ?? null,
+    deviceId: event.deviceId,
+    client: event.client,
+    model: event.model ?? null,
+    inputTokens: Math.max(0, Math.round(event.inputTokens ?? 0)),
+    outputTokens: Math.max(0, Math.round(event.outputTokens ?? 0)),
+    utilizationPct: event.utilizationPct ?? null,
+    windowSeconds: event.windowSeconds ?? null,
+    source: event.source,
+    confidence: event.confidence,
+    metadataJson: JSON.stringify(event.metadata ?? {}),
+  });
+  return result.changes > 0;
+}
+
+export function getAttributionSummary(days = 30, teamId?: string): AttributionSummary[] {
+  const since = new Date(Date.now() - Math.max(1, days) * 86400000).toISOString();
+  const rows = getDb().prepare(`
+    SELECT client, provider, confidence,
+           SUM(input_tokens) AS input_tokens,
+           SUM(output_tokens) AS output_tokens,
+           COUNT(*) AS events,
+           MAX(recorded_at) AS last_seen_at
+    FROM usage_events
+    WHERE recorded_at >= @since AND (@teamId IS NULL OR team_id = @teamId)
+    GROUP BY client, provider, confidence
+    ORDER BY input_tokens + output_tokens DESC
+  `).all({ since, teamId: teamId ?? null }) as Array<{
+    client: string; provider: string; confidence: UsageConfidence;
+    input_tokens: number; output_tokens: number; events: number; last_seen_at: string;
+  }>;
+  return rows.map(row => ({
+    client: row.client, provider: row.provider, confidence: row.confidence,
+    inputTokens: row.input_tokens, outputTokens: row.output_tokens,
+    events: row.events, lastSeenAt: row.last_seen_at,
+  }));
+}
+
+export function getHourlyActivity(days = 30, teamId?: string): Array<{ hour: number; tokens: number; events: number }> {
+  const since = new Date(Date.now() - Math.max(1, days) * 86400000).toISOString();
+  return getDb().prepare(`
+    SELECT CAST(strftime('%H', recorded_at) AS INTEGER) AS hour,
+           SUM(input_tokens + output_tokens) AS tokens, COUNT(*) AS events
+    FROM usage_events
+    WHERE recorded_at >= @since AND (@teamId IS NULL OR team_id = @teamId)
+    GROUP BY hour ORDER BY hour
+  `).all({ since, teamId: teamId ?? null }) as Array<{ hour: number; tokens: number; events: number }>;
+}
+
+export function getTeamLeaderboard(days = 30, teamId?: string): Array<{ userId: string; tokens: number; events: number }> {
+  const since = new Date(Date.now() - Math.max(1, days) * 86400000).toISOString();
+  return getDb().prepare(`
+    SELECT COALESCE(user_id, 'unassigned') AS userId,
+           SUM(input_tokens + output_tokens) AS tokens, COUNT(*) AS events
+    FROM usage_events
+    WHERE recorded_at >= @since AND (@teamId IS NULL OR team_id = @teamId)
+    GROUP BY COALESCE(user_id, 'unassigned') ORDER BY tokens DESC
+  `).all({ since, teamId: teamId ?? null }) as Array<{ userId: string; tokens: number; events: number }>;
 }
 
 /**

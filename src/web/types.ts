@@ -82,3 +82,12 @@ export interface AlertRecord {
 export interface AlertsResponse {
   alerts: AlertRecord[];
 }
+
+export interface AnalyticsResponse {
+  days: number;
+  attribution: Array<{ client: string; provider: string; confidence: string; inputTokens: number; outputTokens: number; events: number; lastSeenAt: string }>;
+  reconciliation: { observedTokens: number; authoritativeTokens: number | null; unattributedTokens: number | null; caveat: string };
+  hourlyActivity: Array<{ hour: number; tokens: number; events: number }>;
+  leaderboard: Array<{ userId: string; tokens: number; events: number }>;
+  planRecommendation: { status: string; utilizationPct: number | null; message: string };
+}

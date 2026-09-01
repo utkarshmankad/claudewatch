@@ -286,8 +286,10 @@ function render(stats) {
   const selectedPct7d = selected?.pct7d ?? (gSelectedSite === 'claude' ? pct7d : null);
   const selectedName = SITE_META.find(s => s.key === gSelectedSite)?.name ?? gSelectedSite;
   setText('provider-window-label', `${selectedName} Window`);
-  setText('tokens-5h', selected?.forecast5h != null ? `Forecast ${fmtPct(selected.forecast5h)}` : 'Account quota');
-  setText('tokens-7d', selected?.forecast7d != null ? `Forecast ${fmtPct(selected.forecast7d)}` : 'Account quota');
+  const confidence5h = selected?.forecastMeta5h?.confidence ? ` · ${selected.forecastMeta5h.confidence}` : '';
+  const confidence7d = selected?.forecastMeta7d?.confidence ? ` · ${selected.forecastMeta7d.confidence}` : '';
+  setText('tokens-5h', selected?.forecast5h != null ? `Forecast ${fmtPct(selected.forecast5h)}${confidence5h}` : 'Account quota');
+  setText('tokens-7d', selected?.forecast7d != null ? `Forecast ${fmtPct(selected.forecast7d)}${confidence7d}` : 'Account quota');
   setText('pct-5h', fmtPct(selectedPct5h));
   setText('pct-7d', fmtPct(selectedPct7d));
   fillBar('fill-5h', selectedPct5h);

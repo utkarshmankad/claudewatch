@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Token Watcher",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "Track AI token usage across Claude, ChatGPT, and Gemini in real-time. Monitor session limits, view history, and get alerts before you hit your limit.",
   "permissions": ["storage", "alarms", "notifications", "tabs"],
   "host_permissions": [
@@ -11,6 +11,7 @@
     "https://chat.openai.com/*",
     "https://gemini.google.com/*"
   ],
+  "optional_host_permissions": ["http://localhost:7734/*"],
   "content_scripts": [
     {
       "matches": [
@@ -30,7 +31,7 @@
         "https://chat.openai.com/*",
         "https://gemini.google.com/*"
       ],
-      "js": ["content.js"],
+      "js": ["content.js", "inpage.js"],
       "run_at": "document_idle"
     }
   ],

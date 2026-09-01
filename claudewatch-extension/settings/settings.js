@@ -4,6 +4,10 @@
 const DEFAULTS = {
   alertsEnabled: true,
   thresholds:    [80, 90, 95],
+  inPageGauges: true,
+  coreSyncEnabled: false,
+  analyticsUserId: '',
+  analyticsTeamId: '',
 };
 
 // ---------------------------------------------------------------------------
@@ -29,6 +33,10 @@ function applyToForm(settings) {
   id('t-80').checked = settings.thresholds.includes(80);
   id('t-90').checked = settings.thresholds.includes(90);
   id('t-95').checked = settings.thresholds.includes(95);
+  id('in-page-gauges').checked = !!settings.inPageGauges;
+  id('core-sync-enabled').checked = !!settings.coreSyncEnabled;
+  id('analytics-user-id').value = settings.analyticsUserId ?? '';
+  id('analytics-team-id').value = settings.analyticsTeamId ?? '';
   syncThresholdsCard();
 }
 
@@ -38,6 +46,10 @@ function collectFromForm() {
   return {
     alertsEnabled: id('alerts-enabled').checked,
     thresholds,
+    inPageGauges: id('in-page-gauges').checked,
+    coreSyncEnabled: id('core-sync-enabled').checked,
+    analyticsUserId: id('analytics-user-id').value.trim(),
+    analyticsTeamId: id('analytics-team-id').value.trim(),
   };
 }
 
@@ -65,11 +77,22 @@ function renderAbout() {
 let confirmTimer = null;
 
 async function save(settings) {
+  let confirmation = 'Saved ✓';
+  if (settings.coreSyncEnabled) {
+    const granted = await chrome.permissions.request({ origins: ['http://localhost:7734/*'] });
+    if (!granted) {
+      settings.coreSyncEnabled = false;
+      id('core-sync-enabled').checked = false;
+      confirmation = 'Saved without Local Core access';
+    }
+  } else {
+    await chrome.permissions.remove({ origins: ['http://localhost:7734/*'] });
+  }
   await syncSet(settings);
 
   // Flash the confirmation
   const el = id('save-confirm');
-  el.textContent = 'Saved ✓';
+  el.textContent = confirmation;
   el.classList.add('visible');
   clearTimeout(confirmTimer);
   confirmTimer = setTimeout(() => el.classList.remove('visible'), 2500);
@@ -78,9 +101,6 @@ async function save(settings) {
 async function resetToDefaults() {
   await syncSet(DEFAULTS);
   applyToForm(DEFAULTS);
-  id('conn-result').textContent = '';
-  id('conn-result').className   = 'field-hint';
-
   const el = id('save-confirm');
   el.textContent = 'Reset to defaults ✓';
   el.classList.add('visible');

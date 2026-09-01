@@ -1,4 +1,4 @@
-import type { AlertsResponse, StatusResponse, UsageResponse } from './types.js';
+import type { AlertsResponse, AnalyticsResponse, StatusResponse, UsageResponse } from './types.js';
 
 const BASE = '/api';
 
@@ -12,4 +12,5 @@ export const api = {
   status: ()                   => get<StatusResponse>('/status'),
   usage:  (days = 30)          => get<UsageResponse>(`/usage?days=${days}`),
   alerts: (limit = 50)         => get<AlertsResponse>(`/alerts?limit=${limit}`),
+  analytics: (days = 30)       => get<AnalyticsResponse>(`/analytics?days=${days}`),
 };

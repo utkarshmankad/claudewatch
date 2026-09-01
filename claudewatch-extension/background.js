@@ -41,11 +41,29 @@ const K_PROVIDER_USAGE = 'provider_usage';   // {site: normalized authoritative 
 const K_USAGE_HISTORY  = 'usage_history';    // 7d account-scoped quota snapshots
 const K_PROVIDER_ACCOUNTS = 'provider_accounts'; // {site: {accountKey: snapshot}}
 const K_PROVIDER_SELECTIONS = 'provider_selections'; // {site: accountKey}
+const K_DEVICE_ID = 'device_id';
 
 // ── Storage helpers ───────────────────────────────────────────────────────
 const lget = (k)    => new Promise(r => chrome.storage.local.get(k,  d => r(d[k]  ?? null)));
 const lset = (k, v) => new Promise(r => chrome.storage.local.set({[k]: v}, r));
 let providerSaveQueue = Promise.resolve();
+
+async function getDeviceId() {
+  let id = await lget(K_DEVICE_ID);
+  if (!id) { id = crypto.randomUUID(); await lset(K_DEVICE_ID, id); }
+  return id;
+}
+
+async function sendCoreEvent(event) {
+  try {
+    const settings = await new Promise(resolve => chrome.storage.sync.get({ coreSyncEnabled: false, analyticsUserId: '', analyticsTeamId: '' }, resolve));
+    if (!settings.coreSyncEnabled) return;
+    await fetch('http://localhost:7734/api/events', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...event, deviceId: await getDeviceId(), userId: settings.analyticsUserId || null, teamId: settings.analyticsTeamId || null }),
+    });
+  } catch { /* Core is optional and local-only. */ }
+}
 
 function stableAccountKey(snapshot) {
   const raw = snapshot?.organizationId ?? snapshot?.accountId ?? snapshot?.email;
@@ -243,7 +261,7 @@ function normalizeGeminiUsage(raw) {
   };
 }
 
-function forecastWindow(history, site, accountId, key, currentPct, resetsAt) {
+function forecastWindowDetails(history, site, accountId, key, currentPct, resetsAt) {
   const resetMs = Date.parse(resetsAt ?? '');
   if (currentPct == null || !Number.isFinite(resetMs) || resetMs <= Date.now()) return null;
   const pctKey = key === '5h' ? 'pct5h' : 'pct7d';
@@ -262,7 +280,15 @@ function forecastWindow(history, site, accountId, key, currentPct, resetsAt) {
       ? Math.max(0, cur[pctKey]) : Math.max(0, cur[pctKey] - prev[pctKey]);
   }
   const ratePerHour = growth / spanHours;
-  return Math.max(currentPct, currentPct + ratePerHour * ((resetMs - Date.now()) / 3600000));
+  const horizonHours = (resetMs - Date.now()) / 3600000;
+  const coverageTarget = key === '5h' ? 3 : 48;
+  const confidenceScore = Math.min(1, samples.length / 12) * Math.min(1, spanHours / coverageTarget) * Math.min(1, 12 / Math.max(1, horizonHours));
+  return {
+    projectedPct: Math.max(currentPct, currentPct + ratePerHour * horizonHours),
+    ratePerHour,
+    sampleCount: samples.length,
+    confidence: confidenceScore >= 0.67 ? 'high' : confidenceScore >= 0.34 ? 'medium' : 'low',
+  };
 }
 
 async function saveProviderSnapshot(snapshot, capturedAt) {
@@ -298,6 +324,14 @@ async function saveProviderSnapshot(snapshot, capturedAt) {
   const cutoff = Date.now() - WINDOW_7D_MS;
   const trimmed = history.filter(h => h.ts >= cutoff).slice(-MAX_USAGE_HISTORY);
   await lset(K_USAGE_HISTORY, trimmed);
+  void sendCoreEvent({
+    eventId: crypto.randomUUID(), recordedAt: stored.capturedAt,
+    provider: snapshot.site, accountId: snapshot.accountId,
+    organizationId: snapshot.organizationId ?? null, client: 'account_aggregate',
+    utilizationPct: snapshot.pct5h, windowSeconds: snapshot.windowSeconds5h,
+    source: 'provider_quota', confidence: 'authoritative',
+    metadata: { pct7d: snapshot.pct7d, windowSeconds7d: snapshot.windowSeconds7d },
+  });
 }
 
 function enqueueProviderSnapshot(snapshot, capturedAt) {
@@ -365,6 +399,11 @@ async function addTokens(inputTokens, outputTokens, capturedAt, rateLimit, site 
   history.push({ ts, input: inputTokens, output: outputTokens, src: 'sse', site });
   if (history.length > MAX_HISTORY) history.splice(0, history.length - MAX_HISTORY);
   await lset(K_HISTORY, history);
+  void sendCoreEvent({
+    eventId: crypto.randomUUID(), recordedAt: new Date(ts).toISOString(), provider: site,
+    client: 'web', inputTokens, outputTokens, source: 'browser_stream',
+    confidence: inputTokens > 0 ? 'observed' : 'estimated',
+  });
 
   // 5h window is Claude-specific (tied to Claude's rate-limit model)
   if (site === 'claude') {
@@ -500,8 +539,12 @@ async function getStats() {
   const resetMs7d  = rateLimit?.resetsAt7d ? Date.parse(rateLimit.resetsAt7d) : null;
 
   for (const snapshot of Object.values(providerUsage)) {
-    snapshot.forecast5h = forecastWindow(usageHistory, snapshot.site, snapshot.accountId, '5h', snapshot.pct5h, snapshot.resetsAt5h);
-    snapshot.forecast7d = forecastWindow(usageHistory, snapshot.site, snapshot.accountId, '7d', snapshot.pct7d, snapshot.resetsAt7d);
+    const forecast5h = forecastWindowDetails(usageHistory, snapshot.site, snapshot.accountId, '5h', snapshot.pct5h, snapshot.resetsAt5h);
+    const forecast7d = forecastWindowDetails(usageHistory, snapshot.site, snapshot.accountId, '7d', snapshot.pct7d, snapshot.resetsAt7d);
+    snapshot.forecast5h = forecast5h?.projectedPct ?? null;
+    snapshot.forecast7d = forecast7d?.projectedPct ?? null;
+    snapshot.forecastMeta5h = forecast5h;
+    snapshot.forecastMeta7d = forecast7d;
   }
 
   return {
@@ -790,6 +833,12 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       .then(ok => reply({ ok }))
       .catch(e => reply({ ok: false, error: e.message }));
     return true;
+  }
+
+  if (msg.type === 'OPEN_POPUP_CONTEXT' && fromAllowedSite) {
+    chrome.action.openPopup().catch(() => {});
+    reply({ ok: true });
+    return false;
   }
 
   if (msg.type === 'GET_STATS' && (fromExtension || fromAllowedSite)) {

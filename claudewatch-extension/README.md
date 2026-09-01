@@ -11,6 +11,8 @@ A Chrome extension that tracks your AI token usage in real-time across **Claude*
 - **Account-safe history** — usage is isolated by provider account and Claude organization
 - **Multi-account selector** — switch between previously observed accounts and organizations
 - **Resilient polling** — failures back off automatically and stale/error states are shown explicitly
+- **In-page gauges** — provider quota and confidence-aware projection without opening the popup
+- **Opt-in Core attribution** — metadata-only browser events can be reconciled with Claude Code locally
 - **Badge on icon** — shows Claude's current window usage percentage at a glance
 - **Desktop notifications** at 80%, 90%, and 95% usage (configurable)
 - **Syncs with ClaudeWatch Core** for Claude history, cost tracking, and email alerts
@@ -78,6 +80,8 @@ Settings sync across Chrome profiles via `chrome.storage.sync`.
 - Intercepts streaming responses only to extract token counts — it never reads message content
 - Never contacts any external server or third-party analytics service
 - Optionally syncs usage data to `http://localhost:7734` (your own machine, ClaudeWatch Core)
+- Keeps local Core sharing disabled until you explicitly enable it in Settings
+- Never includes prompt or response text in attribution events
 - Requires host permissions for claude.ai, chatgpt.com, and gemini.google.com only
 
 ## Supported Browsers

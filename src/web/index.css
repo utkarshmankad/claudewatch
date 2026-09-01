@@ -210,3 +210,17 @@ body {
   color: var(--red);
   font-size: 13px;
 }
+
+.panel-heading { display: flex; align-items: center; justify-content: space-between; }
+.panel-heading a { color: var(--accent); font-size: 12px; }
+.insight-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px; }
+.insight-grid div { padding: 12px; background: var(--bg); border-radius: 8px; }
+.insight-grid span { display: block; color: var(--muted); font-size: 11px; }
+.insight-grid strong { display: block; margin-top: 4px; font-size: 18px; }
+.analytics-panel table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+.analytics-panel th, .analytics-panel td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); }
+.analytics-panel th { color: var(--muted); font-size: 11px; text-transform: uppercase; }
+.muted { color: var(--muted); font-size: 12px; }
+.leaderboard { margin-top: 18px; }
+.leaderboard h3 { font-size: 12px; margin-bottom: 8px; }
+.leaderboard div { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid var(--border); }
