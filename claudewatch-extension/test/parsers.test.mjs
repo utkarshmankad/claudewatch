@@ -7,6 +7,9 @@ import {
   detectPlan,
   extractRateLimitFromResponse,
   extractConvTokens,
+  classifyChatGptWindows,
+  parseBatchResponse,
+  forecastWindow,
 } from '../lib/parsers.mjs';
 
 // ── detectSite ──────────────────────────────────────────────────────────────
@@ -331,5 +334,33 @@ describe('extractConvTokens', () => {
       ],
     };
     expect(extractConvTokens(data)).toEqual([]);
+  });
+});
+
+describe('provider usage normalization', () => {
+  it('classifies ChatGPT windows by reported duration rather than position', () => {
+    const weekly = { used_percent: 40, limit_window_seconds: 604800 };
+    const session = { used_percent: 20, limit_window_seconds: 18000 };
+    expect(classifyChatGptWindows({ primary_window: weekly, secondary_window: session }))
+      .toEqual({ w5h: session, w7d: weekly });
+  });
+
+  it('parses Gemini batchexecute envelopes', () => {
+    const payload = [5, [[100, 0.25, 1, [[1900000000, 0]]]]];
+    const text = `)]}'\n123\n${JSON.stringify([['wrb.fr', 'jSf9Qc', JSON.stringify(payload), null]])}`;
+    expect(parseBatchResponse(text, 'jSf9Qc')).toEqual(payload);
+  });
+
+  it('forecasts within one account and treats a reset as a new window', () => {
+    const now = Date.parse('2026-09-02T12:00:00Z');
+    const oldReset = '2026-09-02T10:00:00Z';
+    const reset = '2026-09-02T16:00:00Z';
+    const history = [
+      { ts: now - 2 * 3600000, site: 'chatgpt', accountId: 'u1', pct5h: 80, resetsAt5h: oldReset },
+      { ts: now - 1 * 3600000, site: 'chatgpt', accountId: 'u1', pct5h: 10, resetsAt5h: reset },
+      { ts: now, site: 'chatgpt', accountId: 'u1', pct5h: 20, resetsAt5h: reset },
+      { ts: now, site: 'chatgpt', accountId: 'someone-else', pct5h: 99, resetsAt5h: reset },
+    ];
+    expect(forecastWindow(history, { site: 'chatgpt', accountId: 'u1', key: '5h', currentPct: 20, resetsAt: reset, now })).toBe(60);
   });
 });

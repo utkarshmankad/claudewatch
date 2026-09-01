@@ -42,13 +42,13 @@ window.addEventListener('message', (event) => {
     return;
   }
 
-  if (type === 'CLAUDE_USAGE_RESPONSE') {
-    const { requestId, ok, organizations, error, status } = event.data;
+  if (type === 'PROVIDER_USAGE_RESPONSE') {
+    const { requestId, ok, snapshot, error, status } = event.data;
     if (!pendingUsageRequests.has(requestId)) return;
     pendingUsageRequests.delete(requestId);
     try {
       chrome.runtime.sendMessage(
-        { type: 'CLAUDE_USAGE_SNAPSHOT', ok, organizations, error, status, capturedAt: new Date().toISOString() },
+        { type: 'PROVIDER_USAGE_SNAPSHOT', site: resolvedSite, ok, snapshot, error, status, capturedAt: new Date().toISOString() },
         () => { chrome.runtime.lastError; }
       );
     } catch {}
@@ -58,22 +58,22 @@ window.addEventListener('message', (event) => {
 
 console.log(`${TAG} content script loaded on ${location.href} (site: ${SITE})`);
 
-// Fetch authoritative quota utilization immediately and periodically.  Unlike
-// stream interception this needs no user prompt and includes account activity
-// from Claude Desktop, Claude Code, and other devices once Claude reports it.
+// Fetch authoritative quota utilization immediately and periodically. Unlike
+// stream interception this needs no prompt and reflects the provider account,
+// including usage produced by other clients where the provider aggregates it.
 const pendingUsageRequests = new Set();
-function requestClaudeUsage() {
-  if (SITE !== 'claude' || document.visibilityState === 'hidden') return;
+function requestProviderUsage() {
+  if (SITE === 'unknown') return;
   const requestId = crypto.randomUUID();
   pendingUsageRequests.add(requestId);
-  window.postMessage({ __tokenwatcherRequest: true, type: 'FETCH_CLAUDE_USAGE', requestId }, '*');
+  window.postMessage({ __tokenwatcherRequest: true, type: 'FETCH_PROVIDER_USAGE', requestId }, '*');
   setTimeout(() => pendingUsageRequests.delete(requestId), 30_000);
 }
 
-if (SITE === 'claude') {
-  requestClaudeUsage();
-  setInterval(requestClaudeUsage, 5 * 60 * 1000);
+if (SITE !== 'unknown') {
+  requestProviderUsage();
+  setInterval(requestProviderUsage, 5 * 60 * 1000);
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') requestClaudeUsage();
+    if (document.visibilityState === 'visible') requestProviderUsage();
   });
 }

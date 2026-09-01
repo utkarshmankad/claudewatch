@@ -42,7 +42,7 @@
   <div class="empty-state" id="empty-state" hidden>
     <div class="empty-icon">◎</div>
     <p class="empty-title">Waiting for data…</p>
-    <p class="empty-hint">Open Claude, ChatGPT, or Gemini and start chatting to see usage</p>
+    <p class="empty-hint">Open a signed-in Claude, ChatGPT, or Gemini tab to collect usage automatically</p>
     <div class="empty-links">
       <button class="btn btn-primary btn-sm" id="btn-open-claude">Open Claude →</button>
       <button class="btn btn-ghost btn-sm" id="btn-open-chatgpt">ChatGPT →</button>
@@ -63,12 +63,12 @@
 
     <!-- ── Dual gauge section (Claude window) ── -->
     <section class="section gauges-section">
-      <div class="section-label">Claude Window</div>
+      <div class="section-label" id="provider-window-label">Usage Window</div>
       <div class="gauge-cards">
 
         <div class="gauge-card">
           <div class="gc-label">5-Hour</div>
-          <div class="gc-tokens" id="tokens-5h">—</div>
+          <div class="gc-tokens" id="tokens-5h">Account quota</div>
           <div class="gc-bar-wrap">
             <div class="gc-bar">
               <div class="gc-fill" id="fill-5h"></div>
@@ -81,7 +81,7 @@
 
         <div class="gauge-card">
           <div class="gc-label">7-Day Rolling</div>
-          <div class="gc-tokens" id="tokens-7d">—</div>
+          <div class="gc-tokens" id="tokens-7d">Account quota</div>
           <div class="gc-bar-wrap">
             <div class="gc-bar">
               <div class="gc-fill" id="fill-7d"></div>
@@ -128,7 +128,7 @@
     <div class="divider"></div>
 
     <!-- ── Plan comparison ── -->
-    <section class="section table-section">
+    <section class="section table-section" id="claude-plan-section">
       <div class="section-label">Claude Plan Comparison</div>
       <table class="plan-table">
         <thead>

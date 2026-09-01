@@ -142,6 +142,17 @@ header {
   margin-bottom: 9px;
 }
 
+.site-row {
+  width: 100%;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.site-copy { display: flex; flex-direction: column; min-width: 72px; }
+.site-account { max-width: 110px; overflow: hidden; text-overflow: ellipsis; color: var(--text-muted); font-size: 8px; }
+
 .divider { height: 1px; background: var(--border); }
 
 /* ── Dual gauge cards ───────────────────────────────────────────────────── */
