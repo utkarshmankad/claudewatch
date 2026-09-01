@@ -36,6 +36,10 @@ import {
   getSessionTokens,
   insertPersonalTokens,
   getPersonalPeriodTokens,
+  insertUsageEvent,
+  getAttributionSummary,
+  getHourlyActivity,
+  getTeamLeaderboard,
 } from '../db.js';
 
 afterAll(() => {
@@ -83,9 +87,9 @@ describe('getDb', () => {
     expect(getDb()).toBe(getDb());
   });
 
-  it('sets user_version to CURRENT_SCHEMA_VERSION (5)', () => {
+  it('sets user_version to CURRENT_SCHEMA_VERSION (6)', () => {
     const version = getDb().pragma('user_version', { simple: true }) as number;
-    expect(version).toBe(5);
+    expect(version).toBe(6);
   });
 });
 
@@ -466,5 +470,20 @@ describe('insertPersonalTokens / getPersonalPeriodTokens', () => {
     insertPersonalTokens(sample, '2024-06-14T23:59:59.000Z');
     const result = getPersonalPeriodTokens('2024-06-15T00:00:00.000Z');
     expect(result.inputTokens).toBe(0);
+  });
+});
+
+describe('unified usage event ledger', () => {
+  it('deduplicates events and aggregates attribution', () => {
+    const event = { eventId: 'event-1', recordedAt: new Date().toISOString(), provider: 'claude', deviceId: 'device-1', client: 'web', inputTokens: 10, outputTokens: 5, source: 'browser_stream', confidence: 'observed' as const, userId: 'user-1', teamId: 'team-1' };
+    expect(insertUsageEvent(event)).toBe(true);
+    expect(insertUsageEvent(event)).toBe(false);
+    expect(getAttributionSummary(1, 'team-1')).toMatchObject([{ provider: 'claude', client: 'web', inputTokens: 10, outputTokens: 5, events: 1 }]);
+  });
+
+  it('builds hourly and team summaries', () => {
+    insertUsageEvent({ eventId: 'event-2', recordedAt: new Date().toISOString(), provider: 'chatgpt', deviceId: 'd', client: 'web', inputTokens: 20, source: 'browser_stream', confidence: 'observed', userId: 'alice', teamId: 'team' });
+    expect(getHourlyActivity(1, 'team').reduce((sum, row) => sum + row.tokens, 0)).toBe(20);
+    expect(getTeamLeaderboard(1, 'team')[0]).toMatchObject({ userId: 'alice', tokens: 20, events: 1 });
   });
 });

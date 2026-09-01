@@ -88,6 +88,22 @@
           </div>
         </section>
 
+        <section class="card">
+          <h2 class="card-title">Privacy &amp; analytics</h2>
+          <label class="toggle-row" for="in-page-gauges">
+            <span class="toggle-text"><span class="toggle-label">In-page usage gauge</span><span class="toggle-hint">Show the compact quota gauge on supported provider pages</span></span>
+            <span class="switch"><input type="checkbox" id="in-page-gauges" /><span class="switch-track"></span></span>
+          </label>
+          <label class="toggle-row spaced" for="core-sync-enabled">
+            <span class="toggle-text"><span class="toggle-label">Share usage with local ClaudeWatch Core</span><span class="toggle-hint">Opt in to sending metadata-only events to localhost:7734. Prompts and responses are never sent.</span></span>
+            <span class="switch"><input type="checkbox" id="core-sync-enabled" /><span class="switch-track"></span></span>
+          </label>
+          <div class="identity-grid">
+            <label>User label<input type="text" id="analytics-user-id" maxlength="128" placeholder="Optional pseudonymous user ID" /></label>
+            <label>Team label<input type="text" id="analytics-team-id" maxlength="128" placeholder="Optional team ID" /></label>
+          </div>
+        </section>
+
         <!-- ABOUT -->
         <section class="card card-about">
           <h2 class="card-title">About</h2>

@@ -134,6 +134,10 @@ main {
 .toggle-text { flex: 1; }
 .toggle-label { font-size: 13px; color: var(--text-primary); display: block; }
 .toggle-hint  { font-size: 11px; color: var(--text-muted); display: block; margin-top: 2px; }
+.toggle-row.spaced { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--border); }
+.identity-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+.identity-grid label { color: var(--text-secondary); font-size: 10px; }
+.identity-grid input { width: 100%; margin-top: 5px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-input); color: var(--text-primary); font: 10px var(--mono); }
 
 .switch { flex-shrink: 0; position: relative; }
 .switch input { position: absolute; opacity: 0; width: 0; height: 0; }

@@ -1,4 +1,6 @@
 import { fileURLToPath } from 'url';
+import { createHash } from 'crypto';
+import { hostname } from 'os';
 import type { Server } from 'http';
 import cron, { type ScheduledTask } from 'node-cron';
 import { loadConfig } from '../config/manager.js';
@@ -6,6 +8,7 @@ import {
   closeDb, insertSnapshot, insertPersonalTokens, getPersonalPeriodTokens,
   getWeeklySpend, getWeeklyTokens, hasAlertFired, recordAlert,
   insertSessionTokens,
+  insertUsageEvent,
 } from '../store/db.js';
 import { SessionPoller } from '../api/sessionPoller.js';
 import { ClaudeCodeWatcher } from '../api/claudeCodeWatcher.js';
@@ -20,15 +23,26 @@ import type { AlertPayload } from '../alerts/types.js';
 import type { Config, SpendThreshold } from '../config/schema.js';
 import { setCostCache } from './costCache.js';
 import { startWebServer } from './server.js';
+import { pullCloudEvents, syncUsageEvent } from '../sync/cloudSync.js';
 
 // ---------------------------------------------------------------------------
 // Session poller (module-level singleton)
 // ---------------------------------------------------------------------------
 
 const sessionPoller = new SessionPoller();
+const daemonDeviceId = createHash('sha256').update(hostname()).digest('hex').slice(0, 16);
 
 const ccWatcher = new ClaudeCodeWatcher((usage) => {
   insertSnapshot(usage);
+  const recordedAt = usage.recordedAt ?? new Date().toISOString();
+  const event = {
+    eventId: createHash('sha256').update(`claude-code:${recordedAt}:${usage.model}:${usage.uncachedInputTokens}:${usage.outputTokens}`).digest('hex'),
+    recordedAt,
+    provider: 'claude', deviceId: daemonDeviceId, client: 'claude_code',
+    model: usage.model, inputTokens: (usage.uncachedInputTokens ?? 0) + (usage.cacheReadTokens ?? 0) + (usage.cacheWrite1hTokens ?? 0) + (usage.cacheWrite5mTokens ?? 0),
+    outputTokens: usage.outputTokens ?? 0, source: 'local_jsonl', confidence: 'authoritative',
+  } as const;
+  if (insertUsageEvent(event)) void syncUsageEvent(event).catch(err => console.warn('[cloud sync]', (err as Error).message));
   console.log(`[ClaudeWatch] Claude Code usage stored — model=${usage.model ?? '?'}`);
 });
 
@@ -320,6 +334,7 @@ export async function startDaemon(): Promise<void> {
   );
 
   const webServer: Server = startWebServer(config);
+  await pullCloudEvents().then(count => { if (count) console.log(`[ClaudeWatch] imported ${count} encrypted cloud events`); }).catch(err => console.warn('[cloud sync]', (err as Error).message));
 
   let tick: () => Promise<void>;
   if (config.mode === 'personal') {
@@ -334,6 +349,7 @@ export async function startDaemon(): Promise<void> {
 
   const task: ScheduledTask = cron.schedule(`*/${safeInterval} * * * *`, () => {
     void tick().catch((err: unknown) => console.error('[poll error]', err));
+    void pullCloudEvents().catch((err: unknown) => console.warn('[cloud sync]', (err as Error).message));
   });
 
   const shutdown = (): void => {

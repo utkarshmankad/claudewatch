@@ -10,10 +10,25 @@ import {
   classifyChatGptWindows,
   parseBatchResponse,
   forecastWindow,
+  forecastWindowDetails,
   stableAccountKey,
   validateProviderSnapshot,
   nextPollDelay,
 } from '../lib/parsers.mjs';
+
+describe('forecast confidence', () => {
+  it('reports projection provenance and confidence', () => {
+    const now = Date.parse('2026-09-01T12:00:00Z');
+    const history = Array.from({ length: 12 }, (_, index) => ({
+      ts: now - (11 - index) * 30 * 60_000,
+      site: 'claude', accountId: 'a', pct5h: 10 + index * 2, resetsAt5h: '2026-09-01T14:00:00Z',
+    }));
+    const result = forecastWindowDetails(history, { site: 'claude', accountId: 'a', key: '5h', currentPct: 32, resetsAt: '2026-09-01T14:00:00Z', now });
+    expect(result?.projectedPct).toBeGreaterThan(32);
+    expect(result?.sampleCount).toBe(12);
+    expect(['medium', 'high']).toContain(result?.confidence);
+  });
+});
 
 describe('provider resilience and identity', () => {
   it('creates account keys that keep Claude organizations separate', () => {

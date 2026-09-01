@@ -1,13 +1,15 @@
 import { createServer, type Server } from 'http';
 import express from 'express';
 import cors from 'cors';
-import { getAlertHistory, getDailyTokensByModel, getLatestSnapshot, getDb, getSessionTokens, insertSessionTokens, getWeeklyTokens, getUsageBySource } from '../store/db.js';
+import { getAlertHistory, getDailyTokensByModel, getLatestSnapshot, getDb, getSessionTokens, insertSessionTokens, getWeeklyTokens, getUsageBySource, insertUsageEvent, getAttributionSummary, getHourlyActivity, getTeamLeaderboard, type UsageConfidence, type UsageEventData } from '../store/db.js';
 import { getTotalCostSince } from '../store/usage.js';
 import { currentBillingPeriod } from '../api/usageClient.js';
 import { getCostCache } from './costCache.js';
 import { generateDashboardHTML } from '../web/template.js';
 import type { Config } from '../config/schema.js';
 import { VERSION } from '../version.js';
+import { recommendPlan, reconcileAttribution } from '../analytics/insights.js';
+import { syncUsageEvent } from '../sync/cloudSync.js';
 
 export const WEB_PORT = 7734;
 
@@ -25,6 +27,34 @@ function mapSnapshot(snap: ReturnType<typeof getLatestSnapshot>) {
     cacheWriteTokens: snap.cacheWrite1hTokens + snap.cacheWrite5mTokens,
     outputTokens:     snap.outputTokens,
     estimatedCostUsd: 0,
+  };
+}
+
+export function parseUsageEvent(body: Record<string, unknown>): UsageEventData | null {
+  const confidence = body['confidence'];
+  const requiredString = (value: unknown, maxLength: number): value is string =>
+    typeof value === 'string' && value.trim().length > 0 && value.length <= maxLength;
+  if (!requiredString(body['eventId'], 128) || !requiredString(body['provider'], 32) ||
+      !requiredString(body['deviceId'], 128) || !requiredString(body['client'], 64) ||
+      !requiredString(body['source'], 64) ||
+      !['authoritative', 'observed', 'estimated', 'inferred'].includes(String(confidence))) return null;
+  const safeNumber = (value: unknown): number | undefined => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
+  const safeString = (value: unknown): string | null => typeof value === 'string' ? value.slice(0, 256) : null;
+  const recordedAt = safeString(body['recordedAt']);
+  if (recordedAt !== null && Number.isNaN(Date.parse(recordedAt))) return null;
+  const rawMetadata = typeof body['metadata'] === 'object' && body['metadata'] !== null ? body['metadata'] as Record<string, unknown> : {};
+  const metadata = Object.fromEntries(['pct7d', 'windowSeconds7d'].flatMap(key => {
+    const value = safeNumber(rawMetadata[key]);
+    return value == null ? [] : [[key, value]];
+  }));
+  return {
+    eventId: body['eventId'].trim(), recordedAt: recordedAt ?? undefined,
+    provider: body['provider'].trim(), accountId: safeString(body['accountId']), organizationId: safeString(body['organizationId']),
+    userId: safeString(body['userId']), teamId: safeString(body['teamId']), deviceId: body['deviceId'].trim(),
+    client: body['client'].trim(), model: safeString(body['model']), inputTokens: safeNumber(body['inputTokens']),
+    outputTokens: safeNumber(body['outputTokens']), utilizationPct: safeNumber(body['utilizationPct']) ?? null,
+    windowSeconds: safeNumber(body['windowSeconds']) ?? null, source: body['source'].trim(), confidence: confidence as UsageConfidence,
+    metadata,
   };
 }
 
@@ -48,7 +78,15 @@ export function startWebServer(config: Config): Server {
     },
     methods: ['GET', 'POST'],
   }));
-  app.use(express.json());
+  app.use(express.json({ limit: '64kb' }));
+
+  app.post('/api/events', (req, res) => {
+    const event = parseUsageEvent(req.body as Record<string, unknown>);
+    if (!event) { res.status(400).json({ error: 'invalid_usage_event' }); return; }
+    const inserted = insertUsageEvent(event);
+    if (inserted) void syncUsageEvent(event).catch(err => console.warn('[cloud sync]', (err as Error).message));
+    res.status(inserted ? 201 : 200).json({ ok: true, inserted });
+  });
 
   // ---------------------------------------------------------------------------
   // POST /api/session — extension pushes live claude.ai session data
@@ -193,6 +231,33 @@ export function startWebServer(config: Config): Server {
     const days = Math.min(90, Math.max(1, parseInt(String(req.query['days'] ?? '30'), 10) || 30));
     const rows = getDailyTokensByModel(days);
     res.json({ rows });
+  });
+
+  app.get('/api/analytics', (req, res) => {
+    const days = Math.min(365, Math.max(1, parseInt(String(req.query['days'] ?? '30'), 10) || 30));
+    const teamId = typeof req.query['teamId'] === 'string' ? req.query['teamId'].slice(0, 256) : undefined;
+    const attribution = getAttributionSummary(days, teamId);
+    const weeklyTokens = getWeeklyTokens();
+    res.json({
+      days, teamId: teamId ?? null, attribution,
+      reconciliation: reconcileAttribution(attribution),
+      hourlyActivity: getHourlyActivity(days, teamId),
+      leaderboard: getTeamLeaderboard(days, teamId),
+      planRecommendation: recommendPlan(weeklyTokens, config.weeklyTokenLimit ?? null),
+    });
+  });
+
+  app.get('/api/report', (req, res) => {
+    const days = Math.min(365, Math.max(1, parseInt(String(req.query['days'] ?? '30'), 10) || 30));
+    const rows = getAttributionSummary(days);
+    if (req.query['format'] === 'csv') {
+      const csv = ['provider,client,confidence,input_tokens,output_tokens,events,last_seen_at', ...rows.map(row =>
+        [row.provider, row.client, row.confidence, row.inputTokens, row.outputTokens, row.events, row.lastSeenAt]
+          .map(value => `"${String(value).replaceAll('"', '""')}"`).join(','))].join('\n');
+      res.type('text/csv').setHeader('Content-Disposition', `attachment; filename="claudewatch-${days}d.csv"`).send(csv);
+      return;
+    }
+    res.json({ generatedAt: new Date().toISOString(), days, attribution: rows });
   });
 
   // ---------------------------------------------------------------------------

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
-import type { AlertsResponse, StatusResponse, UsageResponse } from './types.js';
+import type { AlertsResponse, AnalyticsResponse, StatusResponse, UsageResponse } from './types.js';
 import { CostGauge } from './components/CostGauge.js';
 import { DailyChart } from './components/DailyChart.js';
 import { AlertTable } from './components/AlertTable.js';
 import { StatusBar } from './components/StatusBar.js';
+import { AnalyticsPanel } from './components/AnalyticsPanel.js';
 
 const POLL_INTERVAL_MS = 30_000;
 const USAGE_DAYS = 30;
@@ -30,12 +31,13 @@ interface DashState {
   status:  StatusResponse  | null;
   usage:   UsageResponse   | null;
   alerts:  AlertsResponse  | null;
+  analytics: AnalyticsResponse | null;
   error:   string          | null;
   lastUpdated: Date        | null;
 }
 
 const INIT: DashState = {
-  status: null, usage: null, alerts: null, error: null, lastUpdated: null,
+  status: null, usage: null, alerts: null, analytics: null, error: null, lastUpdated: null,
 };
 
 // ---------------------------------------------------------------------------
@@ -47,12 +49,13 @@ export default function App() {
 
   const fetchAll = useCallback(async () => {
     try {
-      const [status, usage, alerts] = await Promise.all([
+      const [status, usage, alerts, analytics] = await Promise.all([
         api.status(),
         api.usage(USAGE_DAYS),
         api.alerts(50),
+        api.analytics(USAGE_DAYS),
       ]);
-      setState({ status, usage, alerts, error: null, lastUpdated: new Date() });
+      setState({ status, usage, alerts, analytics, error: null, lastUpdated: new Date() });
     } catch (err) {
       setState(prev => ({
         ...prev,
@@ -68,7 +71,7 @@ export default function App() {
   // Periodic polling
   useInterval(() => { void fetchAll(); }, POLL_INTERVAL_MS);
 
-  const { status, usage, alerts, error, lastUpdated } = state;
+  const { status, usage, alerts, analytics, error, lastUpdated } = state;
 
   return (
     <div className="app-shell">
@@ -113,6 +116,7 @@ export default function App() {
 
         {/* Row 2: Alert history */}
         <AlertTable alerts={alerts?.alerts ?? []} />
+        <AnalyticsPanel analytics={analytics} />
 
       </main>
     </div>

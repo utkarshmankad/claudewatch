@@ -129,6 +129,7 @@ console.log('\n── Expected files');
 const expectedFiles = [
   'interceptor.js',
   'content.js',
+  'inpage.js',
   'onboarding/onboarding.html',
   'onboarding/onboarding.css',
   'onboarding/onboarding.js',
