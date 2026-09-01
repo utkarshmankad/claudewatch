@@ -63,7 +63,11 @@
 
     <!-- ── Dual gauge section (Claude window) ── -->
     <section class="section gauges-section">
-      <div class="section-label" id="provider-window-label">Usage Window</div>
+      <div class="usage-heading">
+        <div class="section-label" id="provider-window-label">Usage Window</div>
+        <select id="account-select" class="account-select" aria-label="Provider account" hidden></select>
+      </div>
+      <div class="provider-health" id="provider-health" hidden></div>
       <div class="gauge-cards">
 
         <div class="gauge-card">

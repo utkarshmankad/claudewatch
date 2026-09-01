@@ -10,6 +10,7 @@ const WINDOW_7D_MS       = 7  * 24 * 60 * 60 * 1000;
 const MAX_HISTORY        = 2000;
 const MAX_USAGE_HISTORY  = 7000;
 const POLL_INTERVAL_MIN  = 5;
+const PROVIDER_STALE_MS  = 15 * 60 * 1000;
 
 // Approximate token limits per 5-hour window (community-derived estimates).
 // Claude-specific. ChatGPT/Gemini don't share this window model.
@@ -38,11 +39,32 @@ const K_ORG_ID        = 'org_id';            // Claude org UUID
 const K_LAST_BACKFILL = 'last_backfill_ts';  // epoch ms of last conversation backfill
 const K_PROVIDER_USAGE = 'provider_usage';   // {site: normalized authoritative snapshot}
 const K_USAGE_HISTORY  = 'usage_history';    // 7d account-scoped quota snapshots
+const K_PROVIDER_ACCOUNTS = 'provider_accounts'; // {site: {accountKey: snapshot}}
+const K_PROVIDER_SELECTIONS = 'provider_selections'; // {site: accountKey}
 
 // ── Storage helpers ───────────────────────────────────────────────────────
 const lget = (k)    => new Promise(r => chrome.storage.local.get(k,  d => r(d[k]  ?? null)));
 const lset = (k, v) => new Promise(r => chrome.storage.local.set({[k]: v}, r));
 let providerSaveQueue = Promise.resolve();
+
+function stableAccountKey(snapshot) {
+  const raw = snapshot?.organizationId ?? snapshot?.accountId ?? snapshot?.email;
+  if (!snapshot?.site || !raw) return null;
+  return `${snapshot.site}:${String(raw)}`;
+}
+
+function validateProviderSnapshot(snapshot) {
+  if (!snapshot || !['claude', 'chatgpt', 'gemini'].includes(snapshot.site)) return 'invalid_site';
+  if (!stableAccountKey(snapshot)) return 'account_identity_missing';
+  for (const key of ['pct5h', 'pct7d']) {
+    const value = snapshot[key];
+    if (value != null && (!Number.isFinite(value) || value < 0 || value > 1000)) return `invalid_${key}`;
+  }
+  for (const key of ['resetsAt5h', 'resetsAt7d']) {
+    if (snapshot[key] != null && !Number.isFinite(Date.parse(snapshot[key]))) return `invalid_${key}`;
+  }
+  return null;
+}
 
 // ── Badge ─────────────────────────────────────────────────────────────────
 function updateBadge(pct) {
@@ -177,7 +199,7 @@ function normalizeChatGptUsage(raw, email) {
       };
     }).filter(Boolean).slice(0, 5);
   return {
-    site: 'chatgpt', accountId: usage.account_id ?? usage.user_id ?? email ?? 'chatgpt', email: email ?? null,
+    site: 'chatgpt', accountId: usage.account_id ?? usage.user_id ?? email ?? null, email: email ?? null,
     plan: usage.plan_type ?? null,
     pct5h: w5h?.used_percent ?? null, pct7d: w7d?.used_percent ?? null,
     resetsAt5h: unixIso(w5h?.reset_at), resetsAt7d: unixIso(w7d?.reset_at),
@@ -213,7 +235,7 @@ function normalizeGeminiUsage(raw) {
     if (w[2] === 2) { pct7d = pct; resetsAt7d = reset; }
   }
   return {
-    site: 'gemini', accountId: raw.accountId ?? raw.email ?? 'gemini', email: raw.email ?? null,
+    site: 'gemini', accountId: raw.accountId ?? raw.email ?? null, email: raw.email ?? null,
     plan: data[0] != null ? `Plan ${data[0]}` : null,
     pct5h, pct7d, resetsAt5h, resetsAt7d,
     windowSeconds5h: 5 * 3600, windowSeconds7d: 7 * 24 * 3600,
@@ -245,10 +267,24 @@ function forecastWindow(history, site, accountId, key, currentPct, resetsAt) {
 
 async function saveProviderSnapshot(snapshot, capturedAt) {
   if (!snapshot) return;
+  const validationError = validateProviderSnapshot(snapshot);
+  if (validationError) throw new Error(validationError);
   const ts = Date.parse(capturedAt ?? '') || Date.now();
+  const accountKey = stableAccountKey(snapshot);
+  const stored = { ...snapshot, accountKey, capturedAt: new Date(ts).toISOString(), ts };
+  const accounts = (await lget(K_PROVIDER_ACCOUNTS)) ?? {};
+  accounts[snapshot.site] = accounts[snapshot.site] ?? {};
+  accounts[snapshot.site][accountKey] = stored;
+  await lset(K_PROVIDER_ACCOUNTS, accounts);
+
+  const selections = (await lget(K_PROVIDER_SELECTIONS)) ?? {};
+  if (snapshot.site !== 'claude' || !selections[snapshot.site] || !accounts[snapshot.site][selections[snapshot.site]]) {
+    selections[snapshot.site] = accountKey;
+    await lset(K_PROVIDER_SELECTIONS, selections);
+  }
   const current = (await lget(K_PROVIDER_USAGE)) ?? {};
-  current[snapshot.site] = { ...snapshot, capturedAt: new Date(ts).toISOString(), ts };
-  await lset(K_PROVIDER_USAGE, current);
+  current[snapshot.site] = accounts[snapshot.site][selections[snapshot.site]];
+  await lset(K_PROVIDER_USAGE, current); // compatibility projection for popup/badge
 
   const history = (await lget(K_USAGE_HISTORY)) ?? [];
   const point = { ts, site: snapshot.site, accountId: snapshot.accountId,
@@ -369,8 +405,36 @@ async function getStats() {
   const plan      = (await lget(K_PLAN))      ?? 'pro';
   const rateLimit = (await lget(K_RATELIMIT)) ?? null;
   const providerUsage = (await lget(K_PROVIDER_USAGE)) ?? {};
+  const providerAccounts = (await lget(K_PROVIDER_ACCOUNTS)) ?? {};
+  const providerSelections = (await lget(K_PROVIDER_SELECTIONS)) ?? {};
+  let migratedAccounts = false;
+  for (const [site, snapshot] of Object.entries(providerUsage)) {
+    const accountKey = stableAccountKey(snapshot);
+    if (!accountKey || providerAccounts[site]?.[accountKey]) continue;
+    providerAccounts[site] = providerAccounts[site] ?? {};
+    providerAccounts[site][accountKey] = { ...snapshot, accountKey };
+    providerSelections[site] = providerSelections[site] ?? accountKey;
+    migratedAccounts = true;
+  }
+  if (migratedAccounts) {
+    await lset(K_PROVIDER_ACCOUNTS, providerAccounts);
+    await lset(K_PROVIDER_SELECTIONS, providerSelections);
+  }
+  const providerHealth = {};
   const usageHistory = (await lget(K_USAGE_HISTORY)) ?? [];
   const now       = Date.now();
+
+  for (const site of ['claude', 'chatgpt', 'gemini']) {
+    const poll = (await lget(`last_usage_poll_${site}`)) ?? null;
+    const selected = providerUsage[site] ?? null;
+    const ageMs = selected?.ts ? Math.max(0, now - selected.ts) : null;
+    providerHealth[site] = {
+      ...poll,
+      ageMs,
+      stale: ageMs == null || ageMs > PROVIDER_STALE_MS,
+      hasData: Boolean(selected),
+    };
+  }
 
   function resolveFromRateLimit() {
     if (!rateLimit?.resetsAt) return null;
@@ -460,8 +524,23 @@ async function getStats() {
     siteBreakdown,
     activeSite,
     providerUsage,
+    providerAccounts,
+    providerSelections,
+    providerHealth,
     usageHistory,
   };
+}
+
+async function selectProviderAccount(site, accountKey) {
+  const accounts = (await lget(K_PROVIDER_ACCOUNTS)) ?? {};
+  if (!accounts[site]?.[accountKey]) return false;
+  const selections = (await lget(K_PROVIDER_SELECTIONS)) ?? {};
+  selections[site] = accountKey;
+  await lset(K_PROVIDER_SELECTIONS, selections);
+  const current = (await lget(K_PROVIDER_USAGE)) ?? {};
+  current[site] = accounts[site][accountKey];
+  await lset(K_PROVIDER_USAGE, current);
+  return true;
 }
 
 // ── Background polling (Claude-specific) ──────────────────────────────────
@@ -649,11 +728,6 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     // Preserve all org snapshots for the upcoming multi-org UI, while using the
     // first successful org for the existing single-org popup contract.
     lset('claude_org_usage', snapshots).catch(() => {});
-    lset(`last_usage_poll_${site}`, {
-      ok: Boolean(msg.ok), capturedAt: msg.capturedAt ?? new Date().toISOString(),
-      error: msg.error ?? null, status: msg.status ?? null,
-    }).catch(() => {});
-
     const first = snapshots[0];
     if (first) {
       lset(K_ORG_ID, first.orgId).catch(() => {});
@@ -679,8 +753,41 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
         }).catch(() => {});
       }
     }
-    enqueueProviderSnapshot(normalized, msg.capturedAt)
-      .then(() => reply({ ok: Boolean(normalized) }))
+    const normalizedClaude = snapshots.map(item => {
+      const rlInfo = extractRateLimitFromResponse(item.usage);
+      if (!rlInfo) return null;
+      return {
+        site: 'claude', accountId: item.orgId, organizationId: item.orgId,
+        accountName: item.org?.name ?? item.org?.display_name ?? 'Claude organization', email: null,
+        plan: detectPlan(item.org) ?? detectPlan(item.usage),
+        pct5h: asPct(rlInfo.utilization5h), pct7d: asPct(rlInfo.utilization7d),
+        resetsAt5h: rlInfo.resetsAt, resetsAt7d: rlInfo.resetsAt7d,
+        windowSeconds5h: 5 * 3600, windowSeconds7d: 7 * 24 * 3600,
+        additionalLimits: [],
+      };
+    }).filter(Boolean);
+    const toSave = site === 'claude' ? normalizedClaude : (normalized ? [normalized] : []);
+    lget(`last_usage_poll_${site}`).then(previous => {
+      const ok = Boolean(msg.ok) && toSave.length > 0;
+      const validationFailure = Boolean(msg.ok) && toSave.length === 0;
+      return lset(`last_usage_poll_${site}`, {
+        ok,
+        capturedAt: msg.capturedAt ?? new Date().toISOString(),
+        lastSuccessAt: ok ? (msg.capturedAt ?? new Date().toISOString()) : (previous?.lastSuccessAt ?? null),
+        consecutiveFailures: ok ? 0 : (previous?.consecutiveFailures ?? 0) + 1,
+        error: validationFailure ? 'provider_schema_changed' : (msg.error ?? null),
+        status: msg.status ?? null,
+      });
+    }).catch(() => {});
+    Promise.all(toSave.map(item => enqueueProviderSnapshot(item, msg.capturedAt)))
+      .then(() => reply({ ok: toSave.length > 0 }))
+      .catch(e => reply({ ok: false, error: e.message }));
+    return true;
+  }
+
+  if (msg.type === 'SELECT_PROVIDER_ACCOUNT' && fromExtension) {
+    selectProviderAccount(msg.site, msg.accountKey)
+      .then(ok => reply({ ok }))
       .catch(e => reply({ ok: false, error: e.message }));
     return true;
   }

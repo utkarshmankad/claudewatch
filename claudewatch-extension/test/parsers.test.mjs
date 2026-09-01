@@ -10,7 +10,31 @@ import {
   classifyChatGptWindows,
   parseBatchResponse,
   forecastWindow,
+  stableAccountKey,
+  validateProviderSnapshot,
+  nextPollDelay,
 } from '../lib/parsers.mjs';
+
+describe('provider resilience and identity', () => {
+  it('creates account keys that keep Claude organizations separate', () => {
+    expect(stableAccountKey({ site: 'claude', accountId: 'account', organizationId: 'org-a' })).toBe('claude:org-a');
+    expect(stableAccountKey({ site: 'claude', accountId: 'account', organizationId: 'org-b' })).toBe('claude:org-b');
+  });
+
+  it('rejects snapshots without stable identity or valid utilization', () => {
+    expect(validateProviderSnapshot({ site: 'chatgpt', pct5h: 10 })).toBe('account_identity_missing');
+    expect(validateProviderSnapshot({ site: 'gemini', accountId: 'a', pct5h: -1 })).toBe('invalid_pct5h');
+    expect(validateProviderSnapshot({ site: 'claude', accountId: 'a', pct5h: 20, resetsAt5h: 'bad' })).toBe('invalid_resetsAt5h');
+    expect(validateProviderSnapshot({ site: 'chatgpt', accountId: 'a', pct5h: 20 })).toBe(null);
+  });
+
+  it('backs off failures and backs off harder for rate limiting', () => {
+    expect(nextPollDelay({ ok: true, consecutiveFailures: 0 })).toBe(300000);
+    expect(nextPollDelay({ ok: false, status: 500, consecutiveFailures: 2 })).toBe(600000);
+    expect(nextPollDelay({ ok: false, status: 429, consecutiveFailures: 1 })).toBe(1200000);
+    expect(nextPollDelay({ ok: false, status: 500, consecutiveFailures: 20 })).toBe(3600000);
+  });
+});
 
 // ── detectSite ──────────────────────────────────────────────────────────────
 

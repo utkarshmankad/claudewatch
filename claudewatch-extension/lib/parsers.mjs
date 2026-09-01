@@ -301,3 +301,28 @@ export function forecastWindow(history, { site, accountId, key, currentPct, rese
   }
   return Math.max(currentPct, currentPct + (growth / spanHours) * ((resetMs - now) / 3600000));
 }
+
+export function stableAccountKey(snapshot) {
+  const raw = snapshot?.organizationId ?? snapshot?.accountId ?? snapshot?.email;
+  if (!snapshot?.site || !raw) return null;
+  return `${snapshot.site}:${String(raw)}`;
+}
+
+export function validateProviderSnapshot(snapshot) {
+  if (!snapshot || !['claude', 'chatgpt', 'gemini'].includes(snapshot.site)) return 'invalid_site';
+  if (!stableAccountKey(snapshot)) return 'account_identity_missing';
+  for (const key of ['pct5h', 'pct7d']) {
+    const value = snapshot[key];
+    if (value != null && (!Number.isFinite(value) || value < 0 || value > 1000)) return `invalid_${key}`;
+  }
+  for (const key of ['resetsAt5h', 'resetsAt7d']) {
+    if (snapshot[key] != null && !Number.isFinite(Date.parse(snapshot[key]))) return `invalid_${key}`;
+  }
+  return null;
+}
+
+export function nextPollDelay({ ok, status, consecutiveFailures, baseMs = 300000, maxMs = 3600000, jitter = 1 }) {
+  if (ok) return baseMs;
+  const rateLimitedMultiplier = status === 429 ? 4 : 1;
+  return Math.round(Math.min(maxMs, baseMs * (2 ** Math.min(Math.max(0, consecutiveFailures - 1), 4)) * rateLimitedMultiplier) * jitter);
+}

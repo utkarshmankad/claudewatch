@@ -158,6 +158,22 @@ header {
 /* ── Dual gauge cards ───────────────────────────────────────────────────── */
 .gauges-section { padding: 12px 13px; }
 
+.usage-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.usage-heading .section-label { margin-bottom: 9px; }
+.account-select {
+  max-width: 165px;
+  margin-bottom: 9px;
+  padding: 3px 5px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font: 9px var(--mono);
+}
+.provider-health { margin: -4px 0 9px; font-size: 9px; color: var(--text-muted); }
+.provider-health.error { color: var(--red); }
+.provider-health.stale { color: var(--amber); }
+
 .gauge-cards {
   display: flex;
   align-items: stretch;
