@@ -70,6 +70,19 @@ function detectPlan(data) {
 function extractRateLimitFromResponse(data) {
   if (!data || typeof data !== 'object') return null;
 
+  // Current claude.ai /usage shape. Values are percentages (0..100), whereas
+  // older message_limit SSE events may use fractions (0..1).
+  if (data.five_hour || data.seven_day) {
+    return {
+      type: null,
+      remaining: null,
+      resetsAt: data.five_hour?.resets_at ?? null,
+      resetsAt7d: data.seven_day?.resets_at ?? null,
+      utilization5h: data.five_hour?.utilization ?? null,
+      utilization7d: data.seven_day?.utilization ?? null,
+    };
+  }
+
   function fromWindows(windows) {
     if (!windows || typeof windows !== 'object') return null;
     const win5h = windows['5h'];
@@ -260,8 +273,9 @@ async function getStats() {
 
   const rlWindowOpen   = rateLimit?.resetsAt   && Date.parse(rateLimit.resetsAt)   > now;
   const rl7dWindowOpen = rateLimit?.resetsAt7d && Date.parse(rateLimit.resetsAt7d) > now;
-  const authPct5h = (rlWindowOpen   && rateLimit.utilization5h != null) ? rateLimit.utilization5h * 100 : null;
-  const authPct7d = (rl7dWindowOpen && rateLimit.utilization7d != null) ? rateLimit.utilization7d * 100 : null;
+  const asPct = value => value == null ? null : (value <= 1 ? value * 100 : value);
+  const authPct5h = rlWindowOpen   ? asPct(rateLimit.utilization5h) : null;
+  const authPct7d = rl7dWindowOpen ? asPct(rateLimit.utilization7d) : null;
   const pct5h     = authPct5h ?? (capturedTokens5h > 0 ? (capturedTokens5h / limit5h) * 100 : null);
   const pct7d     = authPct7d ?? (capturedTokens7d > 0 ? (capturedTokens7d / (limit5h * 7)) * 100 : null);
 
@@ -484,6 +498,37 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     }
 
     reply({ ok: true });
+    return false;
+  }
+
+  if (msg.type === 'CLAUDE_USAGE_SNAPSHOT' && fromAllowedSite) {
+    const snapshots = Array.isArray(msg.organizations) ? msg.organizations : [];
+    // Preserve all org snapshots for the upcoming multi-org UI, while using the
+    // first successful org for the existing single-org popup contract.
+    lset('claude_org_usage', snapshots).catch(() => {});
+    lset('last_usage_poll', {
+      ok: Boolean(msg.ok), capturedAt: msg.capturedAt ?? new Date().toISOString(),
+      error: msg.error ?? null, status: msg.status ?? null,
+    }).catch(() => {});
+
+    const first = snapshots[0];
+    if (first) {
+      lset(K_ORG_ID, first.orgId).catch(() => {});
+      const p = detectPlan(first.org) ?? detectPlan(first.usage);
+      if (p) lset(K_PLAN, p).catch(() => {});
+      const rlInfo = extractRateLimitFromResponse(first.usage);
+      if (rlInfo) {
+        mergeRateLimit(rlInfo).then(async () => {
+          if (rlInfo.resetsAt) {
+            const resetMs = Date.parse(rlInfo.resetsAt);
+            if (!isNaN(resetMs)) await lset(K_WIN5H, { startMs: resetMs - WINDOW_5H_MS, resetMs });
+          }
+          const stats = await getStats();
+          updateBadge(stats.pct5h);
+        }).catch(() => {});
+      }
+    }
+    reply({ ok: Boolean(first) });
     return false;
   }
 

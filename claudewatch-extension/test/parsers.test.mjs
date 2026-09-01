@@ -251,6 +251,19 @@ describe('extractRateLimitFromResponse', () => {
     expect(r.utilization7d).toBe(0.3);
   });
 
+  it('extracts the authoritative claude.ai /usage response shape', () => {
+    const data = {
+      five_hour: { utilization: 42.5, resets_at: '2026-09-01T20:00:00Z' },
+      seven_day: { utilization: 67.25, resets_at: '2026-09-05T00:00:00Z' },
+    };
+    expect(extractRateLimitFromResponse(data)).toMatchObject({
+      utilization5h: 42.5,
+      utilization7d: 67.25,
+      resetsAt: '2026-09-01T20:00:00Z',
+      resetsAt7d: '2026-09-05T00:00:00Z',
+    });
+  });
+
   it('extracts from nested rate_limit.windows', () => {
     const data = {
       account: { name: 'test' },

@@ -9,13 +9,17 @@
   "scripts": {
     "postinstall": "node scripts/postinstall.mjs",
     "build": "tsc -p tsconfig.json",
-    "build:web": "vite src/web --outDir ../../dist/web",
+    "build:web": "vite build --config src/web/vite.config.ts",
     "dev": "tsx watch src/cli/index.ts",
     "daemon": "tsx src/daemon/index.ts",
     "web": "vite src/web",
     "lint": "eslint \"src/**/*.ts\" \"src/**/*.tsx\"",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "validate:extension": "npm --prefix claudewatch-extension run validate",
+    "smoke": "npm run build && node dist/cli/index.js --help && npm run validate:extension",
+    "check": "npm run lint && npm run typecheck && npm test && npm run test:coverage && npm run smoke"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.51.0",
@@ -28,7 +32,7 @@
     "keytar": "^7.9.0",
     "node-cron": "^3.0.3",
     "node-notifier": "^10.0.1",
-    "nodemailer": "^6.9.14",
+    "nodemailer": "^9.1.0",
     "open": "^11.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

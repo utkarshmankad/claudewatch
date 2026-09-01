@@ -11,6 +11,12 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],
+      thresholds: {
+        lines: 60,
+        functions: 75,
+        statements: 60,
+        branches: 45,
+      },
       // Measure coverage only over testable business-logic modules.
       // Interactive CLI wizard (config/index.ts), web components, and
       // the install command (shell-heavy) are excluded as they require
