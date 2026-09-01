@@ -8,6 +8,9 @@ A Chrome extension that tracks your AI token usage in real-time across **Claude*
 - **Auto site detection** — extension identifies the active AI platform and applies the right parser
 - **Live usage gauge** — token count, percentage, and reset countdown for Claude's 5h window
 - **Per-site breakdown** — popup shows token usage split by Claude / ChatGPT / Gemini
+- **Account-safe history** — usage is isolated by provider account and Claude organization
+- **Multi-account selector** — switch between previously observed accounts and organizations
+- **Resilient polling** — failures back off automatically and stale/error states are shown explicitly
 - **Badge on icon** — shows Claude's current window usage percentage at a glance
 - **Desktop notifications** at 80%, 90%, and 95% usage (configurable)
 - **Syncs with ClaudeWatch Core** for Claude history, cost tracking, and email alerts
@@ -26,8 +29,8 @@ A Chrome extension that tracks your AI token usage in real-time across **Claude*
 
 | Platform | URL | Token Detection |
 |----------|-----|-----------------|
-| Claude   | claude.ai | Exact (SSE `message_start` / `message_limit`) |
-| ChatGPT  | chatgpt.com | Exact (OpenAI usage field in final SSE chunk) |
+| Claude   | claude.ai | Provider quota plus exact/best-effort SSE token counts |
+| ChatGPT  | chatgpt.com | Provider quota plus exact/best-effort stream counts |
 | Gemini   | gemini.google.com | Best-effort (`usageMetadata` or character approximation) |
 
 ## Usage
@@ -37,6 +40,8 @@ A Chrome extension that tracks your AI token usage in real-time across **Claude*
 3. Click the **TW** icon in the toolbar to see the popup.
 4. The **Sources** section shows per-platform token usage.
 5. The **Claude Window** section shows Claude's 5h/7d gauges and plan comparison.
+
+If more than one account or Claude organization has been observed, use the account selector above the usage gauges. Token Watcher retains separate histories and automatically follows account changes for ChatGPT and Gemini. The popup labels provider data as fresh, stale, or failed; a failed refresh never deletes the last valid snapshot.
 
 No API key or configuration needed for basic monitoring.
 

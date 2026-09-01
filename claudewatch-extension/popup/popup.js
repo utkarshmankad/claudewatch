@@ -80,6 +80,34 @@ function fillBar(fillId, pct) {
   fill.className = ['gc-fill', p >= 90 ? 'red' : p >= 70 ? 'amber' : ''].filter(Boolean).join(' ');
 }
 
+function renderAccountSelector(site, providerAccounts, providerSelections) {
+  const select = el('account-select');
+  if (!select) return;
+  const accounts = Object.values(providerAccounts?.[site] ?? {});
+  select.hidden = accounts.length < 2;
+  select.innerHTML = accounts.map(account => {
+    const label = account.accountName ?? account.email ?? account.accountId ?? 'Account';
+    return `<option value="${escapeHtml(account.accountKey)}">${escapeHtml(label)}</option>`;
+  }).join('');
+  select.value = providerSelections?.[site] ?? accounts[0]?.accountKey ?? '';
+}
+
+function renderProviderHealth(health) {
+  const node = el('provider-health');
+  if (!node) return;
+  if (!health) { node.hidden = true; return; }
+  node.hidden = false;
+  node.className = `provider-health${health.ok === false ? ' error' : health.stale ? ' stale' : ''}`;
+  if (health.ok === false) {
+    const status = health.status ? ` (HTTP ${health.status})` : '';
+    node.textContent = `Update failed${status} · showing last known data${health.lastSuccessAt ? ` from ${fmtAgo(Date.parse(health.lastSuccessAt))}` : ''}`;
+  } else if (health.stale) {
+    node.textContent = health.hasData ? `Data is stale · last update ${fmtAgo(Date.now() - (health.ageMs ?? 0))}` : 'Open a signed-in tab to fetch usage';
+  } else {
+    node.textContent = `Provider-reported · updated ${fmtAgo(Date.now() - (health.ageMs ?? 0))}`;
+  }
+}
+
 // ── Alert banner ──────────────────────────────────────────────────────────────
 
 function showAlert(msg, isRed = false) {
@@ -235,7 +263,7 @@ function render(stats) {
     tokens5h, tokens7d, pct5h, pct7d, limit5h, resetMs5h, timeLeft5h, timeLeft7d,
     plan, planName, planTable, history, lastTs,
     rlType, rlResetsAt, rlRemaining,
-    siteBreakdown, activeSite, providerUsage, usageHistory,
+    siteBreakdown, activeSite, providerUsage, providerAccounts, providerSelections, providerHealth, usageHistory,
   } = stats;
 
   // Show main content as long as we have ANY data across all sites
@@ -252,6 +280,8 @@ function render(stats) {
   renderSiteBreakdown(siteBreakdown, activeSite, providerUsage);
 
   const selected = providerUsage?.[gSelectedSite] ?? null;
+  renderAccountSelector(gSelectedSite, providerAccounts, providerSelections);
+  renderProviderHealth(providerHealth?.[gSelectedSite]);
   const selectedPct5h = selected?.pct5h ?? (gSelectedSite === 'claude' ? pct5h : null);
   const selectedPct7d = selected?.pct7d ?? (gSelectedSite === 'claude' ? pct7d : null);
   const selectedName = SITE_META.find(s => s.key === gSelectedSite)?.name ?? gSelectedSite;
@@ -330,6 +360,11 @@ function setupTabs() {
 // ── Button wiring ─────────────────────────────────────────────────────────────
 
 function setupButtons() {
+  el('account-select')?.addEventListener('change', (event) => {
+    chrome.runtime.sendMessage({ type: 'SELECT_PROVIDER_ACCOUNT', site: gSelectedSite, accountKey: event.target.value }, result => {
+      if (!chrome.runtime.lastError && result?.ok) loadAndRender();
+    });
+  });
   el('btn-open-claude')?.addEventListener('click', (e) => {
     e.preventDefault();
     chrome.tabs.create({ url: 'https://claude.ai' });
