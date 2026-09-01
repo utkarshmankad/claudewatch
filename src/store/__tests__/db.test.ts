@@ -83,9 +83,9 @@ describe('getDb', () => {
     expect(getDb()).toBe(getDb());
   });
 
-  it('sets user_version to CURRENT_SCHEMA_VERSION (4)', () => {
+  it('sets user_version to CURRENT_SCHEMA_VERSION (5)', () => {
     const version = getDb().pragma('user_version', { simple: true }) as number;
-    expect(version).toBe(4);
+    expect(version).toBe(5);
   });
 });
 

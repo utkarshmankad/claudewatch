@@ -1,6 +1,6 @@
 {
   "name": "token-watcher-extension",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Token Watcher — AI token usage monitoring for Claude, ChatGPT, and Gemini",
   "private": true,
   "scripts": {

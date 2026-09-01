@@ -160,6 +160,17 @@ export function detectPlan(data) {
 export function extractRateLimitFromResponse(data) {
   if (!data || typeof data !== 'object') return null;
 
+  if (data.five_hour || data.seven_day) {
+    return {
+      type: null,
+      remaining: null,
+      resetsAt: data.five_hour?.resets_at ?? null,
+      resetsAt7d: data.seven_day?.resets_at ?? null,
+      utilization5h: data.five_hour?.utilization ?? null,
+      utilization7d: data.seven_day?.utilization ?? null,
+    };
+  }
+
   function fromWindows(windows) {
     if (!windows || typeof windows !== 'object') return null;
     const win5h = windows['5h'];

@@ -332,3 +332,49 @@ XMLHttpRequest.prototype.send = function (...args) {
 };
 
 console.log(`${TAG} XHR interceptor installed (site: ${SITE})`);
+
+// ── Authenticated usage bridge ───────────────────────────────────────────
+// The service worker is an extension origin, so Claude's session cookie is not
+// reliably available to fetches made there.  The isolated content script asks
+// this MAIN-world script to fetch Claude's authoritative usage endpoint using
+// the page's own authenticated fetch context.  This works before any prompt is
+// sent and reflects usage produced by other clients/devices on the account.
+window.addEventListener('message', async (event) => {
+  const req = event.data;
+  if (SITE !== 'claude' || event.source !== window || !req?.__tokenwatcherRequest) return;
+  if (req.type !== 'FETCH_CLAUDE_USAGE' || typeof req.requestId !== 'string') return;
+
+  const respond = (payload) => postToIsolated('CLAUDE_USAGE_RESPONSE', {
+    requestId: req.requestId,
+    ...payload,
+  });
+
+  try {
+    const orgResp = await _originalFetch.call(window, '/api/organizations', {
+      credentials: 'include', cache: 'no-store', headers: { Accept: 'application/json' },
+    });
+    if (!orgResp.ok) {
+      respond({ ok: false, status: orgResp.status, error: 'organizations_fetch_failed' });
+      return;
+    }
+
+    const orgBody = await orgResp.json();
+    const orgs = Array.isArray(orgBody) ? orgBody : (orgBody.organizations ?? []);
+    const results = [];
+    for (const org of orgs) {
+      const orgId = org?.uuid ?? org?.id;
+      if (!orgId) continue;
+      const usageResp = await _originalFetch.call(window, `/api/organizations/${orgId}/usage`, {
+        credentials: 'include', cache: 'no-store', headers: { Accept: 'application/json' },
+      });
+      if (!usageResp.ok) continue;
+      results.push({ orgId, org, usage: await usageResp.json() });
+    }
+
+    respond({ ok: results.length > 0, organizations: results, error: results.length ? null : 'usage_fetch_failed' });
+  } catch (err) {
+    respond({ ok: false, status: 0, error: err?.message ?? 'usage_fetch_failed' });
+  }
+});
+
+console.log(`${TAG} authenticated Claude usage bridge installed`);

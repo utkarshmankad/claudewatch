@@ -46,9 +46,14 @@ Chrome, Brave, Edge, or any Chromium-based browser:
 1. Clone this repo
 2. Go to `chrome://extensions` → enable **Developer mode**
 3. Click **Load unpacked** → select the `claudewatch-extension/` folder
-4. Open [claude.ai](https://claude.ai) and send any message
+4. Open [claude.ai](https://claude.ai) while signed in. Usage is fetched immediately; no prompt is required.
 
 The extension badge shows your 5-hour usage percentage in real time.
+
+The 5-hour and 7-day gauges come from Claude's account-level usage endpoint, so
+they include activity from Claude Desktop, Claude Code, and other devices after
+Claude reports it. Exact per-message token details remain local to the client
+that produced them and are shown only as estimates.
 
 ---
 
@@ -115,7 +120,12 @@ npm run web        # Vite dev server for the dashboard
 npm run lint       # ESLint
 npm run typecheck  # tsc --noEmit
 npm test           # Vitest
+npm run check      # full local CI-equivalent gate
 ```
+
+The repository uses `develop` for integration and `main` for production. See
+[`docs/BRANCHING.md`](docs/BRANCHING.md) and the architecture review in
+[`docs/ARCHITECTURE_REVIEW.md`](docs/ARCHITECTURE_REVIEW.md).
 
 ### Guidelines
 
