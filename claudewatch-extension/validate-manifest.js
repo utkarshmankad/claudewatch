@@ -58,7 +58,7 @@ check(typeof manifest.description === 'string',
 // Permissions
 // ---------------------------------------------------------------------------
 console.log('\n── Permissions');
-const REQUIRED_PERMS = ['storage', 'alarms', 'notifications', 'tabs'];
+const REQUIRED_PERMS = ['storage', 'alarms', 'notifications', 'tabs', 'scripting', 'cookies'];
 for (const perm of REQUIRED_PERMS) {
   check(manifest.permissions?.includes(perm),
     `permission: ${perm}`,
@@ -127,6 +127,7 @@ if (optionsPage) check(fileExists(optionsPage), `${optionsPage} exists`, `${opti
 // ---------------------------------------------------------------------------
 console.log('\n── Expected files');
 const expectedFiles = [
+  'provider-collectors.js',
   'interceptor.js',
   'content.js',
   'inpage.js',

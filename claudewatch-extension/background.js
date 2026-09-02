@@ -2,6 +2,8 @@
 // Accumulates SSE token counts across Claude, ChatGPT, and Gemini.
 // Maintains 5h/7d rolling windows, detects plan, updates badge.
 
+importScripts('provider-collectors.js');
+
 const TAG = '[TokenWatcher]';
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -707,6 +709,78 @@ async function backgroundPoll() {
   }
 }
 
+async function saveProviderUsageResult(msg) {
+  const site = msg.site ?? 'unknown';
+  const capturedAt = msg.capturedAt ?? new Date().toISOString();
+  let normalized = null;
+  if (site === 'chatgpt') normalized = normalizeChatGptUsage(msg.snapshot, msg.snapshot?.email);
+  if (site === 'gemini') normalized = normalizeGeminiUsage(msg.snapshot);
+  const snapshots = site === 'claude' && Array.isArray(msg.snapshot?.organizations) ? msg.snapshot.organizations : [];
+  if (site === 'claude') await lset('claude_org_usage', snapshots);
+  const first = snapshots[0];
+  if (first) {
+    await lset(K_ORG_ID, first.orgId);
+    const plan = detectPlan(first.org) ?? detectPlan(first.usage);
+    if (plan) await lset(K_PLAN, plan);
+    const rateLimit = extractRateLimitFromResponse(first.usage);
+    if (rateLimit) {
+      normalized = {
+        site: 'claude', accountId: first.orgId, email: null,
+        plan, pct5h: asPct(rateLimit.utilization5h), pct7d: asPct(rateLimit.utilization7d),
+        resetsAt5h: rateLimit.resetsAt, resetsAt7d: rateLimit.resetsAt7d,
+        windowSeconds5h: 5 * 3600, windowSeconds7d: 7 * 24 * 3600, additionalLimits: [],
+      };
+      await mergeRateLimit(rateLimit);
+      if (rateLimit.resetsAt) {
+        const resetMs = Date.parse(rateLimit.resetsAt);
+        if (!isNaN(resetMs)) await lset(K_WIN5H, { startMs: resetMs - WINDOW_5H_MS, resetMs });
+      }
+    }
+  }
+  const normalizedClaude = snapshots.map(item => {
+    const rateLimit = extractRateLimitFromResponse(item.usage);
+    if (!rateLimit) return null;
+    return {
+      site: 'claude', accountId: item.orgId, organizationId: item.orgId,
+      accountName: item.org?.name ?? item.org?.display_name ?? 'Claude organization', email: null,
+      plan: detectPlan(item.org) ?? detectPlan(item.usage),
+      pct5h: asPct(rateLimit.utilization5h), pct7d: asPct(rateLimit.utilization7d),
+      resetsAt5h: rateLimit.resetsAt, resetsAt7d: rateLimit.resetsAt7d,
+      windowSeconds5h: 5 * 3600, windowSeconds7d: 7 * 24 * 3600, additionalLimits: [],
+    };
+  }).filter(Boolean);
+  const toSave = site === 'claude' ? normalizedClaude : (normalized ? [normalized] : []);
+  const previous = (await lget(`last_usage_poll_${site}`)) ?? {};
+  const ok = Boolean(msg.ok) && toSave.length > 0;
+  const validationFailure = Boolean(msg.ok) && toSave.length === 0;
+  await lset(`last_usage_poll_${site}`, {
+    ok, capturedAt, lastSuccessAt: ok ? capturedAt : (previous.lastSuccessAt ?? null),
+    consecutiveFailures: ok ? 0 : (previous.consecutiveFailures ?? 0) + 1,
+    error: validationFailure ? 'provider_schema_changed' : (msg.error ?? null),
+    status: msg.status ?? null, authPath: msg.authPath ?? 'page_bridge',
+  });
+  await Promise.all(toSave.map(item => enqueueProviderSnapshot(item, capturedAt)));
+  const stats = await getStats();
+  updateBadge(stats.pct5h);
+  return { ok, saved: toSave.length };
+}
+
+async function collectAllProviders() {
+  await backgroundPoll();
+  const collectors = self.TokenWatcherProviders;
+  if (!collectors) return;
+  // Await sequentially so the MV3 service worker stays alive until storage is
+  // complete and one provider failure never prevents the other from running.
+  for (const collect of [collectors.collectChatGpt, collectors.collectGemini]) {
+    try {
+      const result = await collect();
+      await saveProviderUsageResult({ ...result, capturedAt: new Date().toISOString() });
+    } catch (error) {
+      console.warn(`${TAG} provider collector failed:`, error.message);
+    }
+  }
+}
+
 // ── Message router ─────────────────────────────────────────────────────────
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   const fromAllowedSite = sender.tab && ALLOWED_PREFIXES.some(p => sender.tab.url?.startsWith(p));
@@ -763,67 +837,8 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   }
 
   if (msg.type === 'PROVIDER_USAGE_SNAPSHOT' && fromAllowedSite) {
-    const site = msg.site ?? 'unknown';
-    let normalized = null;
-    if (site === 'chatgpt') normalized = normalizeChatGptUsage(msg.snapshot, msg.snapshot?.email);
-    if (site === 'gemini') normalized = normalizeGeminiUsage(msg.snapshot);
-    const snapshots = site === 'claude' && Array.isArray(msg.snapshot?.organizations) ? msg.snapshot.organizations : [];
-    // Preserve all org snapshots for the upcoming multi-org UI, while using the
-    // first successful org for the existing single-org popup contract.
-    lset('claude_org_usage', snapshots).catch(() => {});
-    const first = snapshots[0];
-    if (first) {
-      lset(K_ORG_ID, first.orgId).catch(() => {});
-      const p = detectPlan(first.org) ?? detectPlan(first.usage);
-      if (p) lset(K_PLAN, p).catch(() => {});
-      const rlInfo = extractRateLimitFromResponse(first.usage);
-      if (rlInfo) {
-        normalized = {
-          site: 'claude', accountId: first.orgId, email: null,
-          plan: detectPlan(first.org) ?? detectPlan(first.usage),
-          pct5h: asPct(rlInfo.utilization5h), pct7d: asPct(rlInfo.utilization7d),
-          resetsAt5h: rlInfo.resetsAt, resetsAt7d: rlInfo.resetsAt7d,
-          windowSeconds5h: 5 * 3600, windowSeconds7d: 7 * 24 * 3600,
-          additionalLimits: [],
-        };
-        mergeRateLimit(rlInfo).then(async () => {
-          if (rlInfo.resetsAt) {
-            const resetMs = Date.parse(rlInfo.resetsAt);
-            if (!isNaN(resetMs)) await lset(K_WIN5H, { startMs: resetMs - WINDOW_5H_MS, resetMs });
-          }
-          const stats = await getStats();
-          updateBadge(stats.pct5h);
-        }).catch(() => {});
-      }
-    }
-    const normalizedClaude = snapshots.map(item => {
-      const rlInfo = extractRateLimitFromResponse(item.usage);
-      if (!rlInfo) return null;
-      return {
-        site: 'claude', accountId: item.orgId, organizationId: item.orgId,
-        accountName: item.org?.name ?? item.org?.display_name ?? 'Claude organization', email: null,
-        plan: detectPlan(item.org) ?? detectPlan(item.usage),
-        pct5h: asPct(rlInfo.utilization5h), pct7d: asPct(rlInfo.utilization7d),
-        resetsAt5h: rlInfo.resetsAt, resetsAt7d: rlInfo.resetsAt7d,
-        windowSeconds5h: 5 * 3600, windowSeconds7d: 7 * 24 * 3600,
-        additionalLimits: [],
-      };
-    }).filter(Boolean);
-    const toSave = site === 'claude' ? normalizedClaude : (normalized ? [normalized] : []);
-    lget(`last_usage_poll_${site}`).then(previous => {
-      const ok = Boolean(msg.ok) && toSave.length > 0;
-      const validationFailure = Boolean(msg.ok) && toSave.length === 0;
-      return lset(`last_usage_poll_${site}`, {
-        ok,
-        capturedAt: msg.capturedAt ?? new Date().toISOString(),
-        lastSuccessAt: ok ? (msg.capturedAt ?? new Date().toISOString()) : (previous?.lastSuccessAt ?? null),
-        consecutiveFailures: ok ? 0 : (previous?.consecutiveFailures ?? 0) + 1,
-        error: validationFailure ? 'provider_schema_changed' : (msg.error ?? null),
-        status: msg.status ?? null,
-      });
-    }).catch(() => {});
-    Promise.all(toSave.map(item => enqueueProviderSnapshot(item, msg.capturedAt)))
-      .then(() => reply({ ok: toSave.length > 0 }))
+    saveProviderUsageResult(msg)
+      .then(result => reply(result))
       .catch(e => reply({ ok: false, error: e.message }));
     return true;
   }
@@ -864,7 +879,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     const s = await getStats();
     updateBadge(s.pct5h);
   } else if (alarm.name === 'poll') {
-    backgroundPoll().catch(() => {});
+    collectAllProviders().catch(err => console.warn(`${TAG} provider collection failed:`, err.message));
   }
 });
 
@@ -876,13 +891,13 @@ chrome.runtime.onInstalled.addListener(({ reason }) => {
   if (reason === 'install') {
     chrome.tabs.create({ url: chrome.runtime.getURL('onboarding/onboarding.html') });
   }
-  backgroundPoll().catch(() => {});
+  collectAllProviders().catch(() => {});
 });
 
 chrome.runtime.onStartup.addListener(() => {
   chrome.alarms.get('heartbeat', e => { if (!e) chrome.alarms.create('heartbeat', { periodInMinutes: 1 }); });
   chrome.alarms.get('poll',      e => { if (!e) chrome.alarms.create('poll',      { periodInMinutes: POLL_INTERVAL_MIN }); });
-  backgroundPoll().catch(() => {});
+  collectAllProviders().catch(() => {});
 });
 
 console.log(`${TAG} service worker initialised`);

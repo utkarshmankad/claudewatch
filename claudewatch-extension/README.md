@@ -11,6 +11,7 @@ A Chrome extension that tracks your AI token usage in real-time across **Claude*
 - **Account-safe history** — usage is isolated by provider account and Claude organization
 - **Multi-account selector** — switch between previously observed accounts and organizations
 - **Resilient polling** — failures back off automatically and stale/error states are shown explicitly
+- **Account-wide refresh** — Chrome alarms collect provider aggregates through tab-first authentication with service-worker fallbacks, capturing usage reported by desktop, mobile, and other clients
 - **In-page gauges** — provider quota and confidence-aware projection without opening the popup
 - **Opt-in Core attribution** — metadata-only browser events can be reconciled with Claude Code locally
 - **Badge on icon** — shows Claude's current window usage percentage at a glance
