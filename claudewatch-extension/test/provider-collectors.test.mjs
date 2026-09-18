@@ -23,6 +23,18 @@ describe('service-worker provider collectors', () => {
     expect(result.ok).toBe(true);
     expect(result.authPath).toBe('tab');
     expect(result.snapshot.email).toBe('user@example.com');
+    expect(chrome.tabs.query).toHaveBeenCalledWith({ url: ['https://chatgpt.com/*', 'https://chat.openai.com/*'] });
+  });
+
+  it('tries another logged-in ChatGPT tab when the first tab cannot authenticate', async () => {
+    chrome.tabs.query.mockResolvedValue([{ id: 7, active: true }, { id: 8, active: false }]);
+    chrome.scripting.executeScript
+      .mockResolvedValueOnce([{ result: { error: 'not_logged_in', status: 401 } }])
+      .mockResolvedValueOnce([{ result: { data: { usage: { rate_limit: {} }, email: 'second@example.com' } } }]);
+    const result = await collectors.collectChatGpt();
+    expect(result.ok).toBe(true);
+    expect(result.snapshot.email).toBe('second@example.com');
+    expect(chrome.scripting.executeScript).toHaveBeenCalledTimes(2);
   });
 
   it('falls back to service-worker credentials when no ChatGPT tab is open', async () => {
