@@ -8,6 +8,7 @@ import {
   extractRateLimitFromResponse,
   extractConvTokens,
   classifyChatGptWindows,
+  normalizeChatGptUsage,
   parseBatchResponse,
   forecastWindow,
   forecastWindowDetails,
@@ -384,6 +385,22 @@ describe('provider usage normalization', () => {
       .toEqual({ w5h: session, w7d: weekly });
   });
 
+  it('keeps nonstandard ChatGPT window durations for accurate UI labels', () => {
+    const daily = { used_percent: 20, limit_window_seconds: 86400 };
+    const monthly = { used_percent: 40, limit_window_seconds: 2592000 };
+    expect(classifyChatGptWindows({ primary_window: daily, secondary_window: monthly }))
+      .toEqual({ w5h: daily, w7d: monthly });
+  });
+
+  it('normalizes wrapped ChatGPT usage and clamps provider percentages', () => {
+    const normalized = normalizeChatGptUsage({ usage: { account_id: 'a', rate_limit: {
+      primary_window: { used_percent: 125, limit_window_seconds: 18000, reset_at: 1900000000 },
+      secondary_window: { used: 3, limit: 10, limit_window_seconds: 604800, reset_at: 1900000100 },
+    } } });
+    expect(normalized.pct5h).toBe(100);
+    expect(normalized.pct7d).toBe(30);
+  });
+
   it('parses Gemini batchexecute envelopes', () => {
     const payload = [5, [[100, 0.25, 1, [[1900000000, 0]]]]];
     const text = `)]}'\n123\n${JSON.stringify([['wrb.fr', 'jSf9Qc', JSON.stringify(payload), null]])}`;
@@ -401,5 +418,16 @@ describe('provider usage normalization', () => {
       { ts: now, site: 'chatgpt', accountId: 'someone-else', pct5h: 99, resetsAt5h: reset },
     ];
     expect(forecastWindow(history, { site: 'chatgpt', accountId: 'u1', key: '5h', currentPct: 20, resetsAt: reset, now })).toBe(60);
+  });
+
+  it('ignores the previous reset window and caps projections at 100%', () => {
+    const now = Date.parse('2026-09-02T12:00:00Z');
+    const reset = '2026-09-02T16:00:00Z';
+    const history = [
+      { ts: now - 4 * 3600000, site: 'claude', accountId: 'a', pct5h: 95, resetsAt5h: '2026-09-02T11:00:00Z' },
+      { ts: now - 1 * 3600000, site: 'claude', accountId: 'a', pct5h: 5, resetsAt5h: reset },
+      { ts: now, site: 'claude', accountId: 'a', pct5h: 40, resetsAt5h: reset },
+    ];
+    expect(forecastWindow(history, { site: 'claude', accountId: 'a', key: '5h', currentPct: 40, resetsAt: reset, now })).toBe(100);
   });
 });

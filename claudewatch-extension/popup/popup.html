@@ -71,7 +71,7 @@
       <div class="gauge-cards">
 
         <div class="gauge-card">
-          <div class="gc-label">5-Hour</div>
+          <div class="gc-label" id="label-5h">5-Hour</div>
           <div class="gc-tokens" id="tokens-5h">Account quota</div>
           <div class="gc-bar-wrap">
             <div class="gc-bar">
@@ -84,7 +84,7 @@
         <div class="gauge-divider"></div>
 
         <div class="gauge-card">
-          <div class="gc-label">7-Day Rolling</div>
+          <div class="gc-label" id="label-7d">7-Day Rolling</div>
           <div class="gc-tokens" id="tokens-7d">Account quota</div>
           <div class="gc-bar-wrap">
             <div class="gc-bar">
@@ -100,12 +100,12 @@
     <!-- ── Reset countdown strip ── -->
     <div class="reset-strip">
       <div class="reset-item">
-        <span class="reset-label">5h resets in</span>
+        <span class="reset-label" id="reset-label-5h">5h resets in</span>
         <span class="reset-clock" id="countdown-5h">—</span>
       </div>
       <div class="reset-sep"></div>
       <div class="reset-item">
-        <span class="reset-label">7d resets in</span>
+        <span class="reset-label" id="reset-label-7d">7d resets in</span>
         <span class="reset-clock" id="countdown-7d">—</span>
       </div>
     </div>

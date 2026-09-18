@@ -37,6 +37,13 @@ function fmtPct(p) {
   return `${Math.round(p)}%`;
 }
 
+function windowLabel(seconds, fallback) {
+  if (!Number.isFinite(seconds) || seconds <= 0) return fallback;
+  if (seconds % 86400 === 0) return `${seconds / 86400}-Day`;
+  if (seconds % 3600 === 0) return `${seconds / 3600}-Hour`;
+  return fallback;
+}
+
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[c]);
 }
@@ -285,7 +292,13 @@ function render(stats) {
   const selectedPct5h = selected?.pct5h ?? (gSelectedSite === 'claude' ? pct5h : null);
   const selectedPct7d = selected?.pct7d ?? (gSelectedSite === 'claude' ? pct7d : null);
   const selectedName = SITE_META.find(s => s.key === gSelectedSite)?.name ?? gSelectedSite;
+  const label5h = windowLabel(selected?.windowSeconds5h, '5-Hour');
+  const label7d = windowLabel(selected?.windowSeconds7d, '7-Day');
   setText('provider-window-label', `${selectedName} Window`);
+  setText('label-5h', label5h);
+  setText('label-7d', `${label7d} Rolling`);
+  setText('reset-label-5h', `${label5h.toLowerCase()} resets in`);
+  setText('reset-label-7d', `${label7d.toLowerCase()} resets in`);
   const confidence5h = selected?.forecastMeta5h?.confidence ? ` · ${selected.forecastMeta5h.confidence}` : '';
   const confidence7d = selected?.forecastMeta7d?.confidence ? ` · ${selected.forecastMeta7d.confidence}` : '';
   setText('tokens-5h', selected?.forecast5h != null ? `Forecast ${fmtPct(selected.forecast5h)}${confidence5h}` : 'Account quota');
@@ -307,7 +320,7 @@ function render(stats) {
     const rem = rlRemaining != null ? ` (${rlRemaining} msgs left)` : '';
     showAlert(`Claude approaching limit${rem}`);
   } else if (selectedPct5h != null && selectedPct5h >= 90) {
-    showAlert(`${selectedName} 5-hour window ${Math.round(selectedPct5h)}% used`, selectedPct5h >= 100);
+    showAlert(`${selectedName} ${label5h.toLowerCase()} window ${Math.round(selectedPct5h)}% used`, selectedPct5h >= 100);
   } else {
     showAlert(null);
   }

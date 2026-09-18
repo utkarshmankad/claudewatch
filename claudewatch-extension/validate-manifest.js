@@ -58,7 +58,7 @@ check(typeof manifest.description === 'string',
 // Permissions
 // ---------------------------------------------------------------------------
 console.log('\n── Permissions');
-const REQUIRED_PERMS = ['storage', 'alarms', 'notifications', 'tabs', 'scripting', 'cookies'];
+const REQUIRED_PERMS = ['storage', 'alarms', 'notifications', 'tabs', 'scripting', 'cookies', 'idle'];
 for (const perm of REQUIRED_PERMS) {
   check(manifest.permissions?.includes(perm),
     `permission: ${perm}`,

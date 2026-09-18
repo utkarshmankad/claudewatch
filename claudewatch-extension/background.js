@@ -44,6 +44,7 @@ const K_USAGE_HISTORY  = 'usage_history';    // 7d account-scoped quota snapshot
 const K_PROVIDER_ACCOUNTS = 'provider_accounts'; // {site: {accountKey: snapshot}}
 const K_PROVIDER_SELECTIONS = 'provider_selections'; // {site: accountKey}
 const K_DEVICE_ID = 'device_id';
+const K_LAST_COORDINATED_REFRESH = 'last_coordinated_refresh_at';
 
 // ── Storage helpers ───────────────────────────────────────────────────────
 const lget = (k)    => new Promise(r => chrome.storage.local.get(k,  d => r(d[k]  ?? null)));
@@ -190,23 +191,44 @@ const fractionPct = value => value == null ? null : value * 100;
 const unixIso = value => Number.isFinite(value) ? new Date(value * 1000).toISOString() : null;
 
 function classifyChatGptWindows(rateLimit) {
+  const duration = window => window?.limit_window_seconds ?? window?.window_seconds ?? window?.window_size_seconds ?? null;
   const split = Math.sqrt(5 * 3600 * 7 * 24 * 3600);
-  const primary = rateLimit?.primary_window ?? null;
-  const secondary = rateLimit?.secondary_window ?? null;
+  const primary = rateLimit?.primary_window ?? rateLimit?.session_window ?? rateLimit?.five_hour_window ?? null;
+  const secondary = rateLimit?.secondary_window ?? rateLimit?.weekly_window ?? rateLimit?.seven_day_window ?? null;
   let w5h = null, w7d = null;
   for (const w of [primary, secondary]) {
-    if (!w || typeof w.limit_window_seconds !== 'number') continue;
-    if (w.limit_window_seconds < split) w5h = w; else w7d = w;
+    const seconds = duration(w);
+    if (!w || !Number.isFinite(seconds)) continue;
+    if (seconds < split) w5h = w; else w7d = w;
   }
-  if (!w5h && primary && typeof primary.limit_window_seconds !== 'number') w5h = primary;
-  if (!w7d && secondary && typeof secondary.limit_window_seconds !== 'number') w7d = secondary;
+  if (!w5h && primary && !Number.isFinite(duration(primary))) w5h = primary;
+  if (!w7d && secondary && !Number.isFinite(duration(secondary))) w7d = secondary;
   return { w5h, w7d };
 }
 
+const chatGptPct = window => {
+  if (!window) return null;
+  const explicit = window.used_percent ?? window.utilization_percent ?? window.percent_used;
+  if (Number.isFinite(explicit)) return Math.min(100, Math.max(0, explicit));
+  const used = window.used ?? window.tokens_used;
+  const limit = window.limit ?? window.token_limit;
+  return Number.isFinite(used) && Number.isFinite(limit) && limit > 0
+    ? Math.min(100, Math.max(0, used / limit * 100)) : null;
+};
+
+const chatGptReset = window => {
+  const value = window?.reset_at ?? window?.reset_time ?? window?.resets_at;
+  if (typeof value === 'string' && Number.isFinite(Date.parse(value))) return value;
+  if (Number.isFinite(value)) return new Date(value * (value < 1e12 ? 1000 : 1)).toISOString();
+  if (Number.isFinite(window?.reset_after_seconds)) return new Date(Date.now() + window.reset_after_seconds * 1000).toISOString();
+  return null;
+};
+
 function normalizeChatGptUsage(raw, email) {
-  const usage = raw?.usage;
+  const usage = raw?.usage?.rate_limit ? raw.usage : raw?.data?.rate_limit ? raw.data : raw?.usage ?? raw;
   if (!usage?.rate_limit) return null;
   const { w5h, w7d } = classifyChatGptWindows(usage.rate_limit);
+  const duration = window => window?.limit_window_seconds ?? window?.window_seconds ?? window?.window_size_seconds ?? null;
   const additionalLimits = (Array.isArray(usage.additional_rate_limits) ? usage.additional_rate_limits : [])
     .map(item => {
       const window = item?.rate_limit?.primary_window ?? item?.rate_limit?.secondary_window;
@@ -221,10 +243,9 @@ function normalizeChatGptUsage(raw, email) {
   return {
     site: 'chatgpt', accountId: usage.account_id ?? usage.user_id ?? email ?? null, email: email ?? null,
     plan: usage.plan_type ?? null,
-    pct5h: w5h?.used_percent ?? null, pct7d: w7d?.used_percent ?? null,
-    resetsAt5h: unixIso(w5h?.reset_at), resetsAt7d: unixIso(w7d?.reset_at),
-    windowSeconds5h: w5h?.limit_window_seconds ?? null,
-    windowSeconds7d: w7d?.limit_window_seconds ?? null,
+    pct5h: chatGptPct(w5h), pct7d: chatGptPct(w7d),
+    resetsAt5h: chatGptReset(w5h), resetsAt7d: chatGptReset(w7d),
+    windowSeconds5h: duration(w5h), windowSeconds7d: duration(w7d),
     additionalLimits,
   };
 }
@@ -264,29 +285,29 @@ function normalizeGeminiUsage(raw) {
 }
 
 function forecastWindowDetails(history, site, accountId, key, currentPct, resetsAt) {
+  const now = Date.now();
   const resetMs = Date.parse(resetsAt ?? '');
-  if (currentPct == null || !Number.isFinite(resetMs) || resetMs <= Date.now()) return null;
+  if (currentPct == null || !Number.isFinite(resetMs) || resetMs <= now) return null;
   const pctKey = key === '5h' ? 'pct5h' : 'pct7d';
   const resetKey = key === '5h' ? 'resetsAt5h' : 'resetsAt7d';
   const lookbackMs = key === '5h' ? 6 * 3600000 : WINDOW_7D_MS;
-  const samples = history.filter(h => h.ts >= Date.now() - lookbackMs && h.site === site && h.accountId === accountId && h[pctKey] != null)
+  const samples = history.filter(h => {
+    const sampleResetMs = Date.parse(h[resetKey] ?? '');
+    return h.ts >= now - lookbackMs && h.ts <= now && h.site === site && h.accountId === accountId &&
+      Number.isFinite(h[pctKey]) && Number.isFinite(sampleResetMs) && Math.abs(sampleResetMs - resetMs) < 60_000;
+  })
     .sort((a, b) => a.ts - b.ts);
   if (samples.length < 2) return null;
   const first = samples[0], last = samples[samples.length - 1];
   const spanHours = (last.ts - first.ts) / 3600000;
   if (spanHours < 0.5) return null;
-  let growth = 0;
-  for (let i = 1; i < samples.length; i++) {
-    const prev = samples[i - 1], cur = samples[i];
-    growth += prev[resetKey] && cur[resetKey] && prev[resetKey] !== cur[resetKey]
-      ? Math.max(0, cur[pctKey]) : Math.max(0, cur[pctKey] - prev[pctKey]);
-  }
+  const growth = Math.max(0, samples[samples.length - 1][pctKey] - samples[0][pctKey]);
   const ratePerHour = growth / spanHours;
-  const horizonHours = (resetMs - Date.now()) / 3600000;
+  const horizonHours = (resetMs - now) / 3600000;
   const coverageTarget = key === '5h' ? 3 : 48;
   const confidenceScore = Math.min(1, samples.length / 12) * Math.min(1, spanHours / coverageTarget) * Math.min(1, 12 / Math.max(1, horizonHours));
   return {
-    projectedPct: Math.max(currentPct, currentPct + ratePerHour * horizonHours),
+    projectedPct: Math.min(100, Math.max(0, currentPct, currentPct + ratePerHour * horizonHours)),
     ratePerHour,
     sampleCount: samples.length,
     confidence: confidenceScore >= 0.67 ? 'high' : confidenceScore >= 0.34 ? 'medium' : 'low',
@@ -765,7 +786,16 @@ async function saveProviderUsageResult(msg) {
   return { ok, saved: toSave.length };
 }
 
+let coordinatedRefresh = null;
+
 async function collectAllProviders() {
+  if (coordinatedRefresh) return coordinatedRefresh;
+  coordinatedRefresh = collectAllProvidersOnce().finally(() => { coordinatedRefresh = null; });
+  return coordinatedRefresh;
+}
+
+async function collectAllProvidersOnce() {
+  await lset(K_LAST_COORDINATED_REFRESH, Date.now());
   await backgroundPoll();
   const collectors = self.TokenWatcherProviders;
   if (!collectors) return;
@@ -779,6 +809,27 @@ async function collectAllProviders() {
       console.warn(`${TAG} provider collector failed:`, error.message);
     }
   }
+}
+
+async function requestProviderRefresh(reason, minimumAgeMs = 60_000) {
+  const lastRefresh = (await lget(K_LAST_COORDINATED_REFRESH)) ?? 0;
+  if (Date.now() - lastRefresh < minimumAgeMs) return false;
+  console.log(`${TAG} provider refresh requested: ${reason}`);
+  await collectAllProviders();
+  return true;
+}
+
+function isProviderUrl(url) {
+  return ALLOWED_PREFIXES.some(prefix => url?.startsWith(prefix));
+}
+
+function ensureAlarms() {
+  chrome.alarms.get('heartbeat', alarm => {
+    if (!alarm) chrome.alarms.create('heartbeat', { periodInMinutes: 1 });
+  });
+  chrome.alarms.get('poll', alarm => {
+    if (!alarm) chrome.alarms.create('poll', { periodInMinutes: POLL_INTERVAL_MIN });
+  });
 }
 
 // ── Message router ─────────────────────────────────────────────────────────
@@ -878,6 +929,8 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === 'heartbeat') {
     const s = await getStats();
     updateBadge(s.pct5h);
+    ensureAlarms();
+    requestProviderRefresh('heartbeat-watchdog', (POLL_INTERVAL_MIN + 2) * 60_000).catch(() => {});
   } else if (alarm.name === 'poll') {
     collectAllProviders().catch(err => console.warn(`${TAG} provider collection failed:`, err.message));
   }
@@ -895,9 +948,32 @@ chrome.runtime.onInstalled.addListener(({ reason }) => {
 });
 
 chrome.runtime.onStartup.addListener(() => {
-  chrome.alarms.get('heartbeat', e => { if (!e) chrome.alarms.create('heartbeat', { periodInMinutes: 1 }); });
-  chrome.alarms.get('poll',      e => { if (!e) chrome.alarms.create('poll',      { periodInMinutes: POLL_INTERVAL_MIN }); });
+  ensureAlarms();
   collectAllProviders().catch(() => {});
 });
+
+chrome.tabs.onActivated.addListener(({ tabId }) => {
+  chrome.tabs.get(tabId, tab => {
+    if (isProviderUrl(tab?.url)) requestProviderRefresh('provider-tab-activated').catch(() => {});
+  });
+});
+
+chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
+  if (changeInfo.status === 'complete' && isProviderUrl(tab?.url)) {
+    requestProviderRefresh('provider-tab-loaded').catch(() => {});
+  }
+});
+
+chrome.windows.onFocusChanged.addListener(windowId => {
+  if (windowId !== chrome.windows.WINDOW_ID_NONE) {
+    requestProviderRefresh('browser-focused', POLL_INTERVAL_MIN * 60_000).catch(() => {});
+  }
+});
+
+chrome.idle.onStateChanged.addListener(state => {
+  if (state === 'active') requestProviderRefresh('browser-woke', POLL_INTERVAL_MIN * 60_000).catch(() => {});
+});
+
+ensureAlarms();
 
 console.log(`${TAG} service worker initialised`);

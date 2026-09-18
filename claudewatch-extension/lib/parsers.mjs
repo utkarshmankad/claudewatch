@@ -255,17 +255,54 @@ export function extractConvTokens(data) {
 // ── Provider quota normalization ─────────────────────────────────────────
 
 export function classifyChatGptWindows(rateLimit) {
+  const duration = window => window?.limit_window_seconds ?? window?.window_seconds ?? window?.window_size_seconds ?? null;
   const split = Math.sqrt(5 * 3600 * 7 * 24 * 3600);
-  const primary = rateLimit?.primary_window ?? null;
-  const secondary = rateLimit?.secondary_window ?? null;
+  const primary = rateLimit?.primary_window ?? rateLimit?.session_window ?? rateLimit?.five_hour_window ?? null;
+  const secondary = rateLimit?.secondary_window ?? rateLimit?.weekly_window ?? rateLimit?.seven_day_window ?? null;
   let w5h = null, w7d = null;
   for (const w of [primary, secondary]) {
-    if (!w || typeof w.limit_window_seconds !== 'number') continue;
-    if (w.limit_window_seconds < split) w5h = w; else w7d = w;
+    const seconds = duration(w);
+    if (!w || !Number.isFinite(seconds)) continue;
+    if (seconds < split) w5h = w; else w7d = w;
   }
-  if (!w5h && primary && typeof primary.limit_window_seconds !== 'number') w5h = primary;
-  if (!w7d && secondary && typeof secondary.limit_window_seconds !== 'number') w7d = secondary;
+  // The established wham contract uses primary=session and secondary=weekly.
+  // Retain that fallback only when duration metadata is absent. The two slots
+  // are short/long windows; consumers display the provider-reported duration.
+  if (!w5h && primary && !Number.isFinite(duration(primary))) w5h = primary;
+  if (!w7d && secondary && !Number.isFinite(duration(secondary))) w7d = secondary;
   return { w5h, w7d };
+}
+
+const chatGptPct = window => {
+  if (!window) return null;
+  const explicit = window.used_percent ?? window.utilization_percent ?? window.percent_used;
+  if (Number.isFinite(explicit)) return Math.min(100, Math.max(0, explicit));
+  const used = window.used ?? window.tokens_used;
+  const limit = window.limit ?? window.token_limit;
+  return Number.isFinite(used) && Number.isFinite(limit) && limit > 0
+    ? Math.min(100, Math.max(0, used / limit * 100)) : null;
+};
+
+const chatGptReset = window => {
+  const value = window?.reset_at ?? window?.reset_time ?? window?.resets_at;
+  if (typeof value === 'string' && Number.isFinite(Date.parse(value))) return value;
+  if (Number.isFinite(value)) return new Date(value * (value < 1e12 ? 1000 : 1)).toISOString();
+  if (Number.isFinite(window?.reset_after_seconds)) return new Date(Date.now() + window.reset_after_seconds * 1000).toISOString();
+  return null;
+};
+
+export function normalizeChatGptUsage(raw, email = null) {
+  const usage = raw?.usage?.rate_limit ? raw.usage : raw?.data?.rate_limit ? raw.data : raw?.usage ?? raw;
+  if (!usage?.rate_limit) return null;
+  const { w5h, w7d } = classifyChatGptWindows(usage.rate_limit);
+  const duration = window => window?.limit_window_seconds ?? window?.window_seconds ?? window?.window_size_seconds ?? null;
+  return {
+    site: 'chatgpt', accountId: usage.account_id ?? usage.user_id ?? email ?? null, email,
+    plan: usage.plan_type ?? usage.plan ?? null,
+    pct5h: chatGptPct(w5h), pct7d: chatGptPct(w7d),
+    resetsAt5h: chatGptReset(w5h), resetsAt7d: chatGptReset(w7d),
+    windowSeconds5h: duration(w5h), windowSeconds7d: duration(w7d),
+  };
 }
 
 export function parseBatchResponse(text, rpcId) {
@@ -292,23 +329,23 @@ export function forecastWindowDetails(history, { site, accountId, key, currentPc
   const pctKey = key === '5h' ? 'pct5h' : 'pct7d';
   const resetKey = key === '5h' ? 'resetsAt5h' : 'resetsAt7d';
   const lookbackMs = key === '5h' ? 6 * 3600000 : 7 * 24 * 3600000;
-  const samples = history.filter(h => h.ts >= now - lookbackMs && h.site === site && h.accountId === accountId && h[pctKey] != null)
+  const targetResetMs = Date.parse(resetsAt);
+  const samples = history.filter(h => {
+    const sampleResetMs = Date.parse(h[resetKey] ?? '');
+    return h.ts >= now - lookbackMs && h.ts <= now && h.site === site && h.accountId === accountId &&
+      Number.isFinite(h[pctKey]) && Number.isFinite(sampleResetMs) && Math.abs(sampleResetMs - targetResetMs) < 60_000;
+  })
     .sort((a, b) => a.ts - b.ts);
   if (samples.length < 2) return null;
   const spanHours = (samples.at(-1).ts - samples[0].ts) / 3600000;
   if (spanHours < 0.5) return null;
-  let growth = 0;
-  for (let i = 1; i < samples.length; i++) {
-    const prev = samples[i - 1], cur = samples[i];
-    growth += prev[resetKey] && cur[resetKey] && prev[resetKey] !== cur[resetKey]
-      ? Math.max(0, cur[pctKey]) : Math.max(0, cur[pctKey] - prev[pctKey]);
-  }
+  const growth = Math.max(0, samples.at(-1)[pctKey] - samples[0][pctKey]);
   const ratePerHour = growth / spanHours;
   const horizonHours = (resetMs - now) / 3600000;
   const coverageTarget = key === '5h' ? 3 : 48;
   const confidenceScore = Math.min(1, samples.length / 12) * Math.min(1, spanHours / coverageTarget) * Math.min(1, 12 / Math.max(1, horizonHours));
   return {
-    projectedPct: Math.max(currentPct, currentPct + ratePerHour * horizonHours),
+    projectedPct: Math.min(100, Math.max(0, currentPct, currentPct + ratePerHour * horizonHours)),
     ratePerHour,
     sampleCount: samples.length,
     confidence: confidenceScore >= 0.67 ? 'high' : confidenceScore >= 0.34 ? 'medium' : 'low',

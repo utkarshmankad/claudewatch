@@ -2,17 +2,25 @@
 // page's authenticated MAIN world and falls back to a credentialed extension
 // request so page timer throttling cannot stop account-level refreshes.
 (function registerProviderCollectors(scope) {
-  const executeInTab = async (urlPattern, func, args = []) => {
-    const tabs = await chrome.tabs.query({ url: urlPattern });
-    if (!tabs[0]?.id) throw Object.assign(new Error('provider_tab_missing'), { code: 'provider_tab_missing' });
-    const rows = await chrome.scripting.executeScript({ target: { tabId: tabs[0].id }, world: 'MAIN', func, args });
-    const result = rows?.[0]?.result;
-    if (!result || result.error) throw Object.assign(new Error(result?.error ?? 'provider_tab_fetch_failed'), { status: result?.status ?? 0 });
-    return result.data;
+  const executeInTab = async (urlPatterns, func, args = []) => {
+    const tabs = (await chrome.tabs.query({ url: urlPatterns }))
+      .filter(tab => tab.id && !tab.discarded)
+      .sort((a, b) => Number(b.active) - Number(a.active) || (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0));
+    if (!tabs.length) throw Object.assign(new Error('provider_tab_missing'), { code: 'provider_tab_missing' });
+    let lastError = null;
+    for (const tab of tabs) {
+      try {
+        const rows = await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'MAIN', func, args });
+        const result = rows?.[0]?.result;
+        if (!result || result.error) throw Object.assign(new Error(result?.error ?? 'provider_tab_fetch_failed'), { status: result?.status ?? 0 });
+        return result.data;
+      } catch (error) { lastError = error; }
+    }
+    throw lastError ?? new Error('provider_tab_fetch_failed');
   };
 
   async function chatGptViaTab() {
-    return executeInTab('https://chatgpt.com/*', async () => {
+    return executeInTab(['https://chatgpt.com/*', 'https://chat.openai.com/*'], async () => {
       try {
         const sessionResponse = await fetch('/api/auth/session', { credentials: 'include', cache: 'no-store' });
         if (!sessionResponse.ok) return { error: 'session_fetch_failed', status: sessionResponse.status };
@@ -29,7 +37,8 @@
   }
 
   async function chatGptFallback() {
-    const cookies = await chrome.cookies.getAll({ url: 'https://chatgpt.com' });
+    let cookies = await chrome.cookies.getAll({ url: 'https://chatgpt.com' });
+    if (!cookies.length) cookies = await chrome.cookies.getAll({ url: 'https://chat.openai.com' });
     if (!cookies.length) throw Object.assign(new Error('provider_cookies_missing'), { status: 401 });
     const cookieHeader = cookies.map(cookie => `${cookie.name}=${cookie.value}`).join('; ');
     const commonHeaders = { Cookie: cookieHeader, Origin: 'https://chatgpt.com', Referer: 'https://chatgpt.com/' };
@@ -69,7 +78,7 @@
     return { data: { batchText: await response.text(), rpcId, email: wiz.oPEP7c ?? null, accountId: wiz.S06Grb ?? wiz.FdrFJe ?? wiz.oPEP7c ?? null } };
   };
 
-  async function geminiViaTab() { return executeInTab('https://gemini.google.com/*', geminiRequest); }
+  async function geminiViaTab() { return executeInTab(['https://gemini.google.com/*'], geminiRequest); }
 
   async function geminiFallback() {
     const pageResponse = await fetch('https://gemini.google.com/app', { credentials: 'include', cache: 'no-store' });

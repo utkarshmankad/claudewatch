@@ -20,8 +20,9 @@
       const usage = stats.providerUsage?.[site];
       const health = stats.providerHealth?.[site];
       const pct = usage?.pct5h;
+      const hours = Number.isFinite(usage?.windowSeconds5h) ? Math.round(usage.windowSeconds5h / 3600) : 5;
       root.querySelector('#name').textContent = names[site];
-      root.querySelector('#pct').textContent = pct == null ? '—' : `${Math.round(pct)}%`;
+      root.querySelector('#pct').textContent = pct == null ? '—' : `${Math.round(pct)}% · ${hours}h`;
       const fill = root.querySelector('#fill');
       fill.style.width = `${Math.min(100, Math.max(0, pct ?? 0))}%`;
       fill.className = `fill${pct >= 90 ? ' danger' : pct >= 70 ? ' warn' : ''}`;
