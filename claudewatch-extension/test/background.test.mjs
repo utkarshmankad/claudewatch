@@ -80,6 +80,14 @@ function mergeRateLimitState(existing, newInfo, authoritative = false) {
   return merged;
 }
 
+function providerLastUpdatedAt(snapshot, poll) {
+  const pollSuccessMs = Date.parse(poll?.lastSuccessAt ?? '');
+  return Math.max(
+    Number.isFinite(pollSuccessMs) ? pollSuccessMs : 0,
+    Number.isFinite(snapshot?.ts) ? snapshot.ts : 0,
+  ) || null;
+}
+
 // ── Per-site token aggregation (logic mirrored from background.getStats) ───
 
 const WINDOW_5H_MS = 5 * 60 * 60 * 1000;
@@ -189,6 +197,19 @@ describe('rate-limit state reconciliation', () => {
       remaining: 5,
       utilization5h: 85,
     });
+  });
+});
+
+describe('provider freshness', () => {
+  it('uses a newer successful poll instead of an old quota snapshot timestamp', () => {
+    const snapshot = { ts: Date.parse('2026-10-01T00:00:00Z') };
+    const poll = { lastSuccessAt: '2026-10-06T08:00:00Z' };
+    expect(providerLastUpdatedAt(snapshot, poll)).toBe(Date.parse(poll.lastSuccessAt));
+  });
+
+  it('falls back to the snapshot timestamp when no successful poll exists', () => {
+    const ts = Date.parse('2026-10-06T08:00:00Z');
+    expect(providerLastUpdatedAt({ ts }, null)).toBe(ts);
   });
 });
 

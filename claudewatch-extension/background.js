@@ -511,9 +511,16 @@ async function getStats() {
   for (const site of ['claude', 'chatgpt', 'gemini']) {
     const poll = (await lget(`last_usage_poll_${site}`)) ?? null;
     const selected = providerUsage[site] ?? null;
-    const ageMs = selected?.ts ? Math.max(0, now - selected.ts) : null;
+    const pollSuccessMs = Date.parse(poll?.lastSuccessAt ?? '');
+    const snapshotMs = Number.isFinite(selected?.ts) ? selected.ts : null;
+    const lastUpdatedAt = Math.max(
+      Number.isFinite(pollSuccessMs) ? pollSuccessMs : 0,
+      snapshotMs ?? 0,
+    ) || null;
+    const ageMs = lastUpdatedAt ? Math.max(0, now - lastUpdatedAt) : null;
     providerHealth[site] = {
       ...poll,
+      lastUpdatedAt,
       ageMs,
       stale: ageMs == null || ageMs > PROVIDER_STALE_MS,
       hasData: Boolean(selected),
@@ -654,12 +661,13 @@ async function pollOrgUsage(orgId) {
           if (!isNaN(resetMs)) await lset(K_WIN5H, { startMs: resetMs - WINDOW_5H_MS, resetMs });
         }
         console.log(`${TAG} poll org usage OK — resetsAt=${rl.resetsAt} util5h=${rl.utilization5h}`);
-        return;
+        return { data, rateLimit: rl };
       }
     } catch (err) {
       console.log(`${TAG} poll ${url} error:`, err.message);
     }
   }
+  return null;
 }
 
 async function backfillFromConversations(orgId) {
@@ -741,7 +749,24 @@ async function backgroundPoll() {
     if (orgId) await lset(K_ORG_ID, orgId);
 
     if (resolvedOrgId) {
-      await pollOrgUsage(resolvedOrgId);
+      const polled = await pollOrgUsage(resolvedOrgId);
+      if (polled?.rateLimit) {
+        const capturedAt = new Date().toISOString();
+        const org = orgs.find(item => (item?.uuid ?? item?.id) === resolvedOrgId) ?? orgs[0] ?? {};
+        const rateLimit = polled.rateLimit;
+        await enqueueProviderSnapshot({
+          site: 'claude', accountId: resolvedOrgId, organizationId: resolvedOrgId,
+          accountName: org?.name ?? org?.display_name ?? 'Claude organization', email: null,
+          plan: detectPlan(org) ?? detectPlan(polled.data) ?? p,
+          pct5h: asPct(rateLimit.utilization5h), pct7d: asPct(rateLimit.utilization7d),
+          resetsAt5h: rateLimit.resetsAt, resetsAt7d: rateLimit.resetsAt7d,
+          windowSeconds5h: 5 * 3600, windowSeconds7d: 7 * 24 * 3600, additionalLimits: [],
+        }, capturedAt);
+        await lset('last_usage_poll_claude', {
+          ok: true, capturedAt, lastSuccessAt: capturedAt,
+          consecutiveFailures: 0, error: null, status: 200, authPath: 'service_worker',
+        });
+      }
       await backfillFromConversations(resolvedOrgId);
     }
 
