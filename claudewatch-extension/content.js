@@ -44,8 +44,9 @@ window.addEventListener('message', (event) => {
 
   if (type === 'PROVIDER_USAGE_RESPONSE') {
     const { requestId, ok, snapshot, error, status } = event.data;
-    if (!pendingUsageRequests.has(requestId)) return;
-    pendingUsageRequests.delete(requestId);
+    const intercepted = typeof requestId === 'string' && requestId.startsWith('intercepted-');
+    if (!intercepted && !pendingUsageRequests.has(requestId)) return;
+    if (!intercepted) pendingUsageRequests.delete(requestId);
     scheduleProviderUsage(nextPollDelay(Boolean(ok), status));
     try {
       chrome.runtime.sendMessage(

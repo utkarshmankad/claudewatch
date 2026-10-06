@@ -44,11 +44,14 @@ const K_USAGE_HISTORY  = 'usage_history';    // 7d account-scoped quota snapshot
 const K_PROVIDER_ACCOUNTS = 'provider_accounts'; // {site: {accountKey: snapshot}}
 const K_PROVIDER_SELECTIONS = 'provider_selections'; // {site: accountKey}
 const K_DEVICE_ID = 'device_id';
-const K_LAST_COORDINATED_REFRESH = 'last_coordinated_refresh_at';
+const providerRefreshes = new Map();
 
 // ── Storage helpers ───────────────────────────────────────────────────────
 const lget = (k)    => new Promise(r => chrome.storage.local.get(k,  d => r(d[k]  ?? null)));
-const lset = (k, v) => new Promise(r => chrome.storage.local.set({[k]: v}, r));
+const lset = (k, v) => new Promise((resolve, reject) => chrome.storage.local.set({[k]: v}, () => {
+  const error = chrome.runtime.lastError;
+  if (error) reject(new Error(error.message)); else resolve();
+}));
 let providerSaveQueue = Promise.resolve();
 
 async function getDeviceId() {
@@ -174,10 +177,17 @@ function extractRateLimitFromResponse(data) {
   return null;
 }
 
-async function mergeRateLimit(newInfo) {
+async function mergeRateLimit(newInfo, { authoritative = false } = {}) {
   if (!newInfo) return;
   const existing = (await lget(K_RATELIMIT)) ?? {};
   const merged = { ...existing };
+  // A provider /usage response is the current source of truth. Clear the
+  // transient message-limit warning left by an older SSE event when the
+  // authoritative response no longer reports it.
+  if (authoritative) {
+    merged.type = newInfo.type ?? null;
+    merged.remaining = newInfo.remaining ?? null;
+  }
   for (const [k, v] of Object.entries(newInfo)) {
     if (v != null) merged[k] = v;
   }
@@ -227,6 +237,7 @@ const chatGptReset = window => {
 function normalizeChatGptUsage(raw, email) {
   const usage = raw?.usage?.rate_limit ? raw.usage : raw?.data?.rate_limit ? raw.data : raw?.usage ?? raw;
   if (!usage?.rate_limit) return null;
+  const resolvedEmail = usage.email ?? email ?? null;
   const { w5h, w7d } = classifyChatGptWindows(usage.rate_limit);
   const duration = window => window?.limit_window_seconds ?? window?.window_seconds ?? window?.window_size_seconds ?? null;
   const additionalLimits = (Array.isArray(usage.additional_rate_limits) ? usage.additional_rate_limits : [])
@@ -241,7 +252,9 @@ function normalizeChatGptUsage(raw, email) {
       };
     }).filter(Boolean).slice(0, 5);
   return {
-    site: 'chatgpt', accountId: usage.account_id ?? usage.user_id ?? email ?? null, email: email ?? null,
+    // Some personal sessions omit identity fields even though the quota is
+    // authoritative. Preserve that snapshot under one stable local account.
+    site: 'chatgpt', accountId: usage.account_id ?? usage.user_id ?? resolvedEmail ?? 'default', email: resolvedEmail,
     plan: usage.plan_type ?? null,
     pct5h: chatGptPct(w5h), pct7d: chatGptPct(w7d),
     resetsAt5h: chatGptReset(w5h), resetsAt7d: chatGptReset(w7d),
@@ -276,7 +289,9 @@ function normalizeGeminiUsage(raw) {
     if (w[2] === 2) { pct7d = pct; resetsAt7d = reset; }
   }
   return {
-    site: 'gemini', accountId: raw.accountId ?? raw.email ?? null, email: raw.email ?? null,
+    // WIZ internals can expose a request-scoped numeric value as accountId.
+    // Prefer the signed-in email, which remains stable across polls.
+    site: 'gemini', accountId: raw.email ?? raw.accountId ?? null, email: raw.email ?? null,
     plan: data[0] != null ? `Plan ${data[0]}` : null,
     pct5h, pct7d, resetsAt5h, resetsAt7d,
     windowSeconds5h: 5 * 3600, windowSeconds7d: 7 * 24 * 3600,
@@ -324,6 +339,13 @@ async function saveProviderSnapshot(snapshot, capturedAt) {
   const accounts = (await lget(K_PROVIDER_ACCOUNTS)) ?? {};
   accounts[snapshot.site] = accounts[snapshot.site] ?? {};
   accounts[snapshot.site][accountKey] = stored;
+  // Bound persisted account state and clean up duplicates produced by old,
+  // unstable provider identifiers. Ten entries still supports account switching.
+  for (const site of Object.keys(accounts)) {
+    accounts[site] = Object.fromEntries(Object.entries(accounts[site] ?? {})
+      .sort(([, a], [, b]) => (b.ts ?? 0) - (a.ts ?? 0))
+      .slice(0, 10));
+  }
   await lset(K_PROVIDER_ACCOUNTS, accounts);
 
   const selections = (await lget(K_PROVIDER_SELECTIONS)) ?? {};
@@ -489,9 +511,16 @@ async function getStats() {
   for (const site of ['claude', 'chatgpt', 'gemini']) {
     const poll = (await lget(`last_usage_poll_${site}`)) ?? null;
     const selected = providerUsage[site] ?? null;
-    const ageMs = selected?.ts ? Math.max(0, now - selected.ts) : null;
+    const pollSuccessMs = Date.parse(poll?.lastSuccessAt ?? '');
+    const snapshotMs = Number.isFinite(selected?.ts) ? selected.ts : null;
+    const lastUpdatedAt = Math.max(
+      Number.isFinite(pollSuccessMs) ? pollSuccessMs : 0,
+      snapshotMs ?? 0,
+    ) || null;
+    const ageMs = lastUpdatedAt ? Math.max(0, now - lastUpdatedAt) : null;
     providerHealth[site] = {
       ...poll,
+      lastUpdatedAt,
       ageMs,
       stale: ageMs == null || ageMs > PROVIDER_STALE_MS,
       hasData: Boolean(selected),
@@ -626,18 +655,19 @@ async function pollOrgUsage(orgId) {
 
       const rl = extractRateLimitFromResponse(data);
       if (rl && (rl.resetsAt || rl.utilization5h != null)) {
-        await mergeRateLimit(rl);
+        await mergeRateLimit(rl, { authoritative: true });
         if (rl.resetsAt) {
           const resetMs = Date.parse(rl.resetsAt);
           if (!isNaN(resetMs)) await lset(K_WIN5H, { startMs: resetMs - WINDOW_5H_MS, resetMs });
         }
         console.log(`${TAG} poll org usage OK — resetsAt=${rl.resetsAt} util5h=${rl.utilization5h}`);
-        return;
+        return { data, rateLimit: rl };
       }
     } catch (err) {
       console.log(`${TAG} poll ${url} error:`, err.message);
     }
   }
+  return null;
 }
 
 async function backfillFromConversations(orgId) {
@@ -719,7 +749,24 @@ async function backgroundPoll() {
     if (orgId) await lset(K_ORG_ID, orgId);
 
     if (resolvedOrgId) {
-      await pollOrgUsage(resolvedOrgId);
+      const polled = await pollOrgUsage(resolvedOrgId);
+      if (polled?.rateLimit) {
+        const capturedAt = new Date().toISOString();
+        const org = orgs.find(item => (item?.uuid ?? item?.id) === resolvedOrgId) ?? orgs[0] ?? {};
+        const rateLimit = polled.rateLimit;
+        await enqueueProviderSnapshot({
+          site: 'claude', accountId: resolvedOrgId, organizationId: resolvedOrgId,
+          accountName: org?.name ?? org?.display_name ?? 'Claude organization', email: null,
+          plan: detectPlan(org) ?? detectPlan(polled.data) ?? p,
+          pct5h: asPct(rateLimit.utilization5h), pct7d: asPct(rateLimit.utilization7d),
+          resetsAt5h: rateLimit.resetsAt, resetsAt7d: rateLimit.resetsAt7d,
+          windowSeconds5h: 5 * 3600, windowSeconds7d: 7 * 24 * 3600, additionalLimits: [],
+        }, capturedAt);
+        await lset('last_usage_poll_claude', {
+          ok: true, capturedAt, lastSuccessAt: capturedAt,
+          consecutiveFailures: 0, error: null, status: 200, authPath: 'service_worker',
+        });
+      }
       await backfillFromConversations(resolvedOrgId);
     }
 
@@ -751,7 +798,7 @@ async function saveProviderUsageResult(msg) {
         resetsAt5h: rateLimit.resetsAt, resetsAt7d: rateLimit.resetsAt7d,
         windowSeconds5h: 5 * 3600, windowSeconds7d: 7 * 24 * 3600, additionalLimits: [],
       };
-      await mergeRateLimit(rateLimit);
+      await mergeRateLimit(rateLimit, { authoritative: true });
       if (rateLimit.resetsAt) {
         const resetMs = Date.parse(rateLimit.resetsAt);
         if (!isNaN(resetMs)) await lset(K_WIN5H, { startMs: resetMs - WINDOW_5H_MS, resetMs });
@@ -786,41 +833,55 @@ async function saveProviderUsageResult(msg) {
   return { ok, saved: toSave.length };
 }
 
-let coordinatedRefresh = null;
-
 async function collectAllProviders() {
-  if (coordinatedRefresh) return coordinatedRefresh;
-  coordinatedRefresh = collectAllProvidersOnce().finally(() => { coordinatedRefresh = null; });
-  return coordinatedRefresh;
+  return Promise.allSettled(['chatgpt', 'gemini', 'claude'].map(site => collectProvider(site)));
 }
 
-async function collectAllProvidersOnce() {
-  await lset(K_LAST_COORDINATED_REFRESH, Date.now());
-  await backgroundPoll();
+function withRefreshTimeout(promise, site, timeoutMs = 30_000) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`${site}_refresh_timeout`)), timeoutMs)),
+  ]);
+}
+
+async function collectProvider(site) {
+  if (providerRefreshes.has(site)) return providerRefreshes.get(site);
+  const refresh = collectProviderOnce(site)
+    .catch(error => console.warn(`${TAG} ${site} collector failed:`, error.message))
+    .finally(() => providerRefreshes.delete(site));
+  providerRefreshes.set(site, refresh);
+  return refresh;
+}
+
+async function collectProviderOnce(site) {
+  await lset(`last_provider_refresh_attempt_${site}`, Date.now());
+  if (site === 'claude') return withRefreshTimeout(backgroundPoll(), site, 45_000);
   const collectors = self.TokenWatcherProviders;
   if (!collectors) return;
-  // Await sequentially so the MV3 service worker stays alive until storage is
-  // complete and one provider failure never prevents the other from running.
-  for (const collect of [collectors.collectChatGpt, collectors.collectGemini]) {
-    try {
-      const result = await collect();
-      await saveProviderUsageResult({ ...result, capturedAt: new Date().toISOString() });
-    } catch (error) {
-      console.warn(`${TAG} provider collector failed:`, error.message);
-    }
-  }
+  const collect = site === 'chatgpt' ? collectors.collectChatGpt : collectors.collectGemini;
+  if (!collect) return;
+  const result = await withRefreshTimeout(collect(), site);
+  return saveProviderUsageResult({ ...result, capturedAt: new Date().toISOString() });
 }
 
-async function requestProviderRefresh(reason, minimumAgeMs = 60_000) {
-  const lastRefresh = (await lget(K_LAST_COORDINATED_REFRESH)) ?? 0;
-  if (Date.now() - lastRefresh < minimumAgeMs) return false;
-  console.log(`${TAG} provider refresh requested: ${reason}`);
-  await collectAllProviders();
+async function requestProviderRefresh(reason, site = null, minimumAgeMs = 60_000) {
+  const sites = site ? [site] : ['chatgpt', 'gemini', 'claude'];
+  const due = [];
+  for (const provider of sites) {
+    const lastAttempt = (await lget(`last_provider_refresh_attempt_${provider}`)) ?? 0;
+    if (Date.now() - lastAttempt >= minimumAgeMs) due.push(provider);
+  }
+  if (!due.length) return false;
+  console.log(`${TAG} provider refresh requested: ${reason} (${due.join(', ')})`);
+  await Promise.allSettled(due.map(provider => collectProvider(provider)));
   return true;
 }
 
-function isProviderUrl(url) {
-  return ALLOWED_PREFIXES.some(prefix => url?.startsWith(prefix));
+function providerFromUrl(url) {
+  if (url?.startsWith('https://chatgpt.com/') || url?.startsWith('https://chat.openai.com/')) return 'chatgpt';
+  if (url?.startsWith('https://gemini.google.com/')) return 'gemini';
+  if (url?.startsWith('https://claude.ai/')) return 'claude';
+  return null;
 }
 
 function ensureAlarms() {
@@ -864,7 +925,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       if (rlInfo?.resetsAt) {
         const rlResetMs = Date.parse(rlInfo.resetsAt);
         if (!isNaN(rlResetMs)) {
-          mergeRateLimit(rlInfo).catch(() => {});
+          mergeRateLimit(rlInfo, { authoritative: msg.url?.includes('/usage') }).catch(() => {});
           lget(K_WIN5H).then(win => {
             if (!win || Math.abs(rlResetMs - win.resetMs) > 60_000) {
               lset(K_WIN5H, { startMs: rlResetMs - WINDOW_5H_MS, resetMs: rlResetMs });
@@ -908,6 +969,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   }
 
   if (msg.type === 'GET_STATS' && (fromExtension || fromAllowedSite)) {
+    requestProviderRefresh('stats-read', sender.tab ? providerFromUrl(sender.tab.url) : null).catch(() => {});
     getStats()
       .then(s  => reply(s))
       .catch(() => reply(null));
@@ -930,7 +992,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     const s = await getStats();
     updateBadge(s.pct5h);
     ensureAlarms();
-    requestProviderRefresh('heartbeat-watchdog', (POLL_INTERVAL_MIN + 2) * 60_000).catch(() => {});
+    requestProviderRefresh('heartbeat-watchdog', null, (POLL_INTERVAL_MIN + 2) * 60_000).catch(() => {});
   } else if (alarm.name === 'poll') {
     collectAllProviders().catch(err => console.warn(`${TAG} provider collection failed:`, err.message));
   }
@@ -954,24 +1016,26 @@ chrome.runtime.onStartup.addListener(() => {
 
 chrome.tabs.onActivated.addListener(({ tabId }) => {
   chrome.tabs.get(tabId, tab => {
-    if (isProviderUrl(tab?.url)) requestProviderRefresh('provider-tab-activated').catch(() => {});
+    const site = providerFromUrl(tab?.url);
+    if (site) requestProviderRefresh('provider-tab-activated', site, 15_000).catch(() => {});
   });
 });
 
 chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete' && isProviderUrl(tab?.url)) {
-    requestProviderRefresh('provider-tab-loaded').catch(() => {});
+  const site = providerFromUrl(tab?.url);
+  if (changeInfo.status === 'complete' && site) {
+    requestProviderRefresh('provider-tab-loaded', site, 0).catch(() => {});
   }
 });
 
 chrome.windows.onFocusChanged.addListener(windowId => {
   if (windowId !== chrome.windows.WINDOW_ID_NONE) {
-    requestProviderRefresh('browser-focused', POLL_INTERVAL_MIN * 60_000).catch(() => {});
+    requestProviderRefresh('browser-focused', null, POLL_INTERVAL_MIN * 60_000).catch(() => {});
   }
 });
 
 chrome.idle.onStateChanged.addListener(state => {
-  if (state === 'active') requestProviderRefresh('browser-woke', POLL_INTERVAL_MIN * 60_000).catch(() => {});
+  if (state === 'active') requestProviderRefresh('browser-woke', null, POLL_INTERVAL_MIN * 60_000).catch(() => {});
 });
 
 ensureAlarms();

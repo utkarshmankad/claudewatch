@@ -1,4 +1,4 @@
-import nodemailer from 'nodemailer';
+import nodemailer, { type Transporter } from 'nodemailer';
 import type { EmailConfig } from '../config/schema.js';
 import type { AlertPayload } from './types.js';
 
@@ -16,7 +16,7 @@ export async function sendEmailAlert(
 // Transport factory
 // ---------------------------------------------------------------------------
 
-function buildTransport(cfg: EmailConfig, password: string): nodemailer.Transporter {
+function buildTransport(cfg: EmailConfig, password: string): Transporter {
   if (cfg.provider === 'sendgrid') {
     // SendGrid SMTP relay — auth username is always the literal string 'apikey';
     // the password is the SendGrid API key stored in keychain.
