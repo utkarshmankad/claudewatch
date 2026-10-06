@@ -287,8 +287,9 @@ function render(stats) {
   renderSiteBreakdown(siteBreakdown, activeSite, providerUsage);
 
   const selected = providerUsage?.[gSelectedSite] ?? null;
+  const selectedHealth = providerHealth?.[gSelectedSite] ?? null;
   renderAccountSelector(gSelectedSite, providerAccounts, providerSelections);
-  renderProviderHealth(providerHealth?.[gSelectedSite]);
+  renderProviderHealth(selectedHealth);
   const selectedPct5h = selected?.pct5h ?? (gSelectedSite === 'claude' ? pct5h : null);
   const selectedPct7d = selected?.pct7d ?? (gSelectedSite === 'claude' ? pct7d : null);
   const selectedName = SITE_META.find(s => s.key === gSelectedSite)?.name ?? gSelectedSite;
@@ -311,7 +312,7 @@ function render(stats) {
   // Countdown anchors
   gResetMs5h = selected?.resetsAt5h ? Date.parse(selected.resetsAt5h) : (rlResetsAt ? Date.parse(rlResetsAt) : (resetMs5h ?? null));
   gResetMs7d = selected?.resetsAt7d ? Date.parse(selected.resetsAt7d) : (stats.timeLeft7d != null ? Date.now() + stats.timeLeft7d : null);
-  gLastTs    = selected?.ts ?? lastTs ?? null;
+  gLastTs    = selectedHealth?.lastUpdatedAt ?? selected?.ts ?? lastTs ?? null;
 
   // Alert (Claude rate-limit)
   if (gSelectedSite === 'claude' && rlType === 'over_limit') {

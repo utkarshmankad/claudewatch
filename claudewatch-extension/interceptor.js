@@ -29,20 +29,6 @@ function isClaudeUsageUrl(url) {
   return CLAUDE_USAGE_URL_PATTERNS.some(p => url.includes(p));
 }
 
-// ChatGPT account/subscription endpoints for plan detection
-const CHATGPT_ACCOUNT_URL_PATTERNS = [
-  '/backend-api/me',
-  '/backend-api/accounts/check',
-  '/backend-api/accounts',
-  '/backend-api/settings/account',
-  '/api/auth/session',
-];
-
-function isChatGptAccountUrl(url) {
-  if (!url || typeof url !== 'string') return false;
-  return CHATGPT_ACCOUNT_URL_PATTERNS.some(p => url.includes(p));
-}
-
 function isApiUrl(url) {
   return typeof url === 'string' && /\/api\//.test(url);
 }
@@ -288,6 +274,19 @@ window.fetch = async function (...args) {
     return response;
   }
 
+  // Keep the quota snapshot even when ChatGPT itself initiated the request.
+  // This is an important fallback when the session endpoint no longer exposes
+  // an access token to a caller-created request.
+  if (SITE === 'chatgpt' && url.includes('/backend-api/wham/usage') && isJson && !isSse) {
+    const clone = response.clone();
+    clone.json().then(data => postToIsolated('PROVIDER_USAGE_RESPONSE', {
+      requestId: `intercepted-${Date.now()}`,
+      ok: true,
+      snapshot: { usage: data, email: data?.email ?? null },
+    })).catch(() => {});
+    return response;
+  }
+
   // ── Discovery sweep (Claude only) ──
   if (SITE === 'claude' && isApiUrl(url) && isJson && !isSse && !url.includes('/experiences/')) {
     const clone = response.clone();
@@ -368,14 +367,23 @@ window.addEventListener('message', async (event) => {
     }
 
     if (SITE === 'chatgpt') {
+      // Some ChatGPT sessions authorize this same-origin endpoint entirely by
+      // cookie. Try that first; only require a session token if challenged.
+      let usageResp = await _originalFetch.call(window, '/backend-api/wham/usage', {
+        credentials: 'include', cache: 'no-store', headers: { Accept: 'application/json' },
+      });
+      let session = null;
+      if (usageResp.status === 401 || usageResp.status === 403) {
       const sessionResp = await _originalFetch.call(window, '/api/auth/session', { credentials: 'include', cache: 'no-store' });
       if (!sessionResp.ok) return respond({ ok: false, status: sessionResp.status, error: 'session_fetch_failed' });
-      const session = await sessionResp.json();
-      if (!session?.accessToken) return respond({ ok: false, status: 401, error: 'not_logged_in' });
-      const usageResp = await _originalFetch.call(window, '/backend-api/wham/usage', {
+        session = await sessionResp.json();
+        const accessToken = session?.accessToken ?? session?.access_token ?? null;
+        if (!accessToken) return respond({ ok: false, status: 401, error: 'access_token_missing' });
+        usageResp = await _originalFetch.call(window, '/backend-api/wham/usage', {
         credentials: 'include', cache: 'no-store',
-        headers: { Authorization: `Bearer ${session.accessToken}`, Accept: 'application/json' },
+          headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
       });
+      }
       if (!usageResp.ok) return respond({ ok: false, status: usageResp.status, error: 'usage_fetch_failed' });
       const usage = await usageResp.json();
       return respond({ ok: true, snapshot: { usage, email: usage.email ?? session.user?.email ?? null } });
