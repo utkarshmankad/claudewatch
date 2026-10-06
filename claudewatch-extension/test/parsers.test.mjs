@@ -401,6 +401,17 @@ describe('provider usage normalization', () => {
     expect(normalized.pct7d).toBe(30);
   });
 
+  it('keeps ChatGPT quota snapshots when personal sessions omit identity fields', () => {
+    const normalized = normalizeChatGptUsage({ rate_limit: {
+      primary_window: { used_percent: 100, limit_window_seconds: 18000 },
+      secondary_window: { used_percent: 16, limit_window_seconds: 604800 },
+    } });
+    expect(normalized.accountId).toBe('default');
+    expect(normalized.email).toBe(null);
+    expect(normalized.pct5h).toBe(100);
+    expect(normalized.pct7d).toBe(16);
+  });
+
   it('parses Gemini batchexecute envelopes', () => {
     const payload = [5, [[100, 0.25, 1, [[1900000000, 0]]]]];
     const text = `)]}'\n123\n${JSON.stringify([['wrb.fr', 'jSf9Qc', JSON.stringify(payload), null]])}`;

@@ -294,10 +294,11 @@ const chatGptReset = window => {
 export function normalizeChatGptUsage(raw, email = null) {
   const usage = raw?.usage?.rate_limit ? raw.usage : raw?.data?.rate_limit ? raw.data : raw?.usage ?? raw;
   if (!usage?.rate_limit) return null;
+  const resolvedEmail = usage.email ?? email ?? null;
   const { w5h, w7d } = classifyChatGptWindows(usage.rate_limit);
   const duration = window => window?.limit_window_seconds ?? window?.window_seconds ?? window?.window_size_seconds ?? null;
   return {
-    site: 'chatgpt', accountId: usage.account_id ?? usage.user_id ?? email ?? null, email,
+    site: 'chatgpt', accountId: usage.account_id ?? usage.user_id ?? resolvedEmail ?? 'default', email: resolvedEmail,
     plan: usage.plan_type ?? usage.plan ?? null,
     pct5h: chatGptPct(w5h), pct7d: chatGptPct(w7d),
     resetsAt5h: chatGptReset(w5h), resetsAt7d: chatGptReset(w7d),
