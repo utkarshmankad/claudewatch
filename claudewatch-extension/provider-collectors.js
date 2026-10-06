@@ -2,15 +2,24 @@
 // page's authenticated MAIN world and falls back to a credentialed extension
 // request so page timer throttling cannot stop account-level refreshes.
 (function registerProviderCollectors(scope) {
+  const REQUEST_TIMEOUT_MS = 20_000;
+  const withTimeout = (promise, label) => Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(Object.assign(new Error(label), { code: label })), REQUEST_TIMEOUT_MS)),
+  ]);
+
   const executeInTab = async (urlPatterns, func, args = []) => {
     const tabs = (await chrome.tabs.query({ url: urlPatterns }))
-      .filter(tab => tab.id && !tab.discarded)
+      .filter(tab => Number.isInteger(tab.id) && !tab.discarded)
       .sort((a, b) => Number(b.active) - Number(a.active) || (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0));
     if (!tabs.length) throw Object.assign(new Error('provider_tab_missing'), { code: 'provider_tab_missing' });
     let lastError = null;
     for (const tab of tabs) {
       try {
-        const rows = await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'MAIN', func, args });
+        const rows = await withTimeout(
+          chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'MAIN', func, args }),
+          'provider_tab_timeout',
+        );
         const result = rows?.[0]?.result;
         if (!result || result.error) throw Object.assign(new Error(result?.error ?? 'provider_tab_fetch_failed'), { status: result?.status ?? 0 });
         return result.data;
@@ -22,16 +31,24 @@
   async function chatGptViaTab() {
     return executeInTab(['https://chatgpt.com/*', 'https://chat.openai.com/*'], async () => {
       try {
-        const sessionResponse = await fetch('/api/auth/session', { credentials: 'include', cache: 'no-store' });
-        if (!sessionResponse.ok) return { error: 'session_fetch_failed', status: sessionResponse.status };
-        const session = await sessionResponse.json();
-        if (!session?.accessToken) return { error: 'not_logged_in', status: 401 };
-        const usageResponse = await fetch('/backend-api/wham/usage', {
-          credentials: 'include', cache: 'no-store',
-          headers: { Authorization: `Bearer ${session.accessToken}`, Accept: 'application/json' },
+        const signal = AbortSignal.timeout(15_000);
+        let usageResponse = await fetch('/backend-api/wham/usage', {
+          credentials: 'include', cache: 'no-store', signal, headers: { Accept: 'application/json' },
         });
+        let session = null;
+        if (usageResponse.status === 401 || usageResponse.status === 403) {
+          const sessionResponse = await fetch('/api/auth/session', { credentials: 'include', cache: 'no-store', signal });
+          if (!sessionResponse.ok) return { error: 'session_fetch_failed', status: sessionResponse.status };
+          session = await sessionResponse.json();
+          const accessToken = session?.accessToken ?? session?.access_token ?? null;
+          if (!accessToken) return { error: 'access_token_missing', status: 401 };
+          usageResponse = await fetch('/backend-api/wham/usage', {
+          credentials: 'include', cache: 'no-store', signal,
+            headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+        });
+        }
         if (!usageResponse.ok) return { error: 'usage_fetch_failed', status: usageResponse.status };
-        return { data: { usage: await usageResponse.json(), email: session.user?.email ?? null } };
+        return { data: { usage: await usageResponse.json(), email: session?.user?.email ?? null } };
       } catch (error) { return { error: error?.message ?? 'usage_fetch_failed', status: 0 }; }
     });
   }
@@ -42,18 +59,25 @@
     if (!cookies.length) throw Object.assign(new Error('provider_cookies_missing'), { status: 401 });
     const cookieHeader = cookies.map(cookie => `${cookie.name}=${cookie.value}`).join('; ');
     const commonHeaders = { Cookie: cookieHeader, Origin: 'https://chatgpt.com', Referer: 'https://chatgpt.com/' };
-    const sessionResponse = await fetch('https://chatgpt.com/api/auth/session', {
-      credentials: 'include', cache: 'no-store', headers: { ...commonHeaders, Accept: 'application/json' },
+    let usageResponse = await fetch('https://chatgpt.com/backend-api/wham/usage', {
+      credentials: 'include', cache: 'no-store', signal: AbortSignal.timeout(15_000), headers: { ...commonHeaders, Accept: 'application/json' },
     });
-    if (!sessionResponse.ok) throw Object.assign(new Error('session_fetch_failed'), { status: sessionResponse.status });
-    const session = await sessionResponse.json();
-    if (!session?.accessToken) throw Object.assign(new Error('not_logged_in'), { status: 401 });
-    const usageResponse = await fetch('https://chatgpt.com/backend-api/wham/usage', {
-      credentials: 'include', cache: 'no-store',
-      headers: { ...commonHeaders, Authorization: `Bearer ${session.accessToken}`, Accept: 'application/json' },
+    let session = null;
+    if (usageResponse.status === 401 || usageResponse.status === 403) {
+      const sessionResponse = await fetch('https://chatgpt.com/api/auth/session', {
+        credentials: 'include', cache: 'no-store', signal: AbortSignal.timeout(15_000), headers: { ...commonHeaders, Accept: 'application/json' },
+      });
+      if (!sessionResponse.ok) throw Object.assign(new Error('session_fetch_failed'), { status: sessionResponse.status });
+      session = await sessionResponse.json();
+      const accessToken = session?.accessToken ?? session?.access_token ?? null;
+      if (!accessToken) throw Object.assign(new Error('access_token_missing'), { status: 401 });
+      usageResponse = await fetch('https://chatgpt.com/backend-api/wham/usage', {
+      credentials: 'include', cache: 'no-store', signal: AbortSignal.timeout(15_000),
+        headers: { ...commonHeaders, Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
     });
+    }
     if (!usageResponse.ok) throw Object.assign(new Error('usage_fetch_failed'), { status: usageResponse.status });
-    return { usage: await usageResponse.json(), email: session.user?.email ?? null };
+    return { usage: await usageResponse.json(), email: session?.user?.email ?? null };
   }
 
   async function collectChatGpt() {
@@ -70,7 +94,7 @@
     if (!atToken) return { error: 'xsrf_token_missing', status: 401 };
     const body = `f.req=${encodeURIComponent(JSON.stringify([[[rpcId, '[]', null, 'generic']]]))}&at=${encodeURIComponent(atToken)}&`;
     const response = await fetch(`/_/BardChatUi/data/batchexecute?rpcids=${rpcId}&source-path=%2Fusage&rt=c`, {
-      method: 'POST', credentials: 'include', cache: 'no-store', body,
+      method: 'POST', credentials: 'include', cache: 'no-store', body, signal: AbortSignal.timeout(15_000),
       headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8', 'X-Same-Domain': '1' },
     });
     if (!response.ok) return { error: 'usage_fetch_failed', status: response.status };
@@ -81,7 +105,7 @@
   async function geminiViaTab() { return executeInTab(['https://gemini.google.com/*'], geminiRequest); }
 
   async function geminiFallback() {
-    const pageResponse = await fetch('https://gemini.google.com/app', { credentials: 'include', cache: 'no-store' });
+    const pageResponse = await fetch('https://gemini.google.com/app', { credentials: 'include', cache: 'no-store', signal: AbortSignal.timeout(15_000) });
     if (!pageResponse.ok) throw Object.assign(new Error('gemini_page_fetch_failed'), { status: pageResponse.status });
     const html = await pageResponse.text();
     const atToken = html.match(/"SNlM0e":"([^"]+)"/)?.[1] ?? '';
@@ -89,7 +113,7 @@
     const rpcId = 'jSf9Qc';
     const body = `f.req=${encodeURIComponent(JSON.stringify([[[rpcId, '[]', null, 'generic']]]))}&at=${encodeURIComponent(atToken)}&`;
     const response = await fetch(`https://gemini.google.com/_/BardChatUi/data/batchexecute?rpcids=${rpcId}&source-path=%2Fusage&rt=c`, {
-      method: 'POST', credentials: 'include', cache: 'no-store', body,
+      method: 'POST', credentials: 'include', cache: 'no-store', body, signal: AbortSignal.timeout(15_000),
       headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8', 'X-Same-Domain': '1' },
     });
     if (!response.ok) throw Object.assign(new Error('usage_fetch_failed'), { status: response.status });

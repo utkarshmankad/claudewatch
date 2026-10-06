@@ -37,16 +37,40 @@ describe('service-worker provider collectors', () => {
     expect(chrome.scripting.executeScript).toHaveBeenCalledTimes(2);
   });
 
+  it('detects a ChatGPT tab whose Chromium tab id is zero', async () => {
+    chrome.tabs.query.mockResolvedValue([{ id: 0, active: true }]);
+    chrome.scripting.executeScript.mockResolvedValue([{ result: { data: { usage: { rate_limit: {} }, email: 'zero@example.com' } } }]);
+    const result = await collectors.collectChatGpt();
+    expect(result.ok).toBe(true);
+    expect(result.authPath).toBe('tab');
+    expect(chrome.scripting.executeScript).toHaveBeenCalledWith(expect.objectContaining({ target: { tabId: 0 } }));
+  });
+
   it('falls back to service-worker credentials when no ChatGPT tab is open', async () => {
     chrome.tabs.query.mockResolvedValue([]);
     chrome.cookies.getAll.mockResolvedValue([{ name: '__Secure-session', value: 'session' }]);
     vi.stubGlobal('fetch', vi.fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ accessToken: 'token', user: { email: 'user@example.com' } }) })
+      .mockResolvedValueOnce({ ok: false, status: 401 })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ access_token: 'token', user: { email: 'user@example.com' } }) })
       .mockResolvedValueOnce({ ok: true, json: async () => ({ rate_limit: { primary_window: {} } }) }));
     const result = await collectors.collectChatGpt();
     expect(result.ok).toBe(true);
     expect(result.authPath).toBe('service_worker');
-    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fetch).toHaveBeenCalledTimes(3);
+  });
+
+  it('uses a cookie-authenticated ChatGPT usage response without requiring a session token', async () => {
+    chrome.tabs.query.mockResolvedValue([]);
+    chrome.cookies.getAll.mockResolvedValue([{ name: '__Secure-session', value: 'session' }]);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ rate_limit: { primary_window: { used_percent: 15 } } }),
+    }));
+    const result = await collectors.collectChatGpt();
+    expect(result.ok).toBe(true);
+    expect(result.snapshot.usage.rate_limit.primary_window.used_percent).toBe(15);
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
   it('falls back to a credentialed Gemini page and RPC request', async () => {

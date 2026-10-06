@@ -68,6 +68,26 @@ function extractRateLimitFromResponse(data) {
   return null;
 }
 
+function mergeRateLimitState(existing, newInfo, authoritative = false) {
+  const merged = { ...existing };
+  if (authoritative) {
+    merged.type = newInfo.type ?? null;
+    merged.remaining = newInfo.remaining ?? null;
+  }
+  for (const [key, value] of Object.entries(newInfo)) {
+    if (value != null) merged[key] = value;
+  }
+  return merged;
+}
+
+function providerLastUpdatedAt(snapshot, poll) {
+  const pollSuccessMs = Date.parse(poll?.lastSuccessAt ?? '');
+  return Math.max(
+    Number.isFinite(pollSuccessMs) ? pollSuccessMs : 0,
+    Number.isFinite(snapshot?.ts) ? snapshot.ts : 0,
+  ) || null;
+}
+
 // ── Per-site token aggregation (logic mirrored from background.getStats) ───
 
 const WINDOW_5H_MS = 5 * 60 * 60 * 1000;
@@ -156,6 +176,40 @@ describe('extractRateLimitFromResponse', () => {
 
   it('returns null for empty object', () => {
     expect(extractRateLimitFromResponse({})).toBe(null);
+  });
+});
+
+describe('rate-limit state reconciliation', () => {
+  it('clears a stale message warning when authoritative cloud usage no longer reports it', () => {
+    const existing = { type: 'approaching_limit', remaining: 5, utilization5h: 92 };
+    const cloud = { type: null, remaining: null, utilization5h: 15, resetsAt: '2026-10-06T12:00:00Z' };
+    expect(mergeRateLimitState(existing, cloud, true)).toMatchObject({
+      type: null,
+      remaining: null,
+      utilization5h: 15,
+    });
+  });
+
+  it('preserves transient warning fields when merging a partial stream update', () => {
+    const existing = { type: 'approaching_limit', remaining: 5, utilization5h: 85 };
+    expect(mergeRateLimitState(existing, { resetsAt: '2026-10-06T12:00:00Z' })).toMatchObject({
+      type: 'approaching_limit',
+      remaining: 5,
+      utilization5h: 85,
+    });
+  });
+});
+
+describe('provider freshness', () => {
+  it('uses a newer successful poll instead of an old quota snapshot timestamp', () => {
+    const snapshot = { ts: Date.parse('2026-10-01T00:00:00Z') };
+    const poll = { lastSuccessAt: '2026-10-06T08:00:00Z' };
+    expect(providerLastUpdatedAt(snapshot, poll)).toBe(Date.parse(poll.lastSuccessAt));
+  });
+
+  it('falls back to the snapshot timestamp when no successful poll exists', () => {
+    const ts = Date.parse('2026-10-06T08:00:00Z');
+    expect(providerLastUpdatedAt({ ts }, null)).toBe(ts);
   });
 });
 
