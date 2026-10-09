@@ -265,11 +265,18 @@ header {
 .reset-item {
   flex: 1;
   display: flex;
-  align-items: baseline;
-  gap: 6px;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
 }
 
-.reset-item:last-child { justify-content: flex-end; }
+.reset-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+}
 
 .reset-label {
   font-size: 9px;
@@ -277,6 +284,12 @@ header {
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--text-muted);
+}
+
+.reset-end {
+  font-size: 8px;
+  color: var(--text-secondary);
+  white-space: nowrap;
 }
 
 .reset-clock {
