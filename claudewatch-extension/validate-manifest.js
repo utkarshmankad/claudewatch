@@ -140,6 +140,7 @@ const expectedFiles = [
   'popup/popup.html',
   'popup/popup.css',
   'popup/popup.js',
+  'popup/formatters.mjs',
 ];
 for (const f of expectedFiles) {
   check(fileExists(f), `${f} exists`, `${f} not found`);

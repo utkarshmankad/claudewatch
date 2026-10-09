@@ -1,3 +1,5 @@
+import { formatWindowEnd, validEpochMs } from './formatters.mjs';
+
 // popup.js — fetches stats from background service worker via GET_STATS,
 // renders dual gauges (5h / 7d), site breakdown, plan comparison table, and SVG sparkline.
 
@@ -245,6 +247,7 @@ function tickCountdown() {
     el5h.textContent = fmtCountdown(left);
     el5h.className   = 'reset-clock' + (left < 5 * 60_000 ? ' urgent' : left < 30 * 60_000 ? ' warn' : '');
   }
+  setText('end-time-5h', gResetMs5h != null ? `Ends ${formatWindowEnd(gResetMs5h)}` : 'End time unavailable');
 
   const el7d = el('countdown-7d');
   if (el7d && gResetMs7d != null) {
@@ -252,6 +255,7 @@ function tickCountdown() {
     el7d.textContent = fmtCountdown(left);
     el7d.className   = 'reset-clock';
   }
+  setText('end-time-7d', gResetMs7d != null ? `Ends ${formatWindowEnd(gResetMs7d)}` : 'End time unavailable');
 
   setText('last-update', gLastTs ? fmtAgo(gLastTs) : '—');
 }
@@ -310,9 +314,10 @@ function render(stats) {
   fillBar('fill-7d', selectedPct7d);
 
   // Countdown anchors
-  gResetMs5h = selected?.resetsAt5h ? Date.parse(selected.resetsAt5h) : (rlResetsAt ? Date.parse(rlResetsAt) : (resetMs5h ?? null));
-  gResetMs7d = selected?.resetsAt7d ? Date.parse(selected.resetsAt7d) : (stats.timeLeft7d != null ? Date.now() + stats.timeLeft7d : null);
+  gResetMs5h = validEpochMs(selected?.resetsAt5h ?? rlResetsAt ?? resetMs5h);
+  gResetMs7d = validEpochMs(selected?.resetsAt7d ?? (stats.timeLeft7d != null ? Date.now() + stats.timeLeft7d : null));
   gLastTs    = selectedHealth?.lastUpdatedAt ?? selected?.ts ?? lastTs ?? null;
+  tickCountdown();
 
   // Alert (Claude rate-limit)
   if (gSelectedSite === 'claude' && rlType === 'over_limit') {
