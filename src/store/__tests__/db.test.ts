@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi, afterAll } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
+import Database from 'better-sqlite3';
 
 // vi.hoisted runs before imports — cannot reference module-level import bindings.
 // Use a plain computed string instead of fs.mkdtempSync().
@@ -59,7 +60,9 @@ function cleanDb(): void {
   closeDb();
   // Delete the DB file so each test starts with a fresh empty schema.
   const dbPath = path.join(tmpHome, '.claudewatch', 'usage.db');
-  try { fs.unlinkSync(dbPath); } catch { /* file may not exist on first run */ }
+  for (const suffix of ['', '-wal', '-shm']) {
+    try { fs.unlinkSync(`${dbPath}${suffix}`); } catch { /* file may not exist */ }
+  }
 }
 
 beforeEach(cleanDb);
@@ -90,6 +93,56 @@ describe('getDb', () => {
   it('sets user_version to CURRENT_SCHEMA_VERSION (6)', () => {
     const version = getDb().pragma('user_version', { simple: true }) as number;
     expect(version).toBe(6);
+  });
+
+  it('opens and migrates a persisted v1 database without losing usage rows', () => {
+    const dbPath = path.join(tmpHome, '.claudewatch', 'usage.db');
+    fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+
+    const legacy = new Database(dbPath);
+    legacy.exec(`
+      CREATE TABLE usage_snapshots (
+        id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+        recorded_at           TEXT    NOT NULL,
+        bucket_starting_at    TEXT    NOT NULL,
+        bucket_ending_at      TEXT    NOT NULL,
+        model                 TEXT,
+        workspace_id          TEXT,
+        uncached_input_tokens INTEGER NOT NULL DEFAULT 0,
+        output_tokens         INTEGER NOT NULL DEFAULT 0,
+        cache_read_tokens     INTEGER NOT NULL DEFAULT 0,
+        cache_write_1h_tokens INTEGER NOT NULL DEFAULT 0,
+        cache_write_5m_tokens INTEGER NOT NULL DEFAULT 0
+      );
+      INSERT INTO usage_snapshots (
+        recorded_at, bucket_starting_at, bucket_ending_at, model,
+        uncached_input_tokens, output_tokens
+      ) VALUES (
+        '2024-06-15T12:00:00.000Z', '2024-06-15T00:00:00.000Z',
+        '2024-06-16T00:00:00.000Z', 'legacy-model', 123, 45
+      );
+      PRAGMA user_version = 1;
+    `);
+    legacy.close();
+
+    const migrated = getDb();
+    expect(migrated.pragma('user_version', { simple: true })).toBe(6);
+    expect(getLatestSnapshot()).toMatchObject({
+      model: 'legacy-model',
+      uncachedInputTokens: 123,
+      outputTokens: 45,
+      sourceTag: 'api',
+      estimatedCostUsd: 0,
+    });
+
+    const tables = migrated
+      .prepare(`SELECT name FROM sqlite_master WHERE type = 'table'`)
+      .all() as { name: string }[];
+    expect(tables.map(({ name }) => name)).toEqual(expect.arrayContaining([
+      'personal_session_tokens',
+      'session_tokens',
+      'usage_events',
+    ]));
   });
 });
 
