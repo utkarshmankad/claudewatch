@@ -6,10 +6,14 @@
   "bin": {
     "claudewatch": "./bin/claudewatch.js"
   },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "postinstall": "node scripts/postinstall.mjs",
     "build": "tsc -p tsconfig.json",
     "build:web": "vite build --config src/web/vite.config.ts",
+    "check:runtime": "node scripts/check-runtime-compat.mjs",
     "dev": "tsx watch src/cli/index.ts",
     "daemon": "tsx src/daemon/index.ts",
     "web": "vite src/web",
@@ -19,11 +23,11 @@
     "test:coverage": "vitest run --coverage",
     "validate:extension": "npm --prefix claudewatch-extension run validate",
     "smoke": "npm run build && node dist/cli/index.js --help && npm run validate:extension",
-    "check": "npm run lint && npm run typecheck && npm test && npm run test:coverage && npm run smoke"
+    "check": "npm run check:runtime && npm run lint && npm run typecheck && npm test && npm run test:coverage && npm run smoke"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.51.0",
-    "@inquirer/prompts": "^8.4.2",
+    "@anthropic-ai/sdk": "^0.131.0",
+    "@inquirer/prompts": "^8.7.2",
     "better-sqlite3": "^9.6.0",
     "commander": "^12.1.0",
     "cors": "^2.8.6",
@@ -32,8 +36,8 @@
     "keytar": "^7.9.0",
     "node-cron": "^4.6.0",
     "node-notifier": "^10.0.1",
-    "nodemailer": "^10.0.13",
-    "open": "^11.0.0",
+    "nodemailer": "^10.0.14",
+    "open": "^11.0.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "recharts": "^3.8.1",
@@ -54,6 +58,7 @@
     "@vitest/coverage-v8": "^4.1.6",
     "@yao-pkg/pkg": "^6.14.2",
     "eslint": "^8.57.0",
+    "semver": "^7.7.3",
     "tsx": "^4.11.0",
     "typescript": "^5.4.5",
     "vite": "^8.2.2",
