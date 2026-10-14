@@ -158,7 +158,7 @@ function AlertList({ alerts }: { alerts: AlertRecord[] }) {
 // Root component
 // ---------------------------------------------------------------------------
 
-function StatusApp({ config }: { config: Config }) {
+export function StatusApp({ config }: { config: Config }) {
   const { exit } = useApp();
   const [data, setData] = useState<StatusData | null>(null);
   const [error, setError] = useState<string | null>(null);

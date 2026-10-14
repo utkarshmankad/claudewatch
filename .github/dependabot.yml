@@ -6,10 +6,14 @@ updates:
       interval: weekly
     target-branch: develop
     groups:
-      npm-production:
+      npm-production-patches:
         dependency-type: production
-      npm-development:
+        update-types:
+          - patch
+      npm-development-patches:
         dependency-type: development
+        update-types:
+          - patch
   - package-ecosystem: github-actions
     directory: /
     schedule:
