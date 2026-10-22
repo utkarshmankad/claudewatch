@@ -1,0 +1,195 @@
+{
+  "schemaVersion": 1,
+  "generatedFrom": "claudewatch-extension/analytics.js (EVENT_DEFINITIONS); a test keeps this file in sync",
+  "retention": {
+    "maxAgeDays": 90,
+    "maxEvents": 5000
+  },
+  "events": {
+    "installed": {
+      "description": "Extension installed.",
+      "props": {}
+    },
+    "onboarding_completed": {
+      "description": "User finished the onboarding page.",
+      "props": {}
+    },
+    "provider_connected": {
+      "description": "First provider-reported snapshot saved for a provider.",
+      "props": {
+        "provider": [
+          "claude",
+          "chatgpt",
+          "gemini"
+        ]
+      }
+    },
+    "first_useful_reading": {
+      "description": "First trustworthy provider-reported quota reading after install.",
+      "props": {
+        "provider": [
+          "claude",
+          "chatgpt",
+          "gemini"
+        ],
+        "secondsSinceInstall": {
+          "type": "int",
+          "min": 0,
+          "max": 31536000
+        }
+      }
+    },
+    "first_recommendation": {
+      "description": "First recommendation (plan or provider switch) shown to the user.",
+      "props": {
+        "kind": [
+          "plan",
+          "provider_switch",
+          "wait",
+          "other"
+        ]
+      }
+    },
+    "refresh_result": {
+      "description": "One provider refresh attempt finished.",
+      "props": {
+        "provider": [
+          "claude",
+          "chatgpt",
+          "gemini"
+        ],
+        "ok": "bool",
+        "errorCategory": [
+          "none",
+          "provider_tab_missing",
+          "provider_tab_timeout",
+          "auth_expired",
+          "rate_limited",
+          "provider_schema_changed",
+          "network",
+          "timeout",
+          "other"
+        ],
+        "trigger": [
+          "install",
+          "startup",
+          "alarm",
+          "tab",
+          "focus",
+          "wake",
+          "manual",
+          "other"
+        ],
+        "durationMs": {
+          "type": "int",
+          "min": 0,
+          "max": 600000
+        }
+      }
+    },
+    "stale_started": {
+      "description": "A provider reading crossed the stale threshold.",
+      "props": {
+        "provider": [
+          "claude",
+          "chatgpt",
+          "gemini"
+        ],
+        "reason": [
+          "none",
+          "provider_tab_missing",
+          "provider_tab_timeout",
+          "auth_expired",
+          "rate_limited",
+          "provider_schema_changed",
+          "network",
+          "timeout",
+          "other"
+        ],
+        "explained": "bool"
+      }
+    },
+    "stale_ended": {
+      "description": "A stale provider reading was refreshed.",
+      "props": {
+        "provider": [
+          "claude",
+          "chatgpt",
+          "gemini"
+        ],
+        "staleSeconds": {
+          "type": "int",
+          "min": 0,
+          "max": 31536000
+        },
+        "explained": "bool"
+      }
+    },
+    "attribution_measured": {
+      "description": "Attribution coverage sample (emitted from Phase 1 reconciliation).",
+      "props": {
+        "attributedUnits": {
+          "type": "int",
+          "min": 0,
+          "max": 1000000
+        },
+        "eligibleUnits": {
+          "type": "int",
+          "min": 0,
+          "max": 1000000
+        }
+      }
+    },
+    "alert_shown": {
+      "description": "A quota-risk alert was shown.",
+      "props": {
+        "level": [
+          "warn",
+          "high",
+          "critical"
+        ],
+        "provider": [
+          "claude",
+          "chatgpt",
+          "gemini"
+        ]
+      }
+    },
+    "alert_action": {
+      "description": "User acted on an alert.",
+      "props": {
+        "action": [
+          "switch_provider",
+          "wait",
+          "plan_action",
+          "dismiss"
+        ],
+        "provider": [
+          "claude",
+          "chatgpt",
+          "gemini"
+        ]
+      }
+    },
+    "report_shared": {
+      "description": "User exported or shared a usage report.",
+      "props": {
+        "channel": [
+          "copy",
+          "download",
+          "link"
+        ]
+      }
+    },
+    "active_day": {
+      "description": "Extension surface opened; at most one per local day.",
+      "props": {
+        "surface": [
+          "popup",
+          "settings",
+          "onboarding"
+        ]
+      }
+    }
+  }
+}

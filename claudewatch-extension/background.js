@@ -2,7 +2,7 @@
 // Accumulates SSE token counts across Claude, ChatGPT, and Gemini.
 // Maintains 5h/7d rolling windows, detects plan, updates badge.
 
-importScripts('provider-collectors.js');
+importScripts('provider-collectors.js', 'analytics.js');
 
 const TAG = '[TokenWatcher]';
 
@@ -44,6 +44,7 @@ const K_USAGE_HISTORY  = 'usage_history';    // 7d account-scoped quota snapshot
 const K_PROVIDER_ACCOUNTS = 'provider_accounts'; // {site: {accountKey: snapshot}}
 const K_PROVIDER_SELECTIONS = 'provider_selections'; // {site: accountKey}
 const K_DEVICE_ID = 'device_id';
+const K_STALE_STATE = 'analytics_stale_state'; // {site: {since, reason, explained}}
 const providerRefreshes = new Map();
 
 // ── Storage helpers ───────────────────────────────────────────────────────
@@ -58,6 +59,70 @@ async function getDeviceId() {
   let id = await lget(K_DEVICE_ID);
   if (!id) { id = crypto.randomUUID(); await lset(K_DEVICE_ID, id); }
   return id;
+}
+
+// ── Local analytics (never sent off-device) ──────────────────────────────
+const analytics = self.TokenWatcherAnalytics.createStore(self.TokenWatcherAnalytics.chromeStorageAdapter());
+const track = (name, props) => analytics.record(name, props).catch(() => {});
+
+function triggerFromReason(reason) {
+  if (!reason) return 'other';
+  if (reason.startsWith('provider-tab')) return 'tab';
+  if (reason.startsWith('browser-focus')) return 'focus';
+  if (reason === 'browser-woke') return 'wake';
+  if (reason === 'heartbeat-watchdog') return 'alarm';
+  if (reason === 'stats-read') return 'manual';
+  return 'other';
+}
+
+async function trackRefreshOutcome(site, startedAt, trigger, thrown) {
+  try {
+    const A = self.TokenWatcherAnalytics;
+    const poll = (await lget(`last_usage_poll_${site}`)) ?? {};
+    const ok = !thrown && Date.parse(poll.lastSuccessAt ?? '') >= startedAt;
+    const pollIsFresh = Date.parse(poll.capturedAt ?? '') >= startedAt;
+    const errorCategory = ok ? 'none'
+      : thrown ? A.categorizeError(thrown.message)
+      : pollIsFresh ? A.categorizeError(poll.error, poll.status) : 'other';
+    const durationMs = Math.min(600_000, Math.max(0, Date.now() - startedAt));
+    await track('refresh_result', { provider: site, ok, errorCategory, trigger, durationMs });
+    if (!ok) return;
+    const existing = await analytics.list();
+    if (!existing.some(e => e.name === 'provider_connected' && e.props.provider === site)) {
+      await track('provider_connected', { provider: site });
+    }
+    if (!existing.some(e => e.name === 'first_useful_reading')) {
+      const { installedAt } = await analytics.meta();
+      if (installedAt) await track('first_useful_reading', { provider: site, secondsSinceInstall: Math.round((Date.now() - installedAt) / 1000) });
+    }
+    const staleState = (await lget(K_STALE_STATE)) ?? {};
+    if (staleState[site]) {
+      await track('stale_ended', { provider: site, staleSeconds: Math.round((Date.now() - staleState[site].since) / 1000), explained: staleState[site].explained });
+      delete staleState[site];
+      await lset(K_STALE_STATE, staleState);
+    }
+  } catch { /* analytics must never affect refresh */ }
+}
+
+// Called from the heartbeat: records when a connected provider crosses the stale threshold.
+async function trackStaleTransitions() {
+  try {
+    const A = self.TokenWatcherAnalytics;
+    const connected = new Set((await analytics.list()).filter(e => e.name === 'provider_connected').map(e => e.props.provider));
+    const staleState = (await lget(K_STALE_STATE)) ?? {};
+    let changed = false;
+    for (const site of connected) {
+      const poll = (await lget(`last_usage_poll_${site}`)) ?? {};
+      const lastOk = Date.parse(poll.lastSuccessAt ?? '');
+      if (!Number.isFinite(lastOk) || Date.now() - lastOk <= PROVIDER_STALE_MS || staleState[site]) continue;
+      const reason = poll.ok === false ? A.categorizeError(poll.error, poll.status) : 'other';
+      const explained = poll.ok === false && reason !== 'other';
+      staleState[site] = { since: lastOk + PROVIDER_STALE_MS, reason, explained };
+      await track('stale_started', { provider: site, reason, explained });
+      changed = true;
+    }
+    if (changed) await lset(K_STALE_STATE, staleState);
+  } catch { /* analytics must never affect the heartbeat */ }
 }
 
 async function sendCoreEvent(event) {
@@ -833,8 +898,8 @@ async function saveProviderUsageResult(msg) {
   return { ok, saved: toSave.length };
 }
 
-async function collectAllProviders() {
-  return Promise.allSettled(['chatgpt', 'gemini', 'claude'].map(site => collectProvider(site)));
+async function collectAllProviders(trigger = 'other') {
+  return Promise.allSettled(['chatgpt', 'gemini', 'claude'].map(site => collectProvider(site, trigger)));
 }
 
 function withRefreshTimeout(promise, site, timeoutMs = 30_000) {
@@ -844,10 +909,13 @@ function withRefreshTimeout(promise, site, timeoutMs = 30_000) {
   ]);
 }
 
-async function collectProvider(site) {
+async function collectProvider(site, trigger = 'other') {
   if (providerRefreshes.has(site)) return providerRefreshes.get(site);
+  const startedAt = Date.now();
+  let thrown = null;
   const refresh = collectProviderOnce(site)
-    .catch(error => console.warn(`${TAG} ${site} collector failed:`, error.message))
+    .catch(error => { thrown = error; console.warn(`${TAG} ${site} collector failed:`, error.message); })
+    .then(() => trackRefreshOutcome(site, startedAt, trigger, thrown))
     .finally(() => providerRefreshes.delete(site));
   providerRefreshes.set(site, refresh);
   return refresh;
@@ -873,7 +941,7 @@ async function requestProviderRefresh(reason, site = null, minimumAgeMs = 60_000
   }
   if (!due.length) return false;
   console.log(`${TAG} provider refresh requested: ${reason} (${due.join(', ')})`);
-  await Promise.allSettled(due.map(provider => collectProvider(provider)));
+  await Promise.allSettled(due.map(provider => collectProvider(provider, triggerFromReason(reason))));
   return true;
 }
 
@@ -955,6 +1023,23 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     return true;
   }
 
+  if (msg.type === 'ANALYTICS_ACTIVE_DAY' && fromExtension) {
+    const surface = ['popup', 'settings', 'onboarding'].includes(msg.surface) ? msg.surface : null;
+    (surface ? analytics.recordActiveDay(surface) : Promise.resolve({ ok: false }))
+      .then(r => reply(r)).catch(() => reply({ ok: false }));
+    return true;
+  }
+
+  if (msg.type === 'ANALYTICS_ONBOARDING_DONE' && fromExtension) {
+    track('onboarding_completed', {}).then(() => reply({ ok: true }));
+    return true;
+  }
+
+  if (msg.type === 'ANALYTICS_CLEAR' && fromExtension) {
+    analytics.clear().then(() => lset(K_STALE_STATE, {})).then(() => reply({ ok: true })).catch(() => reply({ ok: false }));
+    return true;
+  }
+
   if (msg.type === 'SELECT_PROVIDER_ACCOUNT' && fromExtension) {
     selectProviderAccount(msg.site, msg.accountKey)
       .then(ok => reply({ ok }))
@@ -992,9 +1077,10 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     const s = await getStats();
     updateBadge(s.pct5h);
     ensureAlarms();
+    trackStaleTransitions();
     requestProviderRefresh('heartbeat-watchdog', null, (POLL_INTERVAL_MIN + 2) * 60_000).catch(() => {});
   } else if (alarm.name === 'poll') {
-    collectAllProviders().catch(err => console.warn(`${TAG} provider collection failed:`, err.message));
+    collectAllProviders('alarm').catch(err => console.warn(`${TAG} provider collection failed:`, err.message));
   }
 });
 
@@ -1005,13 +1091,14 @@ chrome.runtime.onInstalled.addListener(({ reason }) => {
   chrome.action.setBadgeText({ text: '' });
   if (reason === 'install') {
     chrome.tabs.create({ url: chrome.runtime.getURL('onboarding/onboarding.html') });
+    track('installed', {});
   }
-  collectAllProviders().catch(() => {});
+  collectAllProviders('install').catch(() => {});
 });
 
 chrome.runtime.onStartup.addListener(() => {
   ensureAlarms();
-  collectAllProviders().catch(() => {});
+  collectAllProviders('startup').catch(() => {});
 });
 
 chrome.tabs.onActivated.addListener(({ tabId }) => {
