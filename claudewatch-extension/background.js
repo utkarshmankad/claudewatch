@@ -1184,9 +1184,11 @@ chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
 // A provider session cookie appearing again means sign-in succeeded: retry without waiting.
 chrome.cookies.onChanged.addListener(({ removed, cookie }) => {
   if (removed) return;
-  const domain = cookie.domain.replace(/^\./, '');
-  const site = domain.endsWith('claude.ai') ? 'claude' : domain.endsWith('chatgpt.com') || domain.endsWith('openai.com') ? 'chatgpt'
-    : domain === 'gemini.google.com' || domain === 'google.com' ? 'gemini' : null;
+  const domain = cookie.domain.replace(/^\./, '').toLowerCase();
+  const isHost = host => domain === host || domain.endsWith(`.${host}`);
+  const site = isHost('claude.ai') ? 'claude'
+    : isHost('chatgpt.com') || isHost('chat.openai.com') ? 'chatgpt'
+    : isHost('gemini.google.com') ? 'gemini' : null;
   if (!site) return;
   getRefreshState(site).then(state => {
     if (state.category === 'auth_expired') requestProviderRefresh('auth_recovery', site).catch(() => {});
