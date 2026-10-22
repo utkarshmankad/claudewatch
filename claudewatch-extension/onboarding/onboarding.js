@@ -1,6 +1,7 @@
 // Onboarding page: wire up interactive elements.
 
 document.addEventListener('DOMContentLoaded', () => {
+  chrome.runtime.sendMessage({ type: 'ANALYTICS_ACTIVE_DAY', surface: 'onboarding' }, () => void chrome.runtime.lastError);
   // Copy-to-clipboard buttons
   document.querySelectorAll('.copy-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -25,6 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Close tab button
   document.getElementById('btn-close')?.addEventListener('click', () => {
+    chrome.runtime.sendMessage({ type: 'ANALYTICS_ONBOARDING_DONE' }, () => void chrome.runtime.lastError);
     window.close();
   });
 });

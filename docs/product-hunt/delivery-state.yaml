@@ -17,13 +17,13 @@ blocker: null
 last_checkpoint:
   at: '2026-10-22T00:00:00Z'
   action: >-
-    Branch claimed by hourly routine; earlier uncommitted attempt was lost, prompt 0.1 restarted from develop
+    Implementation complete and validated locally (lint, typecheck, 322 tests, smoke, audit); opening PR into develop
   workspace_branch: feature/p0-baseline-metrics
   workspace_head: 7fac23c3873bc14ff4b5bc93b747a4732eae246f
   base_sha: 7fac23c3873bc14ff4b5bc93b747a4732eae246f
   worktree_path: null
   pending_operation: null
-next_action: Implement audit doc, event schema, retention rules, debug view and prohibited-field tests; then full validation and PR
+next_action: Open PR into develop, then maintain it until CI is green and the owner merges
 next_wake_time: null
 release_status: prohibited_during_pilot
 phases:
