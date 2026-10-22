@@ -412,6 +412,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const manifest = chrome.runtime.getManifest();
   setText('version', `v${manifest.version}`);
 
+  chrome.runtime.sendMessage({ type: 'ANALYTICS_ACTIVE_DAY', surface: 'popup' }, () => void chrome.runtime.lastError);
   setupButtons();
   setupTabs();
   loadAndRender();
