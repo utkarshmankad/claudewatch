@@ -22,6 +22,8 @@ config.toml
 
 # Test coverage
 coverage/
+playwright-report/
+test-results/
 
 # Compiled binaries / release artifacts
 claudewatch-linux-x64

@@ -18,12 +18,14 @@
     "daemon": "tsx src/daemon/index.ts",
     "web": "vite src/web",
     "lint": "eslint \"src/**/*.ts\" \"src/**/*.tsx\"",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.browser.json",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "validate:extension": "npm --prefix claudewatch-extension run validate",
     "smoke": "npm run build && node dist/cli/index.js --help && npm run validate:extension",
-    "check": "npm run check:runtime && npm run lint && npm run typecheck && npm test && npm run test:coverage && npm run smoke"
+    "check": "npm run check:runtime && npm run lint && npm run typecheck && npm test && npm run test:coverage && npm run smoke",
+    "test:browser": "playwright test",
+    "preview:web": "vite preview --config src/web/vite.config.ts --host 127.0.0.1 --port 4173 --strictPort"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
@@ -44,6 +46,7 @@
     "smol-toml": "^1.6.1"
   },
   "devDependencies": {
+    "@playwright/test": "1.64.0",
     "@types/better-sqlite3": "^7.6.11",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
