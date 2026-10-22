@@ -107,16 +107,16 @@ work_items:
   - prompt: '0.2'
     phase: 0
     title: Harden refresh scheduling and stale state recovery
-    status: not_started
+    status: in_progress
     planned_branch: feature/p0-refresh-reliability
-    branch: null
+    branch: feature/p0-refresh-reliability
     commit: null
     pull_request: null
     ci_status: not_run
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: Read Prompt 0.2 scope in DELIVERY_PLAN.md, implement refresh scheduling hardening and stale recovery, run full checks, open PR into develop
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-0.2
