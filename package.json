@@ -33,7 +33,7 @@
     "better-sqlite3": "^9.6.0",
     "commander": "^12.1.0",
     "cors": "^2.8.6",
-    "express": "5.2.1",
+    "express": "5.3.0",
     "ink": "^5.1.0",
     "keytar": "^7.9.0",
     "node-cron": "^4.6.0",
