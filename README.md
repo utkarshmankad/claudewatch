@@ -126,7 +126,11 @@ npm run lint       # ESLint
 npm run typecheck  # tsc --noEmit
 npm test           # Vitest
 npm run check      # full local CI-equivalent gate
+npm run test:browser  # Playwright dashboard smoke (Chromium)
 ```
+
+Use the Node version pinned in `.nvmrc`. See
+[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for setup and browser test details.
 
 The repository uses `develop` for integration and `main` for production. See
 [`docs/BRANCHING.md`](docs/BRANCHING.md) and the architecture review in
