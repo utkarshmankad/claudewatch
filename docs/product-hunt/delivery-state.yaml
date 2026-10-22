@@ -7,23 +7,23 @@ pilot_status: in_progress
 implementation_authorized: true
 current_phase: 0
 current_prompt: '0.2'
-work_item_status: in_progress
+work_item_status: awaiting_ci
 branch: feature/p0-refresh-reliability
-commit: null
-pull_request: null
-ci_status: not_run
+commit: c63352c8677a68720c4d59a55605745ea9a07ef1
+pull_request: https://github.com/utkarshmankad/claudewatch/pull/39
+ci_status: pending
 gate_status: not_evaluated
 blocker: null
 last_checkpoint:
   at: '2026-10-22T23:50:00Z'
   action: >-
-    Prompt 0.2 implemented and validated locally; PR to be opened into develop
+    Prompt 0.2 implemented and validated locally; PR #39 opened into develop
   workspace_branch: feature/p0-refresh-reliability
-  workspace_head: null
+  workspace_head: c63352c8677a68720c4d59a55605745ea9a07ef1
   base_sha: 9fd118e
   worktree_path: null
   pending_operation: null
-next_action: Open PR for 0.2 into develop and maintain it; owner merges manually
+next_action: Maintain PR #39 until CI is green; owner merges manually
 next_wake_time: null
 release_status: prohibited_during_pilot
 phases:
@@ -105,16 +105,23 @@ work_items:
   - prompt: '0.2'
     phase: 0
     title: Harden refresh scheduling and stale state recovery
-    status: in_progress
+    status: awaiting_ci
     planned_branch: feature/p0-refresh-reliability
     branch: feature/p0-refresh-reliability
-    commit: null
-    pull_request: null
-    ci_status: not_run
+    commit: c63352c8677a68720c4d59a55605745ea9a07ef1
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/39
+    ci_status: pending
     gate_status: not_evaluated
     blocker: null
-    last_checkpoint: null
-    next_action: Read Prompt 0.2 scope in DELIVERY_PLAN.md, implement refresh scheduling hardening and stale recovery, run full checks, open PR into develop
+    last_checkpoint:
+      at: '2026-10-22T23:50:00Z'
+      action: Implementation validated locally; PR #39 opened into develop
+      workspace_branch: feature/p0-refresh-reliability
+      workspace_head: c63352c8677a68720c4d59a55605745ea9a07ef1
+      base_sha: 9fd118e
+      worktree_path: null
+      pending_operation: null
+    next_action: Maintain PR #39 until CI is green; owner merges manually
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-0.2
