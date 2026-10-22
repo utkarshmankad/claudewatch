@@ -1,0 +1,653 @@
+schema_version: 1
+plan_version: 2026-10-10.1
+plan_source: source/Token_Watcher_Product_Hunt_Delivery_Plan.txt
+plan_source_sha256: 2bd804a354aad4639704572c4b37f9cfcb6492f614482468e2b3fb75e028a2d0
+plan_document: DELIVERY_PLAN.md
+pilot_status: in_progress
+implementation_authorized: true
+current_phase: 0
+current_prompt: '0.1'
+work_item_status: in_progress
+branch: feature/p0-baseline-metrics
+commit: null
+pull_request: null
+ci_status: not_run
+gate_status: not_evaluated
+blocker: null
+last_checkpoint:
+  at: '2026-10-10T09:43:42.142Z'
+  action: >-
+    Local event schema/store and debug view implemented; 41 focused tests pass; heartbeat creation blocked by
+    unavailable tools
+  workspace_branch: feature/p0-baseline-metrics
+  workspace_head: f093576c809b881f6c995343bf3c19edab095cb6
+  base_sha: f093576c809b881f6c995343bf3c19edab095cb6
+  worktree_path: /private/tmp/token-watcher-p0
+  pending_operation: null
+next_action: Finish runtime integration tests and baseline audit documentation, then full validation and PR
+next_wake_time: null
+release_status: prohibited_during_pilot
+phases:
+  - id: 0
+    title: Reliability and measurement foundation
+    status: in_progress
+    gate_status: not_evaluated
+    evidence_files: []
+    gate_decision: null
+    pilot_eligible: true
+  - id: 1
+    title: Universal Usage Ledger
+    status: not_started
+    gate_status: not_evaluated
+    evidence_files: []
+    gate_decision: null
+    pilot_eligible: true
+  - id: 2
+    title: Quota Autopilot
+    status: not_started
+    gate_status: not_evaluated
+    evidence_files: []
+    gate_decision: null
+    pilot_eligible: true
+  - id: 3
+    title: Encrypted cross-device continuity
+    status: not_started
+    gate_status: not_evaluated
+    evidence_files: []
+    gate_decision: null
+    pilot_eligible: true
+  - id: 4
+    title: Community Limit Change Radar
+    status: not_started
+    gate_status: not_evaluated
+    evidence_files: []
+    gate_decision: null
+    pilot_eligible: true
+  - id: 5
+    title: Usage Wrapped and Plan ROI
+    status: not_started
+    gate_status: not_evaluated
+    evidence_files: []
+    gate_decision: null
+    pilot_eligible: true
+  - id: 6
+    title: Product Hunt release
+    status: not_started
+    gate_status: not_evaluated
+    evidence_files: []
+    gate_decision: null
+    pilot_eligible: false
+work_items:
+  - prompt: '0.1'
+    phase: 0
+    title: Create the baseline and metrics contract
+    status: in_progress
+    planned_branch: feature/p0-baseline-metrics
+    branch: feature/p0-baseline-metrics
+    commit: null
+    pull_request: null
+    ci_status: not_run
+    gate_status: not_evaluated
+    blocker: null
+    last_checkpoint:
+      at: '2026-10-10T09:43:42.142Z'
+      action: >-
+        Local event schema/store and debug view implemented; 41 focused tests pass; heartbeat creation blocked by
+        unavailable tools
+      workspace_branch: feature/p0-baseline-metrics
+      workspace_head: f093576c809b881f6c995343bf3c19edab095cb6
+      base_sha: f093576c809b881f6c995343bf3c19edab095cb6
+      worktree_path: /private/tmp/token-watcher-p0
+      pending_operation: null
+    next_action: Finish runtime integration tests and baseline audit documentation, then full validation and PR
+    next_wake_time: null
+    evidence_files: []
+    operation_key: 2026-10-10.1/prompt-0.1
+    pending_operation: null
+  - prompt: '0.2'
+    phase: 0
+    title: Harden refresh scheduling and stale state recovery
+    status: not_started
+    planned_branch: feature/p0-refresh-reliability
+    branch: null
+    commit: null
+    pull_request: null
+    ci_status: not_run
+    gate_status: not_evaluated
+    blocker: null
+    last_checkpoint: null
+    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_wake_time: null
+    evidence_files: []
+    operation_key: 2026-10-10.1/prompt-0.2
+    pending_operation: null
+  - prompt: '0.3'
+    phase: 0
+    title: Standardize provider data and confidence
+    status: not_started
+    planned_branch: feature/p0-provider-contract
+    branch: null
+    commit: null
+    pull_request: null
+    ci_status: not_run
+    gate_status: not_evaluated
+    blocker: null
+    last_checkpoint: null
+    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_wake_time: null
+    evidence_files: []
+    operation_key: 2026-10-10.1/prompt-0.3
+    pending_operation: null
+  - prompt: '0.4'
+    phase: 0
+    title: Prepare global trust and accessibility foundations
+    status: not_started
+    planned_branch: feature/p0-global-foundations
+    branch: null
+    commit: null
+    pull_request: null
+    ci_status: not_run
+    gate_status: not_evaluated
+    blocker: null
+    last_checkpoint: null
+    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_wake_time: null
+    evidence_files: []
+    operation_key: 2026-10-10.1/prompt-0.4
+    pending_operation: null
+  - prompt: '1.1'
+    phase: 1
+    title: Define the ledger and provenance model
+    status: not_started
+    planned_branch: feature/p1-ledger-model
+    branch: null
+    commit: null
+    pull_request: null
+    ci_status: not_run
+    gate_status: not_evaluated
+    blocker: null
+    last_checkpoint: null
+    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_wake_time: null
+    evidence_files: []
+    operation_key: 2026-10-10.1/prompt-1.1
+    pending_operation: null
+  - prompt: '1.2'
+    phase: 1
+    title: Implement browser activity collectors
+    status: not_started
+    planned_branch: feature/p1-browser-collectors
+    branch: null
+    commit: null
+    pull_request: null
+    ci_status: not_run
+    gate_status: not_evaluated
+    blocker: null
+    last_checkpoint: null
+    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_wake_time: null
+    evidence_files: []
+    operation_key: 2026-10-10.1/prompt-1.2
+    pending_operation: null
+  - prompt: '1.3'
+    phase: 1
+    title: Implement coding assistant collectors
+    status: not_started
+    planned_branch: feature/p1-coding-collectors
+    branch: null
+    commit: null
+    pull_request: null
+    ci_status: not_run
+    gate_status: not_evaluated
+    blocker: null
+    last_checkpoint: null
+    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_wake_time: null
+    evidence_files: []
+    operation_key: 2026-10-10.1/prompt-1.3
+    pending_operation: null
+  - prompt: '1.4'
+    phase: 1
+    title: Build account-wide reconciliation
+    status: not_started
+    planned_branch: feature/p1-reconciliation
+    branch: null
+    commit: null
+    pull_request: null
+    ci_status: not_run
+    gate_status: not_evaluated
+    blocker: null
+    last_checkpoint: null
+    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_wake_time: null
+    evidence_files: []
+    operation_key: 2026-10-10.1/prompt-1.4
+    pending_operation: null
+  - prompt: '1.5'
+    phase: 1
+    title: Release the ledger user experience
+    status: not_started
+    planned_branch: feature/p1-ledger-ui
+    branch: null
+    commit: null
+    pull_request: null
+    ci_status: not_run
+    gate_status: not_evaluated
+    blocker: null
+    last_checkpoint: null
+    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_wake_time: null
+    evidence_files: []
+    operation_key: 2026-10-10.1/prompt-1.5
+    pending_operation: null
+  - prompt: '2.1'
+    phase: 2
+    title: Build reset-aware forecasts and safe burn rates
+    status: not_started
+    planned_branch: feature/p2-forecast-engine
+    branch: null
+    commit: null
+    pull_request: null
+    ci_status: not_run
+    gate_status: not_evaluated
+    blocker: null
+    last_checkpoint: null
+    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_wake_time: null
+    evidence_files: []
+    operation_key: 2026-10-10.1/prompt-2.1
+    pending_operation: null
+  - prompt: '2.2'
+    phase: 2
+    title: Implement the recommendation policy engine
+    status: not_started
+    planned_branch: feature/p2-policy-engine
+    branch: null
+    commit: null
+    pull_request: null
+    ci_status: not_run
+    gate_status: not_evaluated
+    blocker: null
+    last_checkpoint: null
+    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_wake_time: null
+    evidence_files: []
+    operation_key: 2026-10-10.1/prompt-2.2
+    pending_operation: null
+  - prompt: '2.3'
+    phase: 2
+    title: Create the Autopilot user experience
+    status: not_started
+    planned_branch: feature/p2-autopilot-ui
+    branch: null
+    commit: null
+    pull_request: null
+    ci_status: not_run
+    gate_status: not_evaluated
+    blocker: null
+    last_checkpoint: null
+    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_wake_time: null
+    evidence_files: []
+    operation_key: 2026-10-10.1/prompt-2.3
+    pending_operation: null
+  - prompt: '2.4'
+    phase: 2
+    title: Tune alerts and validate product value
+    status: not_started
+    planned_branch: feature/p2-alert-experiments
+    branch: null
+    commit: null
+    pull_request: null
+    ci_status: not_run
+    gate_status: not_evaluated
+    blocker: null
+    last_checkpoint: null
+    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_wake_time: null
+    evidence_files: []
+    operation_key: 2026-10-10.1/prompt-2.4
+    pending_operation: null
+  - prompt: '3.1'
+    phase: 3
+    title: Approve the sync threat model and architecture
+    status: not_started
+    planned_branch: feature/p3-sync-design
+    branch: null
+    commit: null
+    pull_request: null
+    ci_status: not_run
+    gate_status: not_evaluated
+    blocker: null
+    last_checkpoint: null
+    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_wake_time: null
+    evidence_files: []
+    operation_key: 2026-10-10.1/prompt-3.1
+    pending_operation: null
+  - prompt: '3.2'
+    phase: 3
+    title: Implement end-to-end encrypted synchronization
+    status: not_started
+    planned_branch: feature/p3-encrypted-sync
+    branch: null
+    commit: null
+    pull_request: null
+    ci_status: not_run
+    gate_status: not_evaluated
+    blocker: null
+    last_checkpoint: null
+    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_wake_time: null
+    evidence_files: []
+    operation_key: 2026-10-10.1/prompt-3.2
+    pending_operation: null
+  - prompt: '3.3'
+    phase: 3
+    title: Resolve multi-device identity and conflicts
+    status: not_started
+    planned_branch: feature/p3-device-convergence
+    branch: null
+    commit: null
+    pull_request: null
+    ci_status: not_run
+    gate_status: not_evaluated
+    blocker: null
+    last_checkpoint: null
+    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_wake_time: null
+    evidence_files: []
+    operation_key: 2026-10-10.1/prompt-3.3
+    pending_operation: null
+  - prompt: '3.4'
+    phase: 3
+    title: Deliver companion alerts and security validation
+    status: not_started
+    planned_branch: feature/p3-companion-alerts
+    branch: null
+    commit: null
+    pull_request: null
+    ci_status: not_run
+    gate_status: not_evaluated
+    blocker: null
+    last_checkpoint: null
+    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_wake_time: null
+    evidence_files: []
+    operation_key: 2026-10-10.1/prompt-3.4
+    pending_operation: null
+  - prompt: '4.1'
+    phase: 4
+    title: Define anonymous contribution and privacy rules
+    status: not_started
+    planned_branch: feature/p4-radar-privacy
+    branch: null
+    commit: null
+    pull_request: null
+    ci_status: not_run
+    gate_status: not_evaluated
+    blocker: null
+    last_checkpoint: null
+    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_wake_time: null
+    evidence_files: []
+    operation_key: 2026-10-10.1/prompt-4.1
+    pending_operation: null
+  - prompt: '4.2'
+    phase: 4
+    title: Build aggregate ingestion and anomaly detection
+    status: not_started
+    planned_branch: feature/p4-radar-pipeline
+    branch: null
+    commit: null
+    pull_request: null
+    ci_status: not_run
+    gate_status: not_evaluated
+    blocker: null
+    last_checkpoint: null
+    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_wake_time: null
+    evidence_files: []
+    operation_key: 2026-10-10.1/prompt-4.2
+    pending_operation: null
+  - prompt: '4.3'
+    phase: 4
+    title: Create the Radar experience and safe remote fixes
+    status: not_started
+    planned_branch: feature/p4-radar-ui-config
+    branch: null
+    commit: null
+    pull_request: null
+    ci_status: not_run
+    gate_status: not_evaluated
+    blocker: null
+    last_checkpoint: null
+    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_wake_time: null
+    evidence_files: []
+    operation_key: 2026-10-10.1/prompt-4.3
+    pending_operation: null
+  - prompt: '4.4'
+    phase: 4
+    title: Run a controlled Radar beta
+    status: not_started
+    planned_branch: feature/p4-radar-beta
+    branch: null
+    commit: null
+    pull_request: null
+    ci_status: not_run
+    gate_status: not_evaluated
+    blocker: null
+    last_checkpoint: null
+    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_wake_time: null
+    evidence_files: []
+    operation_key: 2026-10-10.1/prompt-4.4
+    pending_operation: null
+  - prompt: '5.1'
+    phase: 5
+    title: Define weekly metrics and plan economics
+    status: not_started
+    planned_branch: feature/p5-wrapped-metrics
+    branch: null
+    commit: null
+    pull_request: null
+    ci_status: not_run
+    gate_status: not_evaluated
+    blocker: null
+    last_checkpoint: null
+    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_wake_time: null
+    evidence_files: []
+    operation_key: 2026-10-10.1/prompt-5.1
+    pending_operation: null
+  - prompt: '5.2'
+    phase: 5
+    title: Build the private Usage Wrapped report
+    status: not_started
+    planned_branch: feature/p5-private-wrapped
+    branch: null
+    commit: null
+    pull_request: null
+    ci_status: not_run
+    gate_status: not_evaluated
+    blocker: null
+    last_checkpoint: null
+    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_wake_time: null
+    evidence_files: []
+    operation_key: 2026-10-10.1/prompt-5.2
+    pending_operation: null
+  - prompt: '5.3'
+    phase: 5
+    title: Create privacy-safe share cards
+    status: not_started
+    planned_branch: feature/p5-share-cards
+    branch: null
+    commit: null
+    pull_request: null
+    ci_status: not_run
+    gate_status: not_evaluated
+    blocker: null
+    last_checkpoint: null
+    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_wake_time: null
+    evidence_files: []
+    operation_key: 2026-10-10.1/prompt-5.3
+    pending_operation: null
+  - prompt: '5.4'
+    phase: 5
+    title: Implement transparent plan recommendations
+    status: not_started
+    planned_branch: feature/p5-plan-roi
+    branch: null
+    commit: null
+    pull_request: null
+    ci_status: not_run
+    gate_status: not_evaluated
+    blocker: null
+    last_checkpoint: null
+    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_wake_time: null
+    evidence_files: []
+    operation_key: 2026-10-10.1/prompt-5.4
+    pending_operation: null
+  - prompt: '5.5'
+    phase: 5
+    title: Validate the acquisition loop
+    status: not_started
+    planned_branch: feature/p5-growth-experiment
+    branch: null
+    commit: null
+    pull_request: null
+    ci_status: not_run
+    gate_status: not_evaluated
+    blocker: null
+    last_checkpoint: null
+    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_wake_time: null
+    evidence_files: []
+    operation_key: 2026-10-10.1/prompt-5.5
+    pending_operation: null
+  - prompt: '6.1'
+    phase: 6
+    title: Run release candidate quality assurance
+    status: not_started
+    planned_branch: release/product-hunt-rc
+    branch: null
+    commit: null
+    pull_request: null
+    ci_status: not_run
+    gate_status: not_evaluated
+    blocker: Phase 6 is outside pilot scope; source release instructions are not authorization.
+    last_checkpoint: null
+    next_action: Await separate post-pilot authorization.
+    next_wake_time: null
+    evidence_files: []
+    operation_key: 2026-10-10.1/prompt-6.1
+    pending_operation: null
+  - prompt: '6.2'
+    phase: 6
+    title: Prepare store distribution and onboarding
+    status: not_started
+    planned_branch: release/store-onboarding
+    branch: null
+    commit: null
+    pull_request: null
+    ci_status: not_run
+    gate_status: not_evaluated
+    blocker: Phase 6 is outside pilot scope; source release instructions are not authorization.
+    last_checkpoint: null
+    next_action: Await separate post-pilot authorization.
+    next_wake_time: null
+    evidence_files: []
+    operation_key: 2026-10-10.1/prompt-6.2
+    pending_operation: null
+  - prompt: '6.3'
+    phase: 6
+    title: Produce the Product Hunt launch package
+    status: not_started
+    planned_branch: release/product-hunt-assets
+    branch: null
+    commit: null
+    pull_request: null
+    ci_status: not_run
+    gate_status: not_evaluated
+    blocker: Phase 6 is outside pilot scope; source release instructions are not authorization.
+    last_checkpoint: null
+    next_action: Await separate post-pilot authorization.
+    next_wake_time: null
+    evidence_files: []
+    operation_key: 2026-10-10.1/prompt-6.3
+    pending_operation: null
+  - prompt: '6.4'
+    phase: 6
+    title: Perform the launch readiness decision
+    status: not_started
+    planned_branch: release/launch-readiness
+    branch: null
+    commit: null
+    pull_request: null
+    ci_status: not_run
+    gate_status: not_evaluated
+    blocker: Phase 6 is outside pilot scope; source release instructions are not authorization.
+    last_checkpoint: null
+    next_action: Await separate post-pilot authorization.
+    next_wake_time: null
+    evidence_files: []
+    operation_key: 2026-10-10.1/prompt-6.4
+    pending_operation: null
+  - prompt: '6.5'
+    phase: 6
+    title: Promote the approved release to main
+    status: not_started
+    planned_branch: null
+    branch: null
+    commit: null
+    pull_request: null
+    ci_status: not_run
+    gate_status: not_evaluated
+    blocker: Phase 6 is outside pilot scope; source release instructions are not authorization.
+    last_checkpoint: null
+    next_action: Await separate post-pilot authorization.
+    next_wake_time: null
+    evidence_files: []
+    operation_key: 2026-10-10.1/prompt-6.5
+    pending_operation: null
+  - prompt: '6.6'
+    phase: 6
+    title: Operate the first four weeks after launch
+    status: not_started
+    planned_branch: operations/post-launch-review
+    branch: null
+    commit: null
+    pull_request: null
+    ci_status: not_run
+    gate_status: not_evaluated
+    blocker: Phase 6 is outside pilot scope; source release instructions are not authorization.
+    last_checkpoint: null
+    next_action: Await separate post-pilot authorization.
+    next_wake_time: null
+    evidence_files: []
+    operation_key: 2026-10-10.1/prompt-6.6
+    pending_operation: null
+authorization_scope: Prompt 0.1 only; create green PR into develop; do not merge or start 0.2
+heartbeat:
+  name: Token Watcher Delivery Heartbeat
+  requested_schedule: hourly
+  status: not_created
+  blocker: >-
+    No automation scheduling tool is exposed; Computer Use explicitly disallows the Codex app. No authoritative
+    account-usage availability API is exposed.
+  notified_at: '2026-10-10T09:43:42.142Z'
+  next_action: >-
+    Create the hourly heartbeat through an authorized Codex automation interface; do not infer account usage
+    availability from goal token accounting.
+  rules:
+    - Inspect active Goal, authoritative usage availability, durable state, Git, existing PR and CI.
+    - If usage is unavailable or cannot be verified, make no repository/GitHub changes and stay quiet.
+    - Resume recorded next action only for an active incomplete Goal with usage available.
+    - When waiting for CI, inspect the existing PR once; never create empty commits or duplicate PRs.
+    - Record blockers needing approval, credentials, or decisions and notify once per distinct blocker.
+    - Stay quiet when nothing meaningful changes.
+    - Notify once on Goal completion; no further implementation until a new Goal.
