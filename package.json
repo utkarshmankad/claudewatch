@@ -21,6 +21,7 @@
     "typecheck": "tsc --noEmit && tsc -p tsconfig.browser.json",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "soak:refresh": "node scripts/refresh-soak-report.mjs",
     "validate:extension": "npm --prefix claudewatch-extension run validate",
     "smoke": "npm run build && node dist/cli/index.js --help && npm run validate:extension",
     "check": "npm run check:runtime && npm run lint && npm run typecheck && npm test && npm run test:coverage && npm run smoke",

@@ -2,7 +2,7 @@
 // Accumulates SSE token counts across Claude, ChatGPT, and Gemini.
 // Maintains 5h/7d rolling windows, detects plan, updates badge.
 
-importScripts('provider-collectors.js', 'analytics.js');
+importScripts('provider-collectors.js', 'analytics.js', 'refresh-policy.js');
 
 const TAG = '[TokenWatcher]';
 
@@ -46,6 +46,8 @@ const K_PROVIDER_SELECTIONS = 'provider_selections'; // {site: accountKey}
 const K_DEVICE_ID = 'device_id';
 const K_STALE_STATE = 'analytics_stale_state'; // {site: {since, reason, explained}}
 const providerRefreshes = new Map();
+const K_REFRESH_STATE = site => `refresh_state_${site}`;
+const PROVIDER_SITES = ['chatgpt', 'gemini', 'claude'];
 
 // ── Storage helpers ───────────────────────────────────────────────────────
 const lget = (k)    => new Promise(r => chrome.storage.local.get(k,  d => r(d[k]  ?? null)));
@@ -65,27 +67,46 @@ async function getDeviceId() {
 const analytics = self.TokenWatcherAnalytics.createStore(self.TokenWatcherAnalytics.chromeStorageAdapter());
 const track = (name, props) => analytics.record(name, props).catch(() => {});
 
-function triggerFromReason(reason) {
-  if (!reason) return 'other';
-  if (reason.startsWith('provider-tab')) return 'tab';
-  if (reason.startsWith('browser-focus')) return 'focus';
-  if (reason === 'browser-woke') return 'wake';
-  if (reason === 'heartbeat-watchdog') return 'alarm';
-  if (reason === 'stats-read') return 'manual';
+// Maps scheduler triggers onto the closed analytics trigger enum.
+function analyticsTrigger(trigger) {
+  if (['install', 'startup', 'alarm', 'manual', 'wake', 'focus'].includes(trigger)) return trigger;
+  if (['tab_created', 'tab_activated', 'navigation'].includes(trigger)) return 'tab';
+  if (trigger === 'watchdog') return 'alarm';
+  if (trigger === 'stats_read') return 'manual';
   return 'other';
 }
 
-async function trackRefreshOutcome(site, startedAt, trigger, thrown) {
+async function getRefreshState(site) {
+  return { ...self.TokenWatcherRefresh.initialState(), ...((await lget(K_REFRESH_STATE(site))) ?? {}) };
+}
+
+// Records the outcome of one refresh and schedules the bounded, jittered retry alarm.
+async function recordRefreshOutcome(site, trigger, ok, category) {
+  const R = self.TokenWatcherRefresh;
+  const next = R.applyOutcome(await getRefreshState(site), { now: Date.now(), ok, category, trigger });
+  await lset(K_REFRESH_STATE(site), next);
+  const alarmName = `retry_${site}`;
+  if (next.nextRetryAt != null) chrome.alarms.create(alarmName, { when: Math.max(next.nextRetryAt, Date.now() + 30_000) });
+  else chrome.alarms.clear(alarmName);
+  return next;
+}
+
+// Classifies one finished refresh from the stored poll record (or the thrown error).
+async function classifyRefresh(site, startedAt, thrown) {
+  const A = self.TokenWatcherAnalytics;
+  const poll = (await lget(`last_usage_poll_${site}`)) ?? {};
+  const ok = !thrown && Date.parse(poll.lastSuccessAt ?? '') >= startedAt;
+  const pollIsFresh = Date.parse(poll.capturedAt ?? '') >= startedAt;
+  const errorCategory = ok ? 'none'
+    : thrown ? A.categorizeError(thrown.message)
+    : pollIsFresh ? A.categorizeError(poll.error, poll.status) : 'other';
+  return { ok, errorCategory };
+}
+
+async function trackRefreshOutcome(site, startedAt, trigger, { ok, errorCategory }) {
   try {
-    const A = self.TokenWatcherAnalytics;
-    const poll = (await lget(`last_usage_poll_${site}`)) ?? {};
-    const ok = !thrown && Date.parse(poll.lastSuccessAt ?? '') >= startedAt;
-    const pollIsFresh = Date.parse(poll.capturedAt ?? '') >= startedAt;
-    const errorCategory = ok ? 'none'
-      : thrown ? A.categorizeError(thrown.message)
-      : pollIsFresh ? A.categorizeError(poll.error, poll.status) : 'other';
     const durationMs = Math.min(600_000, Math.max(0, Date.now() - startedAt));
-    await track('refresh_result', { provider: site, ok, errorCategory, trigger, durationMs });
+    await track('refresh_result', { provider: site, ok, errorCategory, trigger: analyticsTrigger(trigger), durationMs });
     if (!ok) return;
     const existing = await analytics.list();
     if (!existing.some(e => e.name === 'provider_connected' && e.props.provider === site)) {
@@ -583,9 +604,12 @@ async function getStats() {
       snapshotMs ?? 0,
     ) || null;
     const ageMs = lastUpdatedAt ? Math.max(0, now - lastUpdatedAt) : null;
+    const freshness = self.TokenWatcherRefresh.describeFreshness(await getRefreshState(site), now, now);
     providerHealth[site] = {
       ...poll,
+      ...freshness,
       lastUpdatedAt,
+      lastFetchAt: freshness.lastFetchAt ?? lastUpdatedAt,
       ageMs,
       stale: ageMs == null || ageMs > PROVIDER_STALE_MS,
       hasData: Boolean(selected),
@@ -793,13 +817,26 @@ async function backfillFromConversations(orgId) {
   }
 }
 
+// Keeps a failed poll visible to the stale-reason logic instead of returning silently.
+async function recordPollFailure(site, error, status = 0) {
+  const previous = (await lget(`last_usage_poll_${site}`)) ?? {};
+  await lset(`last_usage_poll_${site}`, {
+    ok: false, capturedAt: new Date().toISOString(), lastSuccessAt: previous.lastSuccessAt ?? null,
+    consecutiveFailures: (previous.consecutiveFailures ?? 0) + 1, error, status, authPath: 'service_worker',
+  });
+}
+
 async function backgroundPoll() {
   console.log(`${TAG} background poll`);
   try {
     const resp = await fetch('https://claude.ai/api/organizations', {
       credentials: 'include', headers: { Accept: 'application/json' },
     });
-    if (!resp.ok) { console.log(`${TAG} poll /api/organizations → ${resp.status}`); return; }
+    if (!resp.ok) {
+      console.log(`${TAG} poll /api/organizations → ${resp.status}`);
+      await recordPollFailure('claude', 'organizations_fetch_failed', resp.status);
+      return;
+    }
     const data = await resp.json();
 
     const p = detectPlan(data);
@@ -831,14 +868,19 @@ async function backgroundPoll() {
           ok: true, capturedAt, lastSuccessAt: capturedAt,
           consecutiveFailures: 0, error: null, status: 200, authPath: 'service_worker',
         });
+      } else {
+        await recordPollFailure('claude', polled ? 'provider_schema_changed' : 'usage_fetch_failed', polled?.status ?? 0);
       }
       await backfillFromConversations(resolvedOrgId);
+    } else {
+      await recordPollFailure('claude', 'provider_schema_changed');
     }
 
     const stats = await getStats();
     updateBadge(stats.pct5h);
   } catch (err) {
     console.log(`${TAG} backgroundPoll error:`, err.message);
+    await recordPollFailure('claude', err.message).catch(() => {});
   }
 }
 
@@ -915,7 +957,12 @@ async function collectProvider(site, trigger = 'other') {
   let thrown = null;
   const refresh = collectProviderOnce(site)
     .catch(error => { thrown = error; console.warn(`${TAG} ${site} collector failed:`, error.message); })
-    .then(() => trackRefreshOutcome(site, startedAt, trigger, thrown))
+    .then(async () => {
+      const outcome = await classifyRefresh(site, startedAt, thrown);
+      await recordRefreshOutcome(site, trigger, outcome.ok, outcome.ok ? null : outcome.errorCategory)
+        .catch(error => console.warn(`${TAG} ${site} refresh state not saved:`, error.message));
+      await trackRefreshOutcome(site, startedAt, trigger, outcome);
+    })
     .finally(() => providerRefreshes.delete(site));
   providerRefreshes.set(site, refresh);
   return refresh;
@@ -932,16 +979,19 @@ async function collectProviderOnce(site) {
   return saveProviderUsageResult({ ...result, capturedAt: new Date().toISOString() });
 }
 
-async function requestProviderRefresh(reason, site = null, minimumAgeMs = 60_000) {
-  const sites = site ? [site] : ['chatgpt', 'gemini', 'claude'];
+// Idempotent: every trigger funnels through the policy, which decides whether to run.
+async function requestProviderRefresh(trigger, site = null) {
+  const R = self.TokenWatcherRefresh;
   const due = [];
-  for (const provider of sites) {
-    const lastAttempt = (await lget(`last_provider_refresh_attempt_${provider}`)) ?? 0;
-    if (Date.now() - lastAttempt >= minimumAgeMs) due.push(provider);
+  for (const provider of site ? [site] : PROVIDER_SITES) {
+    const decision = R.evaluate({
+      now: Date.now(), trigger, state: await getRefreshState(provider), inFlight: providerRefreshes.has(provider),
+    });
+    if (decision.run) due.push(provider);
   }
   if (!due.length) return false;
-  console.log(`${TAG} provider refresh requested: ${reason} (${due.join(', ')})`);
-  await Promise.allSettled(due.map(provider => collectProvider(provider, triggerFromReason(reason))));
+  console.log(`${TAG} provider refresh requested: ${trigger} (${due.join(', ')})`);
+  await Promise.allSettled(due.map(provider => collectProvider(provider, trigger)));
   return true;
 }
 
@@ -1054,10 +1104,18 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   }
 
   if (msg.type === 'GET_STATS' && (fromExtension || fromAllowedSite)) {
-    requestProviderRefresh('stats-read', sender.tab ? providerFromUrl(sender.tab.url) : null).catch(() => {});
+    requestProviderRefresh('stats_read', sender.tab ? providerFromUrl(sender.tab.url) : null).catch(() => {});
     getStats()
       .then(s  => reply(s))
       .catch(() => reply(null));
+    return true;
+  }
+
+  if (msg.type === 'REFRESH_NOW' && fromExtension) {
+    const site = PROVIDER_SITES.includes(msg.site) ? msg.site : null;
+    Promise.allSettled((site ? [site] : PROVIDER_SITES).map(provider => collectProvider(provider, 'manual')))
+      .then(async () => { const stats = await getStats(); reply({ ok: true, providerHealth: stats.providerHealth }); })
+      .catch(() => reply({ ok: false }));
     return true;
   }
 
@@ -1078,9 +1136,12 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     updateBadge(s.pct5h);
     ensureAlarms();
     trackStaleTransitions();
-    requestProviderRefresh('heartbeat-watchdog', null, (POLL_INTERVAL_MIN + 2) * 60_000).catch(() => {});
+    requestProviderRefresh('watchdog').catch(() => {});
   } else if (alarm.name === 'poll') {
-    collectAllProviders('alarm').catch(err => console.warn(`${TAG} provider collection failed:`, err.message));
+    requestProviderRefresh('alarm').catch(err => console.warn(`${TAG} provider collection failed:`, err.message));
+  } else if (alarm.name.startsWith('retry_')) {
+    const site = alarm.name.slice('retry_'.length);
+    if (PROVIDER_SITES.includes(site)) requestProviderRefresh('retry', site).catch(() => {});
   }
 });
 
@@ -1104,27 +1165,49 @@ chrome.runtime.onStartup.addListener(() => {
 chrome.tabs.onActivated.addListener(({ tabId }) => {
   chrome.tabs.get(tabId, tab => {
     const site = providerFromUrl(tab?.url);
-    if (site) requestProviderRefresh('provider-tab-activated', site, 15_000).catch(() => {});
+    if (site) requestProviderRefresh('tab_activated', site).catch(() => {});
   });
+});
+
+chrome.tabs.onCreated.addListener(tab => {
+  const site = providerFromUrl(tab?.url ?? tab?.pendingUrl);
+  if (site) requestProviderRefresh('tab_created', site).catch(() => {});
 });
 
 chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
   const site = providerFromUrl(tab?.url);
   if (changeInfo.status === 'complete' && site) {
-    requestProviderRefresh('provider-tab-loaded', site, 0).catch(() => {});
+    requestProviderRefresh('navigation', site).catch(() => {});
   }
 });
 
+// A provider session cookie appearing again means sign-in succeeded: retry without waiting.
+chrome.cookies.onChanged.addListener(({ removed, cookie }) => {
+  if (removed) return;
+  const domain = cookie.domain.replace(/^\./, '');
+  const site = domain.endsWith('claude.ai') ? 'claude' : domain.endsWith('chatgpt.com') || domain.endsWith('openai.com') ? 'chatgpt'
+    : domain === 'gemini.google.com' || domain === 'google.com' ? 'gemini' : null;
+  if (!site) return;
+  getRefreshState(site).then(state => {
+    if (state.category === 'auth_expired') requestProviderRefresh('auth_recovery', site).catch(() => {});
+  }).catch(() => {});
+});
+
+// Service workers have no window, but they do receive connectivity events.
+self.addEventListener('online', () => { requestProviderRefresh('network_restored').catch(() => {}); });
+
 chrome.windows.onFocusChanged.addListener(windowId => {
   if (windowId !== chrome.windows.WINDOW_ID_NONE) {
-    requestProviderRefresh('browser-focused', null, POLL_INTERVAL_MIN * 60_000).catch(() => {});
+    requestProviderRefresh('focus').catch(() => {});
   }
 });
 
 chrome.idle.onStateChanged.addListener(state => {
-  if (state === 'active') requestProviderRefresh('browser-woke', null, POLL_INTERVAL_MIN * 60_000).catch(() => {});
+  if (state === 'active') requestProviderRefresh('wake').catch(() => {});
 });
 
 ensureAlarms();
+// The worker may have been suspended and restarted: re-check anything that is due.
+requestProviderRefresh('worker_restart').catch(() => {});
 
 console.log(`${TAG} service worker initialised`);
