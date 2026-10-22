@@ -7,11 +7,11 @@ pilot_status: in_progress
 implementation_authorized: true
 current_phase: 0
 current_prompt: '0.2'
-work_item_status: awaiting_ci
+work_item_status: awaiting_review
 branch: feature/p0-refresh-reliability
-commit: c63352c8677a68720c4d59a55605745ea9a07ef1
+commit: 647f020f3717057e0279e7f8dfa4e376ce420248
 pull_request: https://github.com/utkarshmankad/claudewatch/pull/39
-ci_status: pending
+ci_status: passed
 gate_status: not_evaluated
 blocker: null
 last_checkpoint:
@@ -19,7 +19,7 @@ last_checkpoint:
   action: >-
     Prompt 0.2 implemented and validated locally; PR #39 opened into develop
   workspace_branch: feature/p0-refresh-reliability
-  workspace_head: c63352c8677a68720c4d59a55605745ea9a07ef1
+  workspace_head: 647f020f3717057e0279e7f8dfa4e376ce420248
   base_sha: 9fd118e
   worktree_path: null
   pending_operation: null
@@ -85,7 +85,7 @@ work_items:
     branch: feature/p0-baseline-metrics
     commit: 7ea12aa57f9bcf5c7b510a99088a62c994116991
     pull_request: https://github.com/utkarshmankad/claudewatch/pull/38
-    ci_status: pending
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint:
@@ -105,19 +105,19 @@ work_items:
   - prompt: '0.2'
     phase: 0
     title: Harden refresh scheduling and stale state recovery
-    status: awaiting_ci
+    status: awaiting_review
     planned_branch: feature/p0-refresh-reliability
     branch: feature/p0-refresh-reliability
-    commit: c63352c8677a68720c4d59a55605745ea9a07ef1
+    commit: 647f020f3717057e0279e7f8dfa4e376ce420248
     pull_request: https://github.com/utkarshmankad/claudewatch/pull/39
-    ci_status: pending
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint:
       at: '2026-10-22T23:50:00Z'
       action: Implementation validated locally; PR #39 opened into develop
       workspace_branch: feature/p0-refresh-reliability
-      workspace_head: c63352c8677a68720c4d59a55605745ea9a07ef1
+      workspace_head: 647f020f3717057e0279e7f8dfa4e376ce420248
       base_sha: 9fd118e
       worktree_path: null
       pending_operation: null
