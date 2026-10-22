@@ -15,16 +15,15 @@ ci_status: not_run
 gate_status: not_evaluated
 blocker: null
 last_checkpoint:
-  at: '2026-10-10T09:43:42.142Z'
+  at: '2026-10-22T00:00:00Z'
   action: >-
-    Local event schema/store and debug view implemented; 41 focused tests pass; heartbeat creation blocked by
-    unavailable tools
+    Branch claimed by hourly routine; earlier uncommitted attempt was lost, prompt 0.1 restarted from develop
   workspace_branch: feature/p0-baseline-metrics
-  workspace_head: f093576c809b881f6c995343bf3c19edab095cb6
-  base_sha: f093576c809b881f6c995343bf3c19edab095cb6
-  worktree_path: /private/tmp/token-watcher-p0
+  workspace_head: 7fac23c3873bc14ff4b5bc93b747a4732eae246f
+  base_sha: 7fac23c3873bc14ff4b5bc93b747a4732eae246f
+  worktree_path: null
   pending_operation: null
-next_action: Finish runtime integration tests and baseline audit documentation, then full validation and PR
+next_action: Implement audit doc, event schema, retention rules, debug view and prohibited-field tests; then full validation and PR
 next_wake_time: null
 release_status: prohibited_during_pilot
 phases:
