@@ -6,9 +6,9 @@ plan_document: DELIVERY_PLAN.md
 pilot_status: in_progress
 implementation_authorized: true
 current_phase: 1
-current_prompt: '1.5'
+current_prompt: '2.1'
 work_item_status: in_progress
-branch: feature/p1-ledger-ui
+branch: feature/p2-forecast-engine
 commit: null
 pull_request: null
 ci_status: not_run
@@ -22,7 +22,7 @@ last_checkpoint:
   base_sha: 57b7799
   worktree_path: null
   pending_operation: null
-next_action: Maintain the prompt 1.5 PR; owner merges
+next_action: Implement prompt 2.1 forecast engine on feature/p2-forecast-engine
 next_wake_time: null
 release_status: prohibited_during_pilot
 phases:
@@ -35,7 +35,7 @@ phases:
     pilot_eligible: true
   - id: 1
     title: Universal Usage Ledger
-    status: not_started
+    status: in_progress
     gate_status: deferred_to_final_gate
     evidence_files: []
     gate_decision: null
@@ -251,16 +251,16 @@ work_items:
   - prompt: '1.5'
     phase: 1
     title: Release the ledger user experience
-    status: awaiting_ci
+    status: completed
     planned_branch: feature/p1-ledger-ui
     branch: feature/p1-ledger-ui
     commit: null
-    pull_request: null
-    ci_status: not_run
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/51
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Maintain the 1.5 PR; owner merges. Human usability sessions (docs/LEDGER_UI.md) remain for the final gate.
+    next_action: None. PR #51 merged into develop (merge commit c86b71f). Human usability sessions (docs/LEDGER_UI.md) remain for the final gate.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-1.5
@@ -270,14 +270,14 @@ work_items:
     title: Build reset-aware forecasts and safe burn rates
     status: not_started
     planned_branch: feature/p2-forecast-engine
-    branch: null
+    branch: feature/p2-forecast-engine
     commit: null
     pull_request: null
     ci_status: not_run
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: Implement forecast engine (src/forecast), tests, backtests, docs; open PR into develop
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-2.1
