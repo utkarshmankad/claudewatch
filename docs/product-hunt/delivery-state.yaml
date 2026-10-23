@@ -6,9 +6,9 @@ plan_document: DELIVERY_PLAN.md
 pilot_status: in_progress
 implementation_authorized: true
 current_phase: 1
-current_prompt: '1.1'
+current_prompt: '1.3'
 work_item_status: in_progress
-branch: feature/p1-ledger-model
+branch: feature/p1-coding-collectors
 commit: null
 pull_request: null
 ci_status: not_run
@@ -183,16 +183,16 @@ work_items:
   - prompt: '1.1'
     phase: 1
     title: Define the ledger and provenance model
-    status: in_progress
+    status: completed
     planned_branch: feature/p1-ledger-model
     branch: feature/p1-ledger-model
-    commit: null
-    pull_request: null
-    ci_status: not_run
+    commit: 41c355d
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/47
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: 'Maintain the 1.1 PR until CI is green; owner merges. Next eligible prompt: 1.2 (browser collectors) needs the ledger merged.'
+    next_action: None. PR #47 merged into develop (merge commit 848e91a); phase gate deferred to final gate.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-1.1
@@ -200,16 +200,16 @@ work_items:
   - prompt: '1.2'
     phase: 1
     title: Implement browser activity collectors
-    status: in_progress
+    status: completed
     planned_branch: feature/p1-browser-collectors
     branch: feature/p1-browser-collectors
-    commit: null
-    pull_request: null
-    ci_status: not_run
+    commit: 8155a44a3c8c0b0e7a390d0e706459e126b10721
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/48
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Maintain the 1.2 PR until CI is green; owner merges.
+    next_action: None. PR #48 merged into develop (merge commit 36561e9); phase gate deferred to final gate.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-1.2
@@ -217,16 +217,16 @@ work_items:
   - prompt: '1.3'
     phase: 1
     title: Implement coding assistant collectors
-    status: not_started
+    status: awaiting_ci
     planned_branch: feature/p1-coding-collectors
-    branch: null
+    branch: feature/p1-coding-collectors
     commit: null
     pull_request: null
     ci_status: not_run
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: 'Maintain the 1.3 PR until CI is green; owner merges. Open for independent work: 1.4 (needs only the merged ledger).'
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-1.3

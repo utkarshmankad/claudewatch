@@ -13,6 +13,10 @@ import { runSetupWizard } from '../config/index.js';
 import { getDbPath, getLatestSnapshot, getLatestPersonalTokens } from '../store/db.js';
 import { startDaemonProcess, stopDaemonProcess, writeDaemonPid, clearDaemonPid } from './daemon-ctrl.js';
 import { runStatus } from './status.js';
+import { dryScan, ledgerPath, settingsPath } from '../collectors/service.js';
+import { loadSettings, saveSettings } from '../collectors/config.js';
+import { deleteBySource } from '../collectors/ledgerFile.js';
+import { COLLECTOR_IDS, type CollectorId } from '../collectors/types.js';
 import type { Period } from '../config/schema.js';
 import { PERIODS, KEYTAR_SERVICE, API_KEY_ACCOUNT, SESSION_COOKIE_ACCOUNT } from '../config/schema.js';
 
@@ -521,6 +525,46 @@ program
     } finally {
       db.close();
     }
+  });
+
+// ---------------------------------------------------------------------------
+// collectors — opt-in local coding assistant collectors
+// ---------------------------------------------------------------------------
+
+const collectors = program.command('collectors').description('Opt-in local collectors for Claude Code, Codex CLI and Gemini CLI');
+
+collectors
+  .command('status')
+  .description('Show each collector, the exact local paths it reads, and its health')
+  .action(async () => {
+    const health = await dryScan();
+    for (const h of health) {
+      console.log(`${h.label} (${h.id}): ${h.enabled ? 'enabled' : 'disabled'} — ${h.status}${h.detail ? ` (${h.detail})` : ''}`);
+      console.log(`  reads:   ${h.paths.join(', ')}`);
+      console.log(`  format:  ${h.compatibleVersion}`);
+      console.log(`  files=${h.filesSeen} observations=${h.observationsAccepted} unsupported=${h.unsupportedLines} last=${h.lastObservationAt ? new Date(h.lastObservationAt).toISOString() : 'never'}`);
+    }
+  });
+
+for (const [name, value] of [['enable', true], ['disable', false]] as const) {
+  collectors
+    .command(`${name} <id>`)
+    .description(`${value ? 'Start reading' : 'Stop reading'} one collector (${COLLECTOR_IDS.join(', ')})`)
+    .action((id: string) => {
+      if (!(COLLECTOR_IDS as readonly string[]).includes(id)) { console.error(`Unknown collector "${id}". Choose: ${COLLECTOR_IDS.join(', ')}`); process.exit(1); }
+      const s = loadSettings(settingsPath());
+      s[id as CollectorId] = value;
+      saveSettings(settingsPath(), s);
+      console.log(`✓ ${id} ${value ? 'enabled' : 'disabled'} — the running daemon picks this up within 5 minutes`);
+    });
+}
+
+collectors
+  .command('delete-data')
+  .description('Delete all collector-sourced records from the local ledger')
+  .action(() => {
+    const n = deleteBySource(ledgerPath(), COLLECTOR_IDS);
+    console.log(`✓ ${n} collector record(s) deleted from the local ledger`);
   });
 
 program.parseAsync(process.argv).catch(exit1);
