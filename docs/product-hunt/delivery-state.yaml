@@ -7,23 +7,23 @@ pilot_status: in_progress
 implementation_authorized: true
 current_phase: 0
 current_prompt: '0.3'
-work_item_status: in_progress
+work_item_status: awaiting_ci
 branch: feature/p0-provider-contract
-commit: null
-pull_request: null
-ci_status: not_run
+commit: b70410377e0e6254bde689564d099bb50fc2f687
+pull_request: https://github.com/utkarshmankad/claudewatch/pull/40
+ci_status: pending
 gate_status: not_evaluated
 blocker: null
 last_checkpoint:
-  at: '2026-10-23T00:30:00Z'
+  at: '2026-10-23T00:50:00Z'
   action: >-
-    Reconciled: PRs #38 and #39 merged into develop (358b5ec). Claimed Prompt 0.3.
+    Prompt 0.3 implemented and validated locally; PR #40 opened into develop
   workspace_branch: feature/p0-provider-contract
-  workspace_head: 358b5ec
+  workspace_head: b70410377e0e6254bde689564d099bb50fc2f687
   base_sha: 358b5ec
   worktree_path: null
   pending_operation: null
-next_action: Implement Prompt 0.3 provider usage contract, fixtures, contract tests, UI copy; open PR into develop
+next_action: Maintain PR #40 until CI is green; owner merges manually
 next_wake_time: null
 release_status: prohibited_during_pilot
 phases:
@@ -129,16 +129,23 @@ work_items:
   - prompt: '0.3'
     phase: 0
     title: Standardize provider data and confidence
-    status: in_progress
+    status: awaiting_ci
     planned_branch: feature/p0-provider-contract
     branch: feature/p0-provider-contract
-    commit: null
-    pull_request: null
-    ci_status: not_run
+    commit: b70410377e0e6254bde689564d099bb50fc2f687
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/40
+    ci_status: pending
     gate_status: not_evaluated
     blocker: null
-    last_checkpoint: null
-    next_action: Implement scope and open PR into develop.
+    last_checkpoint:
+      at: '2026-10-23T00:50:00Z'
+      action: Implementation validated locally; PR #40 opened into develop
+      workspace_branch: feature/p0-provider-contract
+      workspace_head: b70410377e0e6254bde689564d099bb50fc2f687
+      base_sha: 358b5ec
+      worktree_path: null
+      pending_operation: null
+    next_action: Maintain PR #40 until CI is green; owner merges manually
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-0.3
