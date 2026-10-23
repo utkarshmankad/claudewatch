@@ -1,0 +1,16 @@
+{
+  "description": "Session expired; the usage endpoint answered 401.",
+  "now": "2026-10-01T12:00:00.000Z",
+  "input": {
+    "site": "chatgpt",
+    "capturedAt": "2026-10-01T12:00:00.000Z",
+    "ok": false,
+    "status": 401,
+    "error": "auth failed"
+  },
+  "expect": {
+    "category": "auth_expired",
+    "snapshotCount": 0,
+    "readings": []
+  }
+}

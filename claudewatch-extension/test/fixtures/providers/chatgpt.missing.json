@@ -1,0 +1,15 @@
+{
+  "description": "No signed-in provider tab was open.",
+  "now": "2026-10-01T12:00:00.000Z",
+  "input": {
+    "site": "chatgpt",
+    "capturedAt": "2026-10-01T12:00:00.000Z",
+    "ok": false,
+    "error": "provider_tab_missing"
+  },
+  "expect": {
+    "category": "provider_tab_missing",
+    "snapshotCount": 0,
+    "readings": []
+  }
+}

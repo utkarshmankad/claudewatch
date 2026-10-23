@@ -1,0 +1,23 @@
+{
+  "description": "rate_limit replaced by an unknown structure.",
+  "now": "2026-10-01T12:00:00.000Z",
+  "input": {
+    "site": "chatgpt",
+    "capturedAt": "2026-10-01T12:00:00.000Z",
+    "ok": true,
+    "snapshot": {
+      "email": "user@example.test",
+      "limits": [
+        {
+          "kind": "session",
+          "pct": 37
+        }
+      ]
+    }
+  },
+  "expect": {
+    "category": "provider_schema_changed",
+    "snapshotCount": 0,
+    "readings": []
+  }
+}

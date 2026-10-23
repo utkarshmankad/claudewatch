@@ -142,3 +142,7 @@ claudewatch-extension/
     ├── onboarding.css     Onboarding styles
     └── onboarding.js      Onboarding interactions
 ```
+
+## Provider data contract
+
+Provider quota readings, validation, forecasts and the adapter fixtures are described in [docs/PROVIDER_CONTRACT.md](../docs/PROVIDER_CONTRACT.md).

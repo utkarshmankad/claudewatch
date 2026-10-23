@@ -1,0 +1,19 @@
+{
+  "description": "The batch no longer carries the quota rpc.",
+  "now": "2026-10-01T12:00:00.000Z",
+  "input": {
+    "site": "gemini",
+    "capturedAt": "2026-10-01T12:00:00.000Z",
+    "ok": true,
+    "snapshot": {
+      "email": "user@example.test",
+      "rpcId": "jSf9Qc",
+      "batchText": ")]}'\n\n10\n[[\"wrb.fr\",\"other\",\"[]\"]]\n"
+    }
+  },
+  "expect": {
+    "category": "provider_schema_changed",
+    "snapshotCount": 0,
+    "readings": []
+  }
+}
