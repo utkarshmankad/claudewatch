@@ -101,19 +101,35 @@ function renderAccountSelector(site, providerAccounts, providerSelections) {
   select.value = providerSelections?.[site] ?? accounts[0]?.accountKey ?? '';
 }
 
-function renderProviderHealth(health) {
+function renderProviderHealth(health, site = null) {
   const node = el('provider-health');
   if (!node) return;
   if (!health) { node.hidden = true; return; }
   node.hidden = false;
   node.className = `provider-health${health.ok === false ? ' error' : health.stale ? ' stale' : ''}`;
-  if (health.ok === false) {
+  const fetchedAt = health.lastFetchAt ?? (health.ageMs == null ? null : Date.now() - health.ageMs);
+  const fetched = fetchedAt ? `Fetched from provider ${fmtAgo(fetchedAt)}` : 'Not fetched yet';
+  let line;
+  if (health.stale) {
+    const reason = health.staleMessage ?? (health.hasData ? 'Data is stale.' : 'Open a signed-in tab to fetch usage.');
+    line = `${reason} ${fetched}`;
+  } else if (health.ok === false) {
     const status = health.status ? ` (HTTP ${health.status})` : '';
-    node.textContent = `Update failed${status} · showing last known data${health.lastSuccessAt ? ` from ${fmtAgo(Date.parse(health.lastSuccessAt))}` : ''}`;
-  } else if (health.stale) {
-    node.textContent = health.hasData ? `Data is stale · last update ${fmtAgo(Date.now() - (health.ageMs ?? 0))}` : 'Open a signed-in tab to fetch usage';
+    line = `Last update failed${status} · showing last known data. ${fetched}`;
   } else {
-    node.textContent = `Provider-reported · updated ${fmtAgo(Date.now() - (health.ageMs ?? 0))}`;
+    line = `Provider-reported · ${fetched}`;
+  }
+  node.textContent = line;
+  if (health.stale || health.ok === false) {
+    const retry = document.createElement('button');
+    retry.type = 'button';
+    retry.className = 'provider-retry';
+    retry.textContent = 'Retry now';
+    retry.addEventListener('click', () => {
+      retry.disabled = true;
+      chrome.runtime.sendMessage({ type: 'REFRESH_NOW', site }, () => { void chrome.runtime.lastError; loadAndRender(); });
+    });
+    node.append(' ', retry);
   }
 }
 
@@ -293,7 +309,7 @@ function render(stats) {
   const selected = providerUsage?.[gSelectedSite] ?? null;
   const selectedHealth = providerHealth?.[gSelectedSite] ?? null;
   renderAccountSelector(gSelectedSite, providerAccounts, providerSelections);
-  renderProviderHealth(selectedHealth);
+  renderProviderHealth(selectedHealth, gSelectedSite);
   const selectedPct5h = selected?.pct5h ?? (gSelectedSite === 'claude' ? pct5h : null);
   const selectedPct7d = selected?.pct7d ?? (gSelectedSite === 'claude' ? pct7d : null);
   const selectedName = SITE_META.find(s => s.key === gSelectedSite)?.name ?? gSelectedSite;
