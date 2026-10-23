@@ -1,6 +1,10 @@
 // Pure parser functions shared between extension scripts and tests.
 // No browser globals required — safe to import in Node.js.
 
+import '../provider-contract.js';
+
+const contract = () => globalThis.TokenWatcherContract;
+
 // ── Site detection ─────────────────────────────────────────────────────────
 
 /**
@@ -345,8 +349,10 @@ export function forecastWindowDetails(history, { site, accountId, key, currentPc
   const horizonHours = (resetMs - now) / 3600000;
   const coverageTarget = key === '5h' ? 3 : 48;
   const confidenceScore = Math.min(1, samples.length / 12) * Math.min(1, spanHours / coverageTarget) * Math.min(1, 12 / Math.max(1, horizonHours));
+  const projection = contract().projectUsage({ currentPct, ratePerHour, horizonHours, now });
+  if (!projection) return null;
   return {
-    projectedPct: Math.min(100, Math.max(0, currentPct, currentPct + ratePerHour * horizonHours)),
+    ...projection,
     ratePerHour,
     sampleCount: samples.length,
     confidence: confidenceScore >= 0.67 ? 'high' : confidenceScore >= 0.34 ? 'medium' : 'low',
@@ -359,17 +365,8 @@ export function stableAccountKey(snapshot) {
   return `${snapshot.site}:${String(raw)}`;
 }
 
-export function validateProviderSnapshot(snapshot) {
-  if (!snapshot || !['claude', 'chatgpt', 'gemini'].includes(snapshot.site)) return 'invalid_site';
-  if (!stableAccountKey(snapshot)) return 'account_identity_missing';
-  for (const key of ['pct5h', 'pct7d']) {
-    const value = snapshot[key];
-    if (value != null && (!Number.isFinite(value) || value < 0 || value > 1000)) return `invalid_${key}`;
-  }
-  for (const key of ['resetsAt5h', 'resetsAt7d']) {
-    if (snapshot[key] != null && !Number.isFinite(Date.parse(snapshot[key]))) return `invalid_${key}`;
-  }
-  return null;
+export function validateProviderSnapshot(snapshot, opts) {
+  return contract().validateSnapshot(snapshot, opts);
 }
 
 export function nextPollDelay({ ok, status, consecutiveFailures, baseMs = 300000, maxMs = 3600000, jitter = 1 }) {

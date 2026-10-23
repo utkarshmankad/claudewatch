@@ -130,6 +130,8 @@ const expectedFiles = [
   'provider-collectors.js',
   'analytics.js',
   'refresh-policy.js',
+  'provider-contract.js',
+  'provider-adapters.js',
   'settings/analytics-debug.js',
   'interceptor.js',
   'content.js',
