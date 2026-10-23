@@ -863,6 +863,17 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     return true;
   }
 
+  if (msg.type === 'ACTIVITY_SUMMARY' && fromExtension) {
+    // Counts only: the popup never needs the observations themselves.
+    Promise.all([activity.isEnabled(), activity.list()]).then(([enabled, events]) => {
+      const since = Date.now() - 24 * 60 * 60 * 1000;
+      const counts24h = {};
+      for (const e of events) if (e.activityType === 'message_completed' && e.ts >= since) counts24h[e.provider] = (counts24h[e.provider] ?? 0) + 1;
+      reply({ enabled, counts24h });
+    }).catch(() => reply(null));
+    return true;
+  }
+
   if (msg.type === 'ACTIVITY_CLEAR' && fromExtension) {
     activity.clear().then(r => reply(r)).catch(() => reply({ ok: false }));
     return true;

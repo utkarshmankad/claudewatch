@@ -6,6 +6,7 @@ import { DailyChart } from './components/DailyChart.js';
 import { AlertTable } from './components/AlertTable.js';
 import { StatusBar } from './components/StatusBar.js';
 import { AnalyticsPanel } from './components/AnalyticsPanel.js';
+import { LedgerPanel } from './components/LedgerPanel.js';
 
 const POLL_INTERVAL_MS = 30_000;
 const USAGE_DAYS = 30;
@@ -117,6 +118,7 @@ export default function App() {
         {/* Row 2: Alert history */}
         <AlertTable alerts={alerts?.alerts ?? []} />
         <AnalyticsPanel analytics={analytics} />
+        <LedgerPanel />
 
       </main>
     </div>

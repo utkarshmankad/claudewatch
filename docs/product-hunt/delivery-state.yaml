@@ -6,9 +6,9 @@ plan_document: DELIVERY_PLAN.md
 pilot_status: in_progress
 implementation_authorized: true
 current_phase: 1
-current_prompt: '1.4'
+current_prompt: '1.5'
 work_item_status: in_progress
-branch: feature/p1-reconciliation
+branch: feature/p1-ledger-ui
 commit: null
 pull_request: null
 ci_status: not_run
@@ -22,7 +22,7 @@ last_checkpoint:
   base_sha: 57b7799
   worktree_path: null
   pending_operation: null
-next_action: Open PR for prompt 1.1 into develop and maintain it; owner merges
+next_action: Maintain the prompt 1.5 PR; owner merges
 next_wake_time: null
 release_status: prohibited_during_pilot
 phases:
@@ -234,12 +234,12 @@ work_items:
   - prompt: '1.4'
     phase: 1
     title: Build account-wide reconciliation
-    status: awaiting_ci
+    status: completed
     planned_branch: feature/p1-reconciliation
     branch: feature/p1-reconciliation
     commit: null
-    pull_request: null
-    ci_status: not_run
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/50
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
@@ -251,16 +251,16 @@ work_items:
   - prompt: '1.5'
     phase: 1
     title: Release the ledger user experience
-    status: not_started
+    status: awaiting_ci
     planned_branch: feature/p1-ledger-ui
-    branch: null
+    branch: feature/p1-ledger-ui
     commit: null
     pull_request: null
     ci_status: not_run
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: Maintain the 1.5 PR; owner merges. Human usability sessions (docs/LEDGER_UI.md) remain for the final gate.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-1.5

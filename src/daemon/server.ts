@@ -11,7 +11,8 @@ import { VERSION } from '../version.js';
 import { recommendPlan, reconcileAttribution } from '../analytics/insights.js';
 import { syncUsageEvent } from '../sync/cloudSync.js';
 
-import { getCollectorHealth } from '../collectors/service.js';
+import { getCollectorHealth, ledgerPath } from '../collectors/service.js';
+import { registerLedgerRoutes } from './ledgerRoutes.js';
 export const WEB_PORT = 7734;
 
 // ---------------------------------------------------------------------------
@@ -111,6 +112,8 @@ export function startWebServer(config: Config): Server {
 
   // Collector health: enabled state, exact paths read, counts, last observation, format compatibility.
   app.get('/api/collectors', (_req, res) => { res.json({ collectors: getCollectorHealth() }); });
+
+  registerLedgerRoutes(app, ledgerPath);
 
   // ---------------------------------------------------------------------------
   // GET /api/status

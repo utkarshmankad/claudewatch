@@ -31,6 +31,14 @@ export function deleteBySource(path: string, sources: readonly string[]): number
   return all.length - kept.length;
 }
 
+/** User deletion of the records a filter selects (and corrections pointing at them). Returns how many were removed. */
+export function deleteMatching(path: string, match: (r: LedgerRecord) => boolean): number {
+  const all = readLedgerFile(path);
+  const kept = deleteWhere(all, match);
+  writeAll(path, kept);
+  return all.length - kept.length;
+}
+
 export function appendToLedgerFile(path: string, incoming: unknown[], now: number): { accepted: number; duplicates: number; rejected: number } {
   const res = append(readLedgerFile(path), incoming);
   const kept = prune(res.records, now);
