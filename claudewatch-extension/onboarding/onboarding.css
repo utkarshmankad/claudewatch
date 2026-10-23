@@ -338,3 +338,9 @@ body {
   .step-graphic { display: none; }
   .page-footer { flex-direction: column; align-items: flex-start; }
 }
+
+/* Permissions explanation */
+.permission-list { margin: 0 0 14px; }
+.permission-list dt { font-weight: 600; font-size: 13px; color: var(--text); margin-top: 10px; overflow-wrap: anywhere; }
+.permission-list dd { margin: 2px 0 0; font-size: 13px; color: var(--text-2); }
+a:focus-visible, button:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }

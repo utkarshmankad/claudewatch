@@ -26,7 +26,7 @@
           </svg>
           <div>
             <h1>Token Watcher</h1>
-            <p class="header-sub">Extension Settings</p>
+            <p class="header-sub" data-i18n="setSubtitle">Extension Settings</p>
           </div>
         </div>
         <span class="version" id="version"></span>
@@ -39,12 +39,12 @@
 
         <!-- NOTIFICATIONS -->
         <section class="card">
-          <h2 class="card-title">Notifications</h2>
+          <h2 class="card-title" data-i18n="setNotifications">Notifications</h2>
 
           <label class="toggle-row" for="alerts-enabled">
             <span class="toggle-text">
-              <span class="toggle-label">Enable usage alerts</span>
-              <span class="toggle-hint">Show desktop notifications when thresholds are crossed</span>
+              <span class="toggle-label" data-i18n="setAlertsLabel">Enable usage alerts</span>
+              <span class="toggle-hint" data-i18n="setAlertsHint">Show desktop notifications when thresholds are crossed</span>
             </span>
             <span class="switch">
               <input type="checkbox" id="alerts-enabled" name="alertsEnabled" />
@@ -55,8 +55,8 @@
 
         <!-- ALERT THRESHOLDS -->
         <section class="card" id="thresholds-card">
-          <h2 class="card-title">Alert Thresholds</h2>
-          <p class="card-hint">Each threshold fires once per session window, then re-arms when the window resets.</p>
+          <h2 class="card-title" data-i18n="setThresholds">Alert Thresholds</h2>
+          <p class="card-hint" data-i18n="setThresholdsHint">Each threshold fires once per session window, then re-arms when the window resets.</p>
 
           <div class="threshold-list">
             <label class="checkbox-row" for="t-80">
@@ -64,7 +64,7 @@
               <span class="checkbox-custom"></span>
               <span class="checkbox-body">
                 <span class="threshold-pct green">80%</span>
-                <span class="threshold-desc">Approaching limit — good time to wrap up</span>
+                <span class="threshold-desc" data-i18n="setT80">Approaching limit — good time to wrap up</span>
               </span>
             </label>
 
@@ -73,7 +73,7 @@
               <span class="checkbox-custom"></span>
               <span class="checkbox-body">
                 <span class="threshold-pct amber">90%</span>
-                <span class="threshold-desc">High usage — save your work</span>
+                <span class="threshold-desc" data-i18n="setT90">High usage — save your work</span>
               </span>
             </label>
 
@@ -82,58 +82,59 @@
               <span class="checkbox-custom"></span>
               <span class="checkbox-body">
                 <span class="threshold-pct red">95%</span>
-                <span class="threshold-desc">Critical — session almost exhausted</span>
+                <span class="threshold-desc" data-i18n="setT95">Critical — session almost exhausted</span>
               </span>
             </label>
           </div>
         </section>
 
         <section class="card">
-          <h2 class="card-title">Privacy &amp; analytics</h2>
+          <h2 class="card-title" data-i18n="setPrivacyTitle">Privacy and analytics</h2>
           <label class="toggle-row" for="in-page-gauges">
-            <span class="toggle-text"><span class="toggle-label">In-page usage gauge</span><span class="toggle-hint">Show the compact quota gauge on supported provider pages</span></span>
+            <span class="toggle-text"><span class="toggle-label" data-i18n="setGaugeLabel">In-page usage gauge</span><span class="toggle-hint" data-i18n="setGaugeHint">Show the compact quota gauge on supported provider pages</span></span>
             <span class="switch"><input type="checkbox" id="in-page-gauges" /><span class="switch-track"></span></span>
           </label>
           <label class="toggle-row spaced" for="core-sync-enabled">
-            <span class="toggle-text"><span class="toggle-label">Share usage with local ClaudeWatch Core</span><span class="toggle-hint">Opt in to sending metadata-only events to localhost:7734. Prompts and responses are never sent.</span></span>
+            <span class="toggle-text"><span class="toggle-label" data-i18n="setCoreLabel">Share usage with local Token Watcher Core</span><span class="toggle-hint" data-i18n="setCoreHint">Opt in to sending metadata-only events to localhost:7734. Prompts and responses are never sent.</span></span>
             <span class="switch"><input type="checkbox" id="core-sync-enabled" /><span class="switch-track"></span></span>
           </label>
           <div class="identity-grid">
-            <label>User label<input type="text" id="analytics-user-id" maxlength="128" placeholder="Optional pseudonymous user ID" /></label>
-            <label>Team label<input type="text" id="analytics-team-id" maxlength="128" placeholder="Optional team ID" /></label>
+            <label>User label<input type="text" id="analytics-user-id" maxlength="128" placeholder="Optional pseudonymous user ID" data-i18n-attr="placeholder:setUserIdPh" /></label>
+            <label>Team label<input type="text" id="analytics-team-id" maxlength="128" placeholder="Optional team ID" data-i18n-attr="placeholder:setTeamIdPh" /></label>
           </div>
         </section>
 
         <section class="card" id="analytics-debug" aria-labelledby="analytics-debug-title">
-          <h2 class="card-title" id="analytics-debug-title">Local analytics debug view</h2>
+          <h2 class="card-title" id="analytics-debug-title" data-i18n="setDebugTitle">Local analytics debug view</h2>
           <p class="card-hint">Events and metrics below are stored only in this browser (schema v<span id="analytics-schema">1</span>, kept up to 90 days) and are never sent anywhere. Values without evidence show as unknown.</p>
           <table class="metrics-table">
-            <caption class="sr-only">Baseline metrics</caption>
-            <thead><tr><th scope="col">Metric</th><th scope="col">Value</th><th scope="col">Basis</th></tr></thead>
+            <caption class="sr-only" data-i18n="setMetricsCaption">Baseline metrics</caption>
+            <thead><tr><th scope="col" data-i18n="setColMetric">Metric</th><th scope="col" data-i18n="setColValue">Value</th><th scope="col" data-i18n="setColBasis">Basis</th></tr></thead>
             <tbody id="analytics-metrics"></tbody>
           </table>
           <h3 class="debug-subtitle">Recent events (<span id="analytics-count">0</span>)</h3>
-          <pre class="debug-log" id="analytics-events" tabindex="0" aria-label="Recent analytics events"></pre>
+          <pre class="debug-log" id="analytics-events" tabindex="0" aria-label="Recent analytics events" data-i18n-attr="aria-label:setEventsLabel"></pre>
           <div class="debug-actions">
-            <button type="button" class="btn btn-ghost" id="analytics-refresh">Refresh</button>
-            <button type="button" class="btn btn-ghost" id="analytics-export">Download JSON</button>
-            <button type="button" class="btn btn-ghost" id="analytics-clear">Delete all analytics data</button>
+            <button type="button" class="btn btn-ghost" id="analytics-refresh" data-i18n="setRefresh">Refresh</button>
+            <button type="button" class="btn btn-ghost" id="analytics-export" data-i18n="setDownload">Download JSON</button>
+            <button type="button" class="btn btn-ghost" id="analytics-clear" data-i18n="setDeleteAnalytics">Delete all analytics data</button>
           </div>
         </section>
 
         <!-- ABOUT -->
         <section class="card card-about">
-          <h2 class="card-title">About</h2>
+          <p class="card-hint"><a href="../privacy/privacy.html" target="_blank" rel="noopener" data-i18n="setPrivacyPage">Privacy page</a></p>
+          <h2 class="card-title" data-i18n="setAbout">About</h2>
           <dl class="about-grid">
-            <dt>Version</dt>      <dd id="about-version">—</dd>
-            <dt>Extension ID</dt> <dd id="about-ext-id" class="mono truncate">—</dd>
+            <dt data-i18n="setVersion">Version</dt>      <dd id="about-version">—</dd>
+            <dt data-i18n="setExtId">Extension ID</dt> <dd id="about-ext-id" class="mono truncate">—</dd>
           </dl>
         </section>
 
         <!-- Actions -->
         <div class="actions">
-          <button type="submit" class="btn btn-primary" id="btn-save">Save Settings</button>
-          <button type="button" class="btn btn-ghost"   id="btn-reset">Reset to defaults</button>
+          <button type="submit" class="btn btn-primary" id="btn-save" data-i18n="setSave">Save Settings</button>
+          <button type="button" class="btn btn-ghost"   id="btn-reset" data-i18n="setReset">Reset to defaults</button>
           <span class="save-confirm" id="save-confirm" aria-live="polite"></span>
         </div>
 
@@ -141,6 +142,7 @@
     </main>
 
   </div>
+  <script src="../i18n.js"></script>
   <script src="../analytics.js"></script>
   <script src="analytics-debug.js"></script>
   <script src="settings.js"></script>

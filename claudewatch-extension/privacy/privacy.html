@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en" data-i18n-title="privDocTitle">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Token Watcher privacy</title>
+  <link rel="stylesheet" href="privacy.css" />
+</head>
+<body>
+  <main id="main">
+      <h1 data-i18n="privTitle">Token Watcher privacy</h1>
+      <p data-i18n="privIntro">Token Watcher is local-first. This page explains what is stored, for how long, how to delete it, and what is never collected.</p>
+      <h2 data-i18n="privLocalHead">Data stored on this device</h2>
+      <p data-i18n="privLocalBody">Settings, per-provider quota snapshots (up to 7 days), recent token-count events (up to 2,000), and optional local analytics events (up to 90 days). All of it lives in this browser profile's extension storage.</p>
+      <h2 data-i18n="privCloudHead">Optional cloud data</h2>
+      <p data-i18n="privCloudBody">None. Token Watcher has no cloud sync and no servers of its own. If you opt in to sharing with Token Watcher Core, metadata-only events go to localhost:7734 on your own computer and nowhere else.</p>
+      <h2 data-i18n="privNetHead">Network requests</h2>
+      <p data-i18n="privNetBody">The extension contacts only claude.ai, chatgpt.com and gemini.google.com, using your existing signed-in session, to read your own quota figures.</p>
+      <h2 data-i18n="privRetHead">Retention</h2>
+      <p data-i18n="privRetBody">Quota snapshots are trimmed to the last 7 days, token events to the most recent 2,000, and analytics events to 90 days. Removing the extension deletes everything it stored.</p>
+      <h2 data-i18n="privDelHead">Deleting your data</h2>
+      <p data-i18n="privDelBody">Use "Delete all analytics data" in Extension Settings to clear local analytics immediately, or remove the extension to clear all stored data.</p>
+      <h2 data-i18n="privNeverHead">Never collected</h2>
+      <ul>
+        <li data-i18n="privNever1">Prompt text or response text</li>
+        <li data-i18n="privNever2">Attachments, conversation titles, or page contents</li>
+        <li data-i18n="privNever3">Cookie values, API keys, or passwords</li>
+        <li data-i18n="privNever4">Full URLs, or any data sold or shared with third parties</li>
+      </ul>
+  </main>
+  <script src="../i18n.js"></script>
+</body>
+</html>
