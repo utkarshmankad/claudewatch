@@ -7,7 +7,7 @@ pilot_status: in_progress
 implementation_authorized: true
 current_phase: 2
 current_prompt: '2.2'
-work_item_status: in_progress
+work_item_status: awaiting_ci
 branch: feature/p2-policy-engine
 commit: null
 pull_request: null
@@ -22,7 +22,7 @@ last_checkpoint:
   base_sha: 57b7799
   worktree_path: null
   pending_operation: null
-next_action: Implement prompt 2.2 policy engine, then open PR into develop
+next_action: Maintain the prompt 2.2 PR; owner merges
 next_wake_time: null
 release_status: prohibited_during_pilot
 phases:
@@ -285,7 +285,7 @@ work_items:
   - prompt: '2.2'
     phase: 2
     title: Implement the recommendation policy engine
-    status: in_progress
+    status: awaiting_ci
     planned_branch: feature/p2-policy-engine
     branch: feature/p2-policy-engine
     commit: null
@@ -294,7 +294,7 @@ work_items:
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Implement the policy engine, simulation harness, docs and tests; open PR into develop.
+    next_action: Maintain the 2.2 PR until CI is green; owner merges. Recommendations are not validated on real history (final gate).
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-2.2
