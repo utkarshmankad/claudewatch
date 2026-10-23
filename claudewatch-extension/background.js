@@ -941,6 +941,24 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     return true;
   }
 
+  // Autopilot UI events. Only allow-listed names reach the store, and the store validates props
+  // against the closed schema, so no free text or identifiers can be recorded.
+  if (msg.type === 'ANALYTICS_AUTOPILOT' && fromExtension) {
+    const names = ['recommendation_impression', 'explanation_viewed', 'provider_opened', 'wait_chosen', 'recommendation_dismissed', 'preference_changed', 'autopilot_toggled'];
+    (names.includes(msg.name) ? analytics.record(msg.name, msg.props ?? {}) : Promise.resolve({ ok: false }))
+      .then(async (r) => {
+        // First recommendation ever shown: the activation-time metric reads this event.
+        if (r?.ok && msg.name === 'recommendation_impression') {
+          const existing = await analytics.list();
+          if (!existing.some(e => e.name === 'first_recommendation')) {
+            await track('first_recommendation', { kind: msg.props?.state === 'all_limited' ? 'wait' : 'provider_switch' });
+          }
+        }
+        reply(r ?? { ok: false });
+      }).catch(() => reply({ ok: false }));
+    return true;
+  }
+
   if (msg.type === 'ANALYTICS_CLEAR' && fromExtension) {
     analytics.clear().then(() => lset(K_STALE_STATE, {})).then(() => reply({ ok: true })).catch(() => reply({ ok: false }));
     return true;

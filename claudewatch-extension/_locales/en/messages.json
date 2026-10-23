@@ -380,5 +380,257 @@
   },
   "popLedgerObserved": {
     "message": "Estimated from $1 message(s) seen here in 24h"
+  },
+  "apHeading": {
+    "message": "Autopilot"
+  },
+  "apRegionLabel": {
+    "message": "Autopilot recommendation"
+  },
+  "apLoading": {
+    "message": "Checking your quota…"
+  },
+  "apDisabled": {
+    "message": "Autopilot recommendations are off."
+  },
+  "apTurnOn": {
+    "message": "Turn on"
+  },
+  "apInsufficientNoData": {
+    "message": "Not enough data yet. Open a signed-in Claude, ChatGPT or Gemini tab so Autopilot can read your quota."
+  },
+  "apInsufficientNone": {
+    "message": "No signed-in provider is available right now, so there is nothing to recommend."
+  },
+  "apUse": {
+    "message": "Use $1 next"
+  },
+  "apBenefit": {
+    "message": "About $1% of quota left after your reserve"
+  },
+  "apBenefitUnknown": {
+    "message": "Quota left is unknown for this provider"
+  },
+  "apConfidence": {
+    "message": "Confidence: $1"
+  },
+  "apConfHigh": {
+    "message": "high"
+  },
+  "apConfMedium": {
+    "message": "medium"
+  },
+  "apConfLow": {
+    "message": "low"
+  },
+  "apResets": {
+    "message": "Resets $1"
+  },
+  "apResetUnknown": {
+    "message": "Reset time unknown"
+  },
+  "apOpen": {
+    "message": "Open $1"
+  },
+  "apAlternatives": {
+    "message": "Also available: $1"
+  },
+  "apWhy": {
+    "message": "Why this?"
+  },
+  "apNotQuality": {
+    "message": "This compares remaining quota and risk, not model quality."
+  },
+  "apCoarse": {
+    "message": "Forecasts here are rough estimates from recent readings in this browser."
+  },
+  "apDismiss": {
+    "message": "Dismiss"
+  },
+  "apDismissed": {
+    "message": "Recommendation hidden until it changes."
+  },
+  "apStaleNotice": {
+    "message": "Some quota data is out of date, so treat this as a guess."
+  },
+  "apAllLimited": {
+    "message": "Every available provider is at its limit."
+  },
+  "apWaitEarliest": {
+    "message": "$1 resets first, at $2."
+  },
+  "apWaitUnknown": {
+    "message": "No reset time is known. Check the providers directly."
+  },
+  "apWaitChoose": {
+    "message": "I'll wait"
+  },
+  "apWaitAck": {
+    "message": "Noted. Autopilot updates when a provider resets."
+  },
+  "apChanged": {
+    "message": "Changed from $1: $2"
+  },
+  "apPrevWait": {
+    "message": "waiting"
+  },
+  "apPrevNone": {
+    "message": "no recommendation"
+  },
+  "apCause_preferences": {
+    "message": "you changed your Autopilot preferences"
+  },
+  "apCause_limit_reached": {
+    "message": "$1 reached its limit"
+  },
+  "apCause_signed_out": {
+    "message": "$1 looks signed out"
+  },
+  "apCause_went_stale": {
+    "message": "$1 data went out of date"
+  },
+  "apCause_reset": {
+    "message": "$1 reset and is available again"
+  },
+  "apCause_signed_in": {
+    "message": "$1 signed in"
+  },
+  "apCause_refreshed": {
+    "message": "$1 data was refreshed"
+  },
+  "apCause_all_limited": {
+    "message": "every provider reached its limit"
+  },
+  "apCause_quota_changed": {
+    "message": "quota readings changed"
+  },
+  "apWarn_stale_data": {
+    "message": "Quota data is out of date."
+  },
+  "apWarn_no_history": {
+    "message": "There is not enough history to forecast."
+  },
+  "apWarn_limit_expected_soon": {
+    "message": "The limit may arrive within 30 minutes."
+  },
+  "apWarn_high_exhaustion_risk": {
+    "message": "Limit risk is high before the reset."
+  },
+  "apWarn_degraded_provider": {
+    "message": "The provider reports degraded service."
+  },
+  "apWarn_pinned_unavailable": {
+    "message": "Your preferred provider has no data."
+  },
+  "apWarn_pinned_blocked": {
+    "message": "Your preferred provider is at its limit."
+  },
+  "apWarn_pinned_ineligible": {
+    "message": "Your preferred provider is not usable right now."
+  },
+  "apWarn_close_call": {
+    "message": "The next option is nearly as good."
+  },
+  "apWarn_single_candidate": {
+    "message": "Only one provider is available."
+  },
+  "apWarn_conflicting_windows": {
+    "message": "Another usage window is at its limit."
+  },
+  "apWarn_wait_until_unknown": {
+    "message": "No reset time is known."
+  },
+  "apWarnOutsideHours": {
+    "message": "Outside your working hours, five-hour limits are not counted."
+  },
+  "apConsidered_excluded": {
+    "message": "$1: excluded by you"
+  },
+  "apConsidered_unauthenticated": {
+    "message": "$1: no recent reading, or signed out"
+  },
+  "apConsidered_offline": {
+    "message": "$1: not reachable"
+  },
+  "apConsidered_privacy_restricted": {
+    "message": "$1: restricted for privacy"
+  },
+  "apSetTitle": {
+    "message": "Autopilot"
+  },
+  "apSetHint": {
+    "message": "Recommends which provider to use next from your remaining quota. It never reads prompts or conversations."
+  },
+  "apSetEnabled": {
+    "message": "Show Autopilot recommendations"
+  },
+  "apSetEnabledHint": {
+    "message": "Turn off to hide the recommendation card"
+  },
+  "apSetTask": {
+    "message": "Task type"
+  },
+  "apSetTaskHint": {
+    "message": "Used with your own provider preference, never as a quality ranking"
+  },
+  "apTask_coding": {
+    "message": "Coding"
+  },
+  "apTask_research": {
+    "message": "Research"
+  },
+  "apTask_writing": {
+    "message": "Writing"
+  },
+  "apTask_analysis": {
+    "message": "Analysis"
+  },
+  "apTask_general": {
+    "message": "General chat"
+  },
+  "apSetReserve": {
+    "message": "Reserved quota (%)"
+  },
+  "apSetReserveHint": {
+    "message": "Percent of each window to keep back, from 0 to 90"
+  },
+  "apSetHoursOn": {
+    "message": "Use working hours"
+  },
+  "apSetHoursStart": {
+    "message": "Start hour"
+  },
+  "apSetHoursEnd": {
+    "message": "End hour"
+  },
+  "apSetHoursHint": {
+    "message": "Outside these hours five-hour limits are not counted. Uses this computer's time zone."
+  },
+  "apSetNotify": {
+    "message": "Notification frequency"
+  },
+  "apNotify_off": {
+    "message": "Off"
+  },
+  "apNotify_important": {
+    "message": "Important only"
+  },
+  "apNotify_all": {
+    "message": "All changes"
+  },
+  "apSetNotifyHint": {
+    "message": "Saved now. Used by Autopilot alerts when they are released."
+  },
+  "apSetPinned": {
+    "message": "Prefer this provider when it is usable"
+  },
+  "apPinnedNone": {
+    "message": "No preference"
+  },
+  "apSetExclude": {
+    "message": "Never recommend"
+  },
+  "apSetSaved": {
+    "message": "Saved ✓"
   }
 }

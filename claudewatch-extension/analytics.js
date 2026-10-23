@@ -41,6 +41,13 @@
     alert_shown: { description: 'A quota-risk alert was shown.', props: { level: ['warn', 'high', 'critical'], provider: PROVIDERS } },
     alert_action: { description: 'User acted on an alert.', props: { action: ['switch_provider', 'wait', 'plan_action', 'dismiss'], provider: PROVIDERS } },
     report_shared: { description: 'User exported or shared a usage report.', props: { channel: ['copy', 'download', 'link'] } },
+    recommendation_impression: { description: 'Autopilot showed a recommendation (at most once per distinct recommendation per six hours).', props: { action: ['use', 'wait'], provider: [...PROVIDERS, 'none'], confidence: ['high', 'medium', 'low'], state: ['ready', 'stale', 'all_limited'] } },
+    explanation_viewed: { description: 'User opened the Autopilot "why" explanation.', props: { action: ['use', 'wait'] } },
+    provider_opened: { description: 'User pressed Open provider from Autopilot.', props: { provider: PROVIDERS, source: ['primary', 'alternative'] } },
+    wait_chosen: { description: 'User chose to wait for a reset when all providers were limited.', props: { provider: [...PROVIDERS, 'none'] } },
+    recommendation_dismissed: { description: 'User dismissed the current Autopilot recommendation.', props: { action: ['use', 'wait'] } },
+    preference_changed: { description: 'User changed an Autopilot preference.', props: { setting: ['task', 'reserved', 'working_hours', 'notification_frequency', 'pinned', 'excluded'] } },
+    autopilot_toggled: { description: 'User turned Autopilot recommendations on or off.', props: { enabled: 'bool' } },
     active_day: { description: 'Extension surface opened; at most one per local day.', props: { surface: ['popup', 'settings', 'onboarding'] } },
   });
 
