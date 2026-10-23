@@ -31,6 +31,22 @@ window.addEventListener('message', (event) => {
     return;
   }
 
+  if (type === 'STREAM_ACTIVITY') {
+    // Only the coarse type crosses this boundary; the service worker decides
+    // whether the user opted in and whether the tab is eligible.
+    const activityType = event.data.activityType;
+    if (activityType !== 'message_completed' && activityType !== 'message_failed') return;
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    const eventId = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+    try {
+      chrome.runtime.sendMessage(
+        { type: 'ACTIVITY_OBSERVED', site: resolvedSite, activityType, eventId, ts: Date.now() },
+        () => { chrome.runtime.lastError; }
+      );
+    } catch {}
+    return;
+  }
+
   if (type === 'INTERCEPTED_API') {
     const { url, data } = event.data;
     try {

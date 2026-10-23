@@ -1,0 +1,30 @@
+{
+  "description": "Both windows as fractions of the limit.",
+  "now": "2026-10-01T12:00:00.000Z",
+  "input": {
+    "site": "gemini",
+    "capturedAt": "2026-10-01T12:00:00.000Z",
+    "ok": true,
+    "snapshot": {
+      "email": "user@example.test",
+      "rpcId": "jSf9Qc",
+      "batchText": ")]}'\n\n123\n[[\"wrb.fr\",\"jSf9Qc\",\"[3,[[null,0.25,1,[[1790863200]]],[null,0.5,2,[[1791115200]]]]]\"]]\n"
+    }
+  },
+  "expect": {
+    "category": null,
+    "snapshotCount": 1,
+    "readings": [
+      {
+        "windowType": "5h",
+        "usedPct": 25,
+        "errorCategory": null
+      },
+      {
+        "windowType": "7d",
+        "usedPct": 50,
+        "errorCategory": null
+      }
+    ]
+  }
+}

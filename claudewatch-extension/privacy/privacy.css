@@ -1,0 +1,11 @@
+body {
+  margin: 0;
+  background: #0f0f12;
+  color: #e2e2e8;
+  font: 15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+main { max-width: 42rem; margin: 0 auto; padding: 2rem 1rem 3rem; overflow-wrap: anywhere; }
+h1 { font-size: 1.6rem; }
+h2 { font-size: 1.1rem; margin-top: 1.75rem; }
+a { color: #a5b4fc; }
+a:focus-visible, button:focus-visible { outline: 3px solid #fbbf24; outline-offset: 2px; }

@@ -238,6 +238,9 @@ window.fetch = async function (...args) {
 
           console.log(`${TAG} ${SITE} stream done — in:${inputTokens} out:${outputTokens} (chars:${outCharsAcc})`);
 
+          // Metadata-only activity signal: no URL, text or token counts.
+          postToIsolated('STREAM_ACTIVITY', { activityType: response.ok ? 'message_completed' : 'message_failed' });
+
           if (inputTokens > 0 || outputTokens > 0 || rateLimit.resetsAt) {
             postToIsolated('SSE_TOKENS', {
               url, inputTokens, outputTokens,
@@ -246,6 +249,7 @@ window.fetch = async function (...args) {
           }
         } catch (err) {
           console.log(`${TAG} stream read error:`, err.message);
+          postToIsolated('STREAM_ACTIVITY', { activityType: 'message_failed' });
         }
       };
       pump();

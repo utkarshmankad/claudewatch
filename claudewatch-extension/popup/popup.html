@@ -12,7 +12,7 @@
   <!-- ── Header ── -->
   <header>
     <div class="header-left">
-      <svg class="logo" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <svg class="logo" aria-hidden="true" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <linearGradient id="tw-g" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stop-color="#6366f1"/>
@@ -26,11 +26,11 @@
       <span class="brand">Token Watcher</span>
       <span class="version" id="version"></span>
     </div>
-    <span class="last-update" id="last-update" title="Last token captured">—</span>
+    <span class="last-update" id="last-update" title="Last token captured" data-i18n-attr="title:popLastCaptured">—</span>
   </header>
 
   <!-- ── Alert banner ── -->
-  <div class="alert alert-warn" id="alert" hidden>
+  <div class="alert alert-warn" id="alert" role="status" aria-live="polite" hidden>
     <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <path d="M8 1L15 14H1L8 1Z" stroke="#f59e0b" stroke-width="1.5" fill="none"/>
       <path d="M8 6v4M8 11.5v.5" stroke="#f59e0b" stroke-width="1.5" stroke-linecap="round"/>
@@ -40,13 +40,13 @@
 
   <!-- ── Empty state ── -->
   <div class="empty-state" id="empty-state" hidden>
-    <div class="empty-icon">◎</div>
-    <p class="empty-title">Waiting for data…</p>
-    <p class="empty-hint">Open a signed-in Claude, ChatGPT, or Gemini tab to collect usage automatically</p>
+    <div class="empty-icon" aria-hidden="true">◎</div>
+    <p class="empty-title" data-i18n="popWaitingTitle">Waiting for data…</p>
+    <p class="empty-hint" data-i18n="popWaitingHint">Open a signed-in Claude, ChatGPT, or Gemini tab to collect usage automatically</p>
     <div class="empty-links">
-      <button class="btn btn-primary btn-sm" id="btn-open-claude">Open Claude →</button>
-      <button class="btn btn-ghost btn-sm" id="btn-open-chatgpt">ChatGPT →</button>
-      <button class="btn btn-ghost btn-sm" id="btn-open-gemini">Gemini →</button>
+      <button class="btn btn-primary btn-sm" id="btn-open-claude" data-i18n="popOpenClaude">Open Claude →</button>
+      <button class="btn btn-ghost btn-sm" id="btn-open-chatgpt" data-i18n="popOpenChatgpt">ChatGPT →</button>
+      <button class="btn btn-ghost btn-sm" id="btn-open-gemini" data-i18n="popOpenGemini">Gemini →</button>
     </div>
   </div>
 
@@ -55,7 +55,7 @@
 
     <!-- ── Site breakdown ── -->
     <section class="section site-section">
-      <div class="section-label">Sources</div>
+      <div class="section-label" data-i18n="popSources">Sources</div>
       <div class="site-list" id="site-list"></div>
     </section>
 
@@ -65,9 +65,9 @@
     <section class="section gauges-section">
       <div class="usage-heading">
         <div class="section-label" id="provider-window-label">Usage Window</div>
-        <select id="account-select" class="account-select" aria-label="Provider account" hidden></select>
+        <select id="account-select" class="account-select" aria-label="Provider account" data-i18n-attr="aria-label:popProviderAccount" hidden></select>
       </div>
-      <div class="provider-health" id="provider-health" hidden></div>
+      <div class="provider-health" id="provider-health" role="status" aria-live="polite" hidden></div>
       <div class="gauge-cards">
 
         <div class="gauge-card">
@@ -121,31 +121,41 @@
     <!-- ── Token history chart ── -->
     <section class="section chart-section">
       <div class="chart-header">
-        <span class="section-label">Token History</span>
+        <span class="section-label" data-i18n="popTokenHistory">Token History</span>
         <div class="tab-group">
-          <button class="tab active" id="tab-5h" data-win="5h">5h</button>
-          <button class="tab"        id="tab-7d" data-win="7d">7d</button>
+          <button class="tab active" id="tab-5h" data-win="5h" aria-pressed="true">5h</button>
+          <button class="tab"        id="tab-7d" data-win="7d" aria-pressed="false">7d</button>
         </div>
       </div>
       <div class="chart-wrap">
-        <svg id="sparkline" width="100%" height="52" preserveAspectRatio="none">
+        <svg id="sparkline" width="100%" height="52" preserveAspectRatio="none" role="img" aria-label="Token history chart" data-i18n-attr="aria-label:popChartLabel">
           <text id="chart-empty-msg" x="50%" y="50%" text-anchor="middle"
-                dominant-baseline="middle" class="chart-empty">No data yet</text>
+                dominant-baseline="middle" class="chart-empty" data-i18n="popNoDataYet">No data yet</text>
         </svg>
       </div>
     </section>
 
     <div class="divider"></div>
 
+    <!-- ── Usage ledger summary ── -->
+    <section class="section ledger-section" aria-labelledby="ledger-heading">
+      <div class="section-label" id="ledger-heading" data-i18n="popLedger">Usage ledger</div>
+      <p class="ledger-status" id="ledger-status" role="status" aria-live="polite" data-i18n="popLedgerLoading">Loading ledger…</p>
+      <ul class="ledger-list" id="ledger-list"></ul>
+      <p class="ledger-hint" data-i18n="popLedgerOpen">Full ledger is in the dashboard</p>
+    </section>
+
+    <div class="divider"></div>
+
     <!-- ── Plan comparison ── -->
     <section class="section table-section" id="claude-plan-section">
-      <div class="section-label">Claude Plan Comparison</div>
+      <div class="section-label" data-i18n="popPlanComparison">Claude Plan Comparison</div>
       <table class="plan-table">
         <thead>
           <tr>
-            <th>Plan</th>
-            <th title="% of 5-hour window limit used">5h %</th>
-            <th title="% of 7-day rolling limit used">7d %</th>
+            <th data-i18n="popColPlan">Plan</th>
+            <th title="% of 5-hour window limit used" data-i18n-attr="title:popCol5hTitle">5h %</th>
+            <th title="% of 7-day rolling limit used" data-i18n-attr="title:popCol7dTitle">7d %</th>
           </tr>
         </thead>
         <tbody id="plan-tbody">
@@ -162,11 +172,13 @@
       <span class="plan-pill" id="plan-pill">—</span>
     </div>
     <div class="footer-right">
-      <button class="footer-btn" id="btn-settings">Settings ⚙</button>
+      <button class="footer-btn" id="btn-settings" data-i18n="popSettings">Settings ⚙</button>
     </div>
   </footer>
 
 </div>
+<script src="../i18n.js"></script>
+<script src="../provider-contract.js"></script>
 <script type="module" src="popup.js"></script>
 </body>
 </html>

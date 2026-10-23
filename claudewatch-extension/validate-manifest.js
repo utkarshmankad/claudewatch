@@ -23,7 +23,7 @@ function check(condition, passMsg, failMsg) {
 // ---------------------------------------------------------------------------
 // Load manifest
 // ---------------------------------------------------------------------------
-console.log('\nClaudeWatch Extension — Manifest Validator\n');
+console.log('\nToken Watcher Extension — Manifest Validator\n');
 
 let manifest;
 try {
@@ -70,6 +70,15 @@ for (const host of REQUIRED_HOSTS) {
   check(manifest.host_permissions?.includes(host),
     `host_permission: ${host}`,
     `missing host_permission: ${host}`);
+}
+
+// ---------------------------------------------------------------------------
+// Localization
+// ---------------------------------------------------------------------------
+console.log('\n── Localization');
+check(manifest.default_locale === 'en', 'default_locale: en', 'default_locale must be "en"');
+for (const loc of ['en', 'en_XA']) {
+  check(fileExists(`_locales/${loc}/messages.json`), `_locales/${loc}/messages.json exists`, `_locales/${loc}/messages.json missing`);
 }
 
 // ---------------------------------------------------------------------------
@@ -129,7 +138,11 @@ console.log('\n── Expected files');
 const expectedFiles = [
   'provider-collectors.js',
   'analytics.js',
+  'activity-collector.js',
+  'settings/activity-settings.js',
   'refresh-policy.js',
+  'provider-contract.js',
+  'provider-adapters.js',
   'settings/analytics-debug.js',
   'interceptor.js',
   'content.js',

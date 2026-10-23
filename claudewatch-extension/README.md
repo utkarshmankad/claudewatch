@@ -16,7 +16,7 @@ A Chrome extension that tracks your AI token usage in real-time across **Claude*
 - **Opt-in Core attribution** — metadata-only browser events can be reconciled with Claude Code locally
 - **Badge on icon** — shows Claude's current window usage percentage at a glance
 - **Desktop notifications** at 80%, 90%, and 95% usage (configurable)
-- **Syncs with ClaudeWatch Core** for Claude history, cost tracking, and email alerts
+- **Syncs with Token Watcher Core** for Claude history, cost tracking, and email alerts
 
 ## Loading in Chrome (Developer Mode)
 
@@ -48,12 +48,12 @@ If more than one account or Claude organization has been observed, use the accou
 
 No API key or configuration needed for basic monitoring.
 
-### With ClaudeWatch Core (Claude users)
+### With Token Watcher Core (Claude users)
 
 Core unlocks Claude usage history, cost reports, email alerts, and the web dashboard.
 
 ```bash
-# Install ClaudeWatch CLI (from the repo root)
+# Install Token Watcher CLI (from the repo root)
 pnpm install && pnpm build
 
 # Start the daemon
@@ -79,11 +79,17 @@ Settings sync across Chrome profiles via `chrome.storage.sync`.
 **All data stays on your device.** The extension:
 
 - Intercepts streaming responses only to extract token counts — it never reads message content
-- Never contacts any external server or third-party analytics service
-- Optionally syncs usage data to `http://localhost:7734` (your own machine, ClaudeWatch Core)
+- Has no analytics, telemetry or cloud servers; it contacts only claude.ai, chatgpt.com and gemini.google.com with your existing session to read your own quota figures
+- Optionally syncs usage data to `http://localhost:7734` (your own machine, Token Watcher Core)
 - Keeps local Core sharing disabled until you explicitly enable it in Settings
 - Never includes prompt or response text in attribution events
 - Requires host permissions for claude.ai, chatgpt.com, and gemini.google.com only
+
+See the in-extension privacy page (`privacy/privacy.html`) for retention, deletion and prohibited collection.
+
+## Localization
+
+User-facing strings live in `_locales/en/messages.json` (source locale) and are applied with `data-i18n` attributes via `i18n.js`. `_locales/en_XA` is a generated pseudo-locale that exposes clipping and untranslated text; regenerate it with `node scripts/build-locales.mjs` after editing English strings. To test, launch Chrome with `--lang=en-XA`. Dates and numbers use `TokenWatcherI18n.formatDateTime` / `formatNumber` (Intl, honoring the UI language).
 
 ## Supported Browsers
 
@@ -142,3 +148,7 @@ claudewatch-extension/
     ├── onboarding.css     Onboarding styles
     └── onboarding.js      Onboarding interactions
 ```
+
+## Provider data contract
+
+Provider quota readings, validation, forecasts and the adapter fixtures are described in [docs/PROVIDER_CONTRACT.md](../docs/PROVIDER_CONTRACT.md).
