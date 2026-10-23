@@ -7,22 +7,22 @@ pilot_status: in_progress
 implementation_authorized: true
 current_phase: 3
 current_prompt: '3.1'
-work_item_status: awaiting_review
+work_item_status: blocked
 branch: feature/p3-sync-design
-commit: null
+commit: 1ff5027a580481fc00a7f757a2081a31454009f0
 pull_request: https://github.com/utkarshmankad/claudewatch/pull/58
-ci_status: not_run
+ci_status: passed
 gate_status: deferred_to_final_gate
-blocker: null
+blocker: Prompt 3.2 waits for owner answers to the five open questions in docs/sync/ARCHITECTURE.md (hosting vendor, recovery model, storage budget, security reviewer, host permissions).
 last_checkpoint:
-  at: '2026-10-23T15:00:00Z'
+  at: '2026-10-23T16:00:00Z'
   action: >-
-    Reconciled 2.4 as merged; claimed prompt 3.1 from develop adb85dc
+    Reconciled 3.1 (PR #58) and the Phase 1 and 2 promotions and sync-back (PR #60) as merged
   workspace_branch: feature/p3-sync-design
   base_sha: adb85dc
   worktree_path: null
   pending_operation: null
-next_action: Human gate. Owner approves and merges design PR #58 (no auto-merge); 3.2 waits for it.
+next_action: Owner answers the open questions in docs/sync/ARCHITECTURE.md; then start 3.2 on feature/p3-encrypted-sync.
 next_wake_time: null
 release_status: prohibited_during_pilot
 phases:
@@ -35,6 +35,10 @@ phases:
     pilot_eligible: true
   - id: 1
     title: Universal Usage Ledger
+    promotion_pr: https://github.com/utkarshmankad/claudewatch/pull/52
+    promotion_status: merged
+    sync_back_pr: https://github.com/utkarshmankad/claudewatch/pull/60
+    sync_back_status: merged
     status: in_progress
     gate_status: deferred_to_final_gate
     evidence_files: []
@@ -42,6 +46,10 @@ phases:
     pilot_eligible: true
   - id: 2
     title: Quota Autopilot
+    promotion_pr: https://github.com/utkarshmankad/claudewatch/pull/59
+    promotion_status: merged
+    sync_back_pr: https://github.com/utkarshmankad/claudewatch/pull/60
+    sync_back_status: merged
     status: completed
     gate_status: deferred_to_final_gate
     evidence_files: []
@@ -346,16 +354,16 @@ work_items:
   - prompt: '3.1'
     phase: 3
     title: Approve the sync threat model and architecture
-    status: awaiting_review
+    status: completed
     planned_branch: feature/p3-sync-design
     branch: feature/p3-sync-design
-    commit: null
+    commit: 1ff5027a580481fc00a7f757a2081a31454009f0
     pull_request: https://github.com/utkarshmankad/claudewatch/pull/58
-    ci_status: not_run
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: None. PR #58 merged into develop by the owner (merge commit 9e48b3a).
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-3.1
@@ -370,9 +378,9 @@ work_items:
     pull_request: null
     ci_status: not_run
     gate_status: not_evaluated
-    blocker: null
+    blocker: Owner has not answered the open questions in docs/sync/ARCHITECTURE.md (hosting vendor and account, recovery model, storage budget, security reviewer, host permissions).
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: Owner answers the open questions; then branch feature/p3-encrypted-sync from develop.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-3.2
