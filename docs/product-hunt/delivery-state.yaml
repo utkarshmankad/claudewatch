@@ -6,11 +6,11 @@ plan_document: DELIVERY_PLAN.md
 pilot_status: in_progress
 implementation_authorized: true
 current_phase: 2
-current_prompt: '2.3'
+current_prompt: '2.4'
 work_item_status: awaiting_ci
-branch: feature/p2-autopilot-ui
-commit: 9d8c1f9
-pull_request: https://github.com/utkarshmankad/claudewatch/pull/56
+branch: feature/p2-alert-experiments
+commit: null
+pull_request: null
 ci_status: not_run
 gate_status: deferred_to_final_gate
 blocker: null
@@ -22,7 +22,7 @@ last_checkpoint:
   base_sha: 57b7799
   worktree_path: null
   pending_operation: null
-next_action: Maintain the prompt 2.3 PR; owner merges
+next_action: Maintain the prompt 2.4 PR until merged
 next_wake_time: null
 release_status: prohibited_during_pilot
 phases:
@@ -324,7 +324,7 @@ work_items:
   - prompt: '2.4'
     phase: 2
     title: Tune alerts and validate product value
-    status: in_progress
+    status: awaiting_ci
     planned_branch: feature/p2-alert-experiments
     branch: feature/p2-alert-experiments
     commit: null
@@ -334,11 +334,11 @@ work_items:
     blocker: null
     last_checkpoint:
       at: '2026-10-23T14:00:00Z'
-      action: Claimed prompt 2.4 from develop b0b6272
+      action: Implemented decision alerts, experiment and settings; validated locally; opening PR into develop
       workspace_branch: feature/p2-alert-experiments
       base_sha: b0b6272
       pending_operation: null
-    next_action: Implement decision alerts, dedupe/quiet hours/cooldowns/history, local experiment, docs and tests; then open PR into develop.
+    next_action: Maintain the 2.4 PR until CI is green; auto-merge enabled. Experiment success rate is unmeasured until beta; extension service worker is now an ES module.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-2.4

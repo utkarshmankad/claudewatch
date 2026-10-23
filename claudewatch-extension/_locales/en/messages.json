@@ -619,7 +619,7 @@
     "message": "All changes"
   },
   "apSetNotifyHint": {
-    "message": "Saved now. Used by Autopilot alerts when they are released."
+    "message": "Decides which Autopilot alerts are shown. See Decision alerts below."
   },
   "apSetPinned": {
     "message": "Prefer this provider when it is usable"
@@ -632,5 +632,140 @@
   },
   "apSetSaved": {
     "message": "Saved ✓"
+  },
+  "alTitle": {
+    "message": "Decision alerts"
+  },
+  "alHint": {
+    "message": "Notifies you when the recommended action changes, a block looks likely, or a useful reset is near. Frequency is set under Autopilot above."
+  },
+  "alQuietOn": {
+    "message": "Quiet hours"
+  },
+  "alQuietHint": {
+    "message": "No notifications during these hours. Uses this computer's time zone."
+  },
+  "alQuietStart": {
+    "message": "Start hour"
+  },
+  "alQuietEnd": {
+    "message": "End hour"
+  },
+  "alCooldown": {
+    "message": "Minimum minutes between similar alerts"
+  },
+  "alMute": {
+    "message": "Do not notify me about"
+  },
+  "alExperiment": {
+    "message": "Join the alert experiment"
+  },
+  "alExperimentHint": {
+    "message": "Compares simple threshold alerts with Autopilot alerts. Stays on this device; turn off and remove the data any time."
+  },
+  "alHistory": {
+    "message": "Notification history"
+  },
+  "alHistoryEmpty": {
+    "message": "No notifications yet."
+  },
+  "alClear": {
+    "message": "Remove alert history and experiment data"
+  },
+  "alSaved": {
+    "message": "Saved ✓"
+  },
+  "alCleared": {
+    "message": "Removed ✓"
+  },
+  "alUseful": {
+    "message": "Useful"
+  },
+  "alFalsePositive": {
+    "message": "False alarm"
+  },
+  "alRated": {
+    "message": "Rated"
+  },
+  "alOutcome_pending": {
+    "message": "Waiting for your action"
+  },
+  "alOutcome_ignored": {
+    "message": "No action"
+  },
+  "alOutcome_switch_provider": {
+    "message": "You switched provider"
+  },
+  "alOutcome_wait": {
+    "message": "You chose to wait"
+  },
+  "alOutcome_plan_action": {
+    "message": "You changed plan"
+  },
+  "alOutcome_dismiss": {
+    "message": "You dismissed it"
+  },
+  "alKind_action_changed": {
+    "message": "Recommendation changed"
+  },
+  "alKind_block_likely": {
+    "message": "Block likely"
+  },
+  "alKind_reset_approaching": {
+    "message": "Reset approaching"
+  },
+  "alKind_plan_review": {
+    "message": "Plan review"
+  },
+  "alKind_threshold": {
+    "message": "Threshold"
+  },
+  "alReportNone": {
+    "message": "Experiment: no data yet."
+  },
+  "alReport": {
+    "message": "Experiment ($1): $2 shown, $3 acted on, $4 dismissed, $5 false alarms, notifications turned off $6 times."
+  },
+  "apAlert_open": {
+    "message": "Open provider"
+  },
+  "apAlert_changedWait_title": {
+    "message": "Autopilot: wait for a reset"
+  },
+  "apAlert_changedWait_body": {
+    "message": "Every provider has reached its limit. Waiting for a reset is the best option."
+  },
+  "apAlert_changedUse_title": {
+    "message": "Autopilot: use $1 next"
+  },
+  "apAlert_changedUse_body": {
+    "message": "The recommendation changed because $1."
+  },
+  "apAlert_block_title": {
+    "message": "$1 may hit its limit soon"
+  },
+  "apAlert_block_body": {
+    "message": "Quota is running down faster than the reset. Consider switching provider."
+  },
+  "apAlert_reset_title": {
+    "message": "$1 resets soon"
+  },
+  "apAlert_reset_body": {
+    "message": "It will be available again in about 15 minutes."
+  },
+  "apAlert_plan_title": {
+    "message": "$1 weekly quota is nearly used"
+  },
+  "apAlert_plan_body": {
+    "message": "Most of the week is left. Review your plan or spread out your usage."
+  },
+  "apAlert_threshold_title": {
+    "message": "$1 quota is running high"
+  },
+  "apAlert_threshold_body": {
+    "message": "A usage window passed your alert threshold."
+  },
+  "apAlert_generic_title": {
+    "message": "Autopilot"
   }
 }
