@@ -5,10 +5,10 @@ plan_source_sha256: 2bd804a354aad4639704572c4b37f9cfcb6492f614482468e2b3fb75e028
 plan_document: DELIVERY_PLAN.md
 pilot_status: in_progress
 implementation_authorized: true
-current_phase: 1
-current_prompt: '2.1'
-work_item_status: awaiting_ci
-branch: feature/p2-forecast-engine
+current_phase: 2
+current_prompt: '2.2'
+work_item_status: in_progress
+branch: feature/p2-policy-engine
 commit: null
 pull_request: null
 ci_status: not_run
@@ -22,7 +22,7 @@ last_checkpoint:
   base_sha: 57b7799
   worktree_path: null
   pending_operation: null
-next_action: Maintain the prompt 2.1 PR; owner merges
+next_action: Implement prompt 2.2 policy engine, then open PR into develop
 next_wake_time: null
 release_status: prohibited_during_pilot
 phases:
@@ -268,16 +268,16 @@ work_items:
   - prompt: '2.1'
     phase: 2
     title: Build reset-aware forecasts and safe burn rates
-    status: not_started
+    status: completed
     planned_branch: feature/p2-forecast-engine
     branch: feature/p2-forecast-engine
-    commit: null
-    pull_request: null
-    ci_status: not_run
+    commit: fd51642
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/54
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Maintain the 2.1 PR until CI is green; owner merges. Exhaustion probability is uncalibrated on synthetic fixtures (docs/FORECASTS.md); real-history backtest remains for the final gate.
+    next_action: None. PR #54 merged into develop (merge commit 96a683c); phase gate deferred to final gate. Exhaustion probability is uncalibrated on synthetic fixtures (docs/FORECASTS.md); real-history backtest remains for the final gate.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-2.1
@@ -285,16 +285,16 @@ work_items:
   - prompt: '2.2'
     phase: 2
     title: Implement the recommendation policy engine
-    status: not_started
+    status: in_progress
     planned_branch: feature/p2-policy-engine
-    branch: null
+    branch: feature/p2-policy-engine
     commit: null
     pull_request: null
     ci_status: not_run
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: Implement the policy engine, simulation harness, docs and tests; open PR into develop.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-2.2
