@@ -6,9 +6,9 @@ plan_document: DELIVERY_PLAN.md
 pilot_status: in_progress
 implementation_authorized: true
 current_phase: 1
-current_prompt: '1.5'
-work_item_status: in_progress
-branch: feature/p1-ledger-ui
+current_prompt: '2.1'
+work_item_status: not_started
+branch: null
 commit: null
 pull_request: null
 ci_status: not_run
@@ -22,7 +22,7 @@ last_checkpoint:
   base_sha: 57b7799
   worktree_path: null
   pending_operation: null
-next_action: Maintain the prompt 1.5 PR; owner merges
+next_action: 'Owner rule 2026-10-23: before each phase, pause and raise a develop to main promotion PR with all checks (Phase 1 to 2 promotion: PR #52). Start Prompt 2.1 only after that PR is merged. Never merge it.'
 next_wake_time: null
 release_status: prohibited_during_pilot
 phases:
@@ -251,16 +251,16 @@ work_items:
   - prompt: '1.5'
     phase: 1
     title: Release the ledger user experience
-    status: awaiting_ci
+    status: completed
     planned_branch: feature/p1-ledger-ui
     branch: feature/p1-ledger-ui
     commit: null
-    pull_request: null
-    ci_status: not_run
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/51
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Maintain the 1.5 PR; owner merges. Human usability sessions (docs/LEDGER_UI.md) remain for the final gate.
+    next_action: None. PR #51 merged into develop; usability sessions (docs/LEDGER_UI.md) remain for the final gate.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-1.5
