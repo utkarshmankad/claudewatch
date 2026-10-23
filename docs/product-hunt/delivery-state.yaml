@@ -234,7 +234,7 @@ work_items:
   - prompt: '1.4'
     phase: 1
     title: Build account-wide reconciliation
-    status: in_progress
+    status: awaiting_ci
     planned_branch: feature/p1-reconciliation
     branch: feature/p1-reconciliation
     commit: null
@@ -243,7 +243,7 @@ work_items:
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Implement reconciliation module per Prompt 1.4 and open PR into develop.
+    next_action: Maintain the 1.4 PR until CI is green; owner merges.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-1.4
