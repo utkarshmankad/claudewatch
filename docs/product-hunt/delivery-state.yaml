@@ -7,10 +7,10 @@ pilot_status: in_progress
 implementation_authorized: true
 current_phase: 3
 current_prompt: '3.1'
-work_item_status: in_progress
+work_item_status: awaiting_review
 branch: feature/p3-sync-design
 commit: null
-pull_request: null
+pull_request: https://github.com/utkarshmankad/claudewatch/pull/58
 ci_status: not_run
 gate_status: deferred_to_final_gate
 blocker: null
@@ -22,7 +22,7 @@ last_checkpoint:
   base_sha: adb85dc
   worktree_path: null
   pending_operation: null
-next_action: Write the sync design (ADR, threat model, test plan), open the design PR without auto-merge, then stop for owner approval
+next_action: Human gate. Owner approves and merges design PR #58 (no auto-merge); 3.2 waits for it.
 next_wake_time: null
 release_status: prohibited_during_pilot
 phases:
@@ -346,11 +346,11 @@ work_items:
   - prompt: '3.1'
     phase: 3
     title: Approve the sync threat model and architecture
-    status: in_progress
+    status: awaiting_review
     planned_branch: feature/p3-sync-design
     branch: feature/p3-sync-design
     commit: null
-    pull_request: null
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/58
     ci_status: not_run
     gate_status: not_evaluated
     blocker: null
