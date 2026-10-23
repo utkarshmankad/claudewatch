@@ -1,0 +1,138 @@
+{
+  "onbTitle": {
+    "message": "Welcome to Token Watcher"
+  },
+  "onbStep1Title": {
+    "message": "Open an AI chat"
+  },
+  "onbStep2Title": {
+    "message": "Watch your usage live"
+  },
+  "onbStep3Title": {
+    "message": "You're all set"
+  },
+  "onbClose": {
+    "message": "Close this tab"
+  },
+  "onbSubtitle": {
+    "message": "AI token usage monitoring for Claude, ChatGPT, and Gemini — three quick steps to get started."
+  },
+  "onbDocTitle": {
+    "message": "Welcome to Token Watcher"
+  },
+  "permTitle": {
+    "message": "Why Token Watcher asks for each permission"
+  },
+  "permIntro": {
+    "message": "Nothing below reads your messages. Each permission is used only for the purpose listed."
+  },
+  "permHostsName": {
+    "message": "Access to claude.ai, chatgpt.com and gemini.google.com"
+  },
+  "permHostsBody": {
+    "message": "Lets the extension read token counts and quota figures from these three sites. It is not used on any other site."
+  },
+  "permCookiesName": {
+    "message": "cookies"
+  },
+  "permCookiesBody": {
+    "message": "Lets the extension make quota requests to your signed-in provider account without asking you to paste a key. Cookie values are never stored or sent anywhere."
+  },
+  "permStorageName": {
+    "message": "storage"
+  },
+  "permStorageBody": {
+    "message": "Keeps your settings and usage history on this device."
+  },
+  "permAlarmsName": {
+    "message": "alarms and idle"
+  },
+  "permAlarmsBody": {
+    "message": "Schedules periodic refreshes and pauses them while your computer is idle."
+  },
+  "permNotificationsName": {
+    "message": "notifications"
+  },
+  "permNotificationsBody": {
+    "message": "Shows an alert when usage crosses a threshold you chose."
+  },
+  "permTabsName": {
+    "message": "tabs and scripting"
+  },
+  "permTabsBody": {
+    "message": "Finds your open provider tabs and runs the usage gauge in them."
+  },
+  "permLocalhostName": {
+    "message": "localhost:7734 (optional)"
+  },
+  "permLocalhostBody": {
+    "message": "Only requested if you turn on sharing with Token Watcher Core running on your own computer."
+  },
+  "permPrivacyLink": {
+    "message": "Read the full privacy page"
+  },
+  "onbPrivacyLead": {
+    "message": "Privacy:"
+  },
+  "onbPrivacyBody": {
+    "message": "Your usage data stays on your device. Token Watcher reads token counts and quota figures only; it never reads message content and has no analytics or tracking servers. It talks only to the provider sites you use (and to localhost if you opt in)."
+  },
+  "privTitle": {
+    "message": "Token Watcher privacy"
+  },
+  "privIntro": {
+    "message": "Token Watcher is local-first. This page explains what is stored, for how long, how to delete it, and what is never collected."
+  },
+  "privLocalHead": {
+    "message": "Data stored on this device"
+  },
+  "privLocalBody": {
+    "message": "Settings, per-provider quota snapshots (up to 7 days), recent token-count events (up to 2,000), and optional local analytics events (up to 90 days). All of it lives in this browser profile's extension storage."
+  },
+  "privCloudHead": {
+    "message": "Optional cloud data"
+  },
+  "privCloudBody": {
+    "message": "None. Token Watcher has no cloud sync and no servers of its own. If you opt in to sharing with Token Watcher Core, metadata-only events go to localhost:7734 on your own computer and nowhere else."
+  },
+  "privNetHead": {
+    "message": "Network requests"
+  },
+  "privNetBody": {
+    "message": "The extension contacts only claude.ai, chatgpt.com and gemini.google.com, using your existing signed-in session, to read your own quota figures."
+  },
+  "privRetHead": {
+    "message": "Retention"
+  },
+  "privRetBody": {
+    "message": "Quota snapshots are trimmed to the last 7 days, token events to the most recent 2,000, and analytics events to 90 days. Removing the extension deletes everything it stored."
+  },
+  "privDelHead": {
+    "message": "Deleting your data"
+  },
+  "privDelBody": {
+    "message": "Use \"Delete all analytics data\" in Extension Settings to clear local analytics immediately, or remove the extension to clear all stored data."
+  },
+  "privNeverHead": {
+    "message": "Never collected"
+  },
+  "privNever1": {
+    "message": "Prompt text or response text"
+  },
+  "privNever2": {
+    "message": "Attachments, conversation titles, or page contents"
+  },
+  "privNever3": {
+    "message": "Cookie values, API keys, or passwords"
+  },
+  "privNever4": {
+    "message": "Full URLs, or any data sold or shared with third parties"
+  },
+  "privDocTitle": {
+    "message": "Token Watcher privacy"
+  },
+  "extDescription": {
+    "message": "Track AI token usage across Claude, ChatGPT, and Gemini in real-time. Monitor session limits, view history, and get alerts before you hit your limit.",
+    "description": "Extension store description (max 132 characters is recommended by Chrome)."
+  }
+}

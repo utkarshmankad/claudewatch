@@ -5,6 +5,6 @@
   "private": true,
   "scripts": {
     "validate": "node validate-manifest.js",
-    "zip": "npm run validate && zip -r ../token-watcher-extension.zip . --exclude '*.git*' --exclude 'node_modules/*' --exclude 'package*.json' --exclude 'validate-manifest.js' --exclude '*.zip' --exclude 'test/*' --exclude 'lib/*'"
+    "zip": "npm run validate && zip -r ../token-watcher-extension.zip . --exclude '*.git*' --exclude 'node_modules/*' --exclude 'package*.json' --exclude 'validate-manifest.js' --exclude '*.zip' --exclude 'test/*' --exclude 'lib/*' --exclude 'scripts/*'"
   }
 }

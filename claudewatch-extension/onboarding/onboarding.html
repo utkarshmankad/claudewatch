@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-i18n-title="onbDocTitle">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -22,8 +22,8 @@
         <text x="24" y="34" font-family="monospace" font-size="22" font-weight="900"
               fill="#fff" text-anchor="middle">TW</text>
       </svg>
-      <h1>Welcome to Token Watcher</h1>
-      <p class="hero-sub">AI token usage monitoring for Claude, ChatGPT, and Gemini — three quick steps to get started.</p>
+      <h1 data-i18n="onbTitle">Welcome to Token Watcher</h1>
+      <p class="hero-sub" data-i18n="onbSubtitle">AI token usage monitoring for Claude, ChatGPT, and Gemini — three quick steps to get started.</p>
     </header>
 
     <!-- Steps -->
@@ -32,7 +32,7 @@
       <article class="step" id="step-1">
         <div class="step-number">1</div>
         <div class="step-body">
-          <h2>Open an AI chat</h2>
+          <h2 data-i18n="onbStep1Title">Open an AI chat</h2>
           <p>Token Watcher automatically detects which AI platform you're using and starts
              capturing token data immediately. No API key or login required.</p>
           <div class="site-links">
@@ -66,10 +66,10 @@
       <article class="step" id="step-2">
         <div class="step-number">2</div>
         <div class="step-body">
-          <h2>Watch your usage live</h2>
+          <h2 data-i18n="onbStep2Title">Watch your usage live</h2>
           <p>Click the TW icon in the toolbar anytime to see a live breakdown of token usage
              per platform, Claude's 5-hour window gauge, and a usage history chart.</p>
-          <p class="code-note">For Claude users: optionally run <strong>ClaudeWatch Core</strong>
+          <p class="code-note">For Claude users: optionally run <strong>Token Watcher Core</strong>
              to unlock cost tracking, email alerts, and the web dashboard.</p>
           <div class="code-block">
             <span class="code-prompt">$</span>
@@ -93,7 +93,7 @@
       <article class="step" id="step-3">
         <div class="step-number step-number-done">3</div>
         <div class="step-body">
-          <h2>You're all set</h2>
+          <h2 data-i18n="onbStep3Title">You're all set</h2>
           <p>Token Watcher will alert you as usage climbs across any supported platform.
              Alerts fire automatically at:</p>
           <ul class="threshold-list">
@@ -117,17 +117,43 @@
 
     </main>
 
+    <!-- Permissions -->
+    <section class="steps" id="permissions" aria-labelledby="permissions-title">
+      <article class="step">
+        <div class="step-body">
+          <h2 id="permissions-title" data-i18n="permTitle">Why Token Watcher asks for each permission</h2>
+          <p data-i18n="permIntro">Nothing below reads your messages. Each permission is used only for the purpose listed.</p>
+          <dl class="permission-list">
+            <dt data-i18n="permHostsName">Access to claude.ai, chatgpt.com and gemini.google.com</dt>
+            <dd data-i18n="permHostsBody">Lets the extension read token counts and quota figures from these three sites. It is not used on any other site.</dd>
+            <dt data-i18n="permCookiesName">cookies</dt>
+            <dd data-i18n="permCookiesBody">Lets the extension make quota requests to your signed-in provider account without asking you to paste a key. Cookie values are never stored or sent anywhere.</dd>
+            <dt data-i18n="permStorageName">storage</dt>
+            <dd data-i18n="permStorageBody">Keeps your settings and usage history on this device.</dd>
+            <dt data-i18n="permAlarmsName">alarms and idle</dt>
+            <dd data-i18n="permAlarmsBody">Schedules periodic refreshes and pauses them while your computer is idle.</dd>
+            <dt data-i18n="permNotificationsName">notifications</dt>
+            <dd data-i18n="permNotificationsBody">Shows an alert when usage crosses a threshold you chose.</dd>
+            <dt data-i18n="permTabsName">tabs and scripting</dt>
+            <dd data-i18n="permTabsBody">Finds your open provider tabs and runs the usage gauge in them.</dd>
+            <dt data-i18n="permLocalhostName">localhost:7734 (optional)</dt>
+            <dd data-i18n="permLocalhostBody">Only requested if you turn on sharing with Token Watcher Core running on your own computer.</dd>
+          </dl>
+          <p><a href="../privacy/privacy.html" target="_blank" rel="noopener" data-i18n="permPrivacyLink">Read the full privacy page</a></p>
+        </div>
+      </article>
+    </section>
+
     <!-- Footer -->
     <footer class="page-footer">
       <p class="privacy">
-        🔒 <strong>Privacy:</strong> All data stays on your device.
-        Token Watcher reads token counts only from the current page — it never
-        reads message content and never contacts external servers.
+        🔒 <strong data-i18n="onbPrivacyLead">Privacy:</strong> <span data-i18n="onbPrivacyBody">Your usage data stays on your device. Token Watcher reads token counts and quota figures only; it never reads message content and has no analytics or tracking servers. It talks only to the provider sites you use (and to localhost if you opt in).</span>
       </p>
-      <button class="btn btn-ghost" id="btn-close">Close this tab</button>
+      <button class="btn btn-ghost" id="btn-close" data-i18n="onbClose">Close this tab</button>
     </footer>
 
   </div>
+  <script src="../i18n.js"></script>
   <script src="onboarding.js"></script>
 </body>
 </html>

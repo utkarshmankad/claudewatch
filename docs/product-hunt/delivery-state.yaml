@@ -156,11 +156,12 @@ work_items:
     blocker: null
     last_checkpoint:
       at: '2026-10-23T00:40:00Z'
-      action: Claimed prompt 0.4; branch created from origin/develop 358b5ec
+      action: 'WIP checkpoint - slice 1 committed; extension tests and validate pass locally'
       workspace_branch: feature/p0-global-foundations
       base_sha: 358b5ec
       pending_operation: null
-    next_action: Inspect manifest/permissions/UI strings; implement 0.4 scope per DELIVERY_PLAN.md
+    next_action: >-
+      WIP slice 1 done (i18n.js, _locales en + en_XA, privacy page, first-run permission explainer, naming). Remaining: externalize popup/settings/background strings and use locale-aware formatting there; move optional providers (chatgpt/gemini hosts) to runtime permission requests or document why not feasible; WCAG audit (keyboard, focus, contrast e.g. --text-3 #44445a on #0f0f12, screen reader) with fixes and notes; observability; run full checks incl. browser tests; open PR into develop.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-0.4
