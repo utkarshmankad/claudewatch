@@ -22,7 +22,7 @@ last_checkpoint:
   base_sha: 57b7799
   worktree_path: null
   pending_operation: null
-next_action: Implement prompt 1.1 (ledger model doc, schema, tests) on feature/p1-ledger-model, then open PR into develop
+next_action: Open PR for prompt 1.1 into develop and maintain it; owner merges
 next_wake_time: null
 release_status: prohibited_during_pilot
 phases:
@@ -192,7 +192,7 @@ work_items:
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Implement ledger model doc, schema and tests, then open PR into develop.
+    next_action: 'Maintain the 1.1 PR until CI is green; owner merges. Next eligible prompt: 1.2 (browser collectors) needs the ledger merged.'
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-1.1
