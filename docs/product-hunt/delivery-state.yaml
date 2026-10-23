@@ -200,16 +200,16 @@ work_items:
   - prompt: '1.2'
     phase: 1
     title: Implement browser activity collectors
-    status: not_started
+    status: in_progress
     planned_branch: feature/p1-browser-collectors
-    branch: null
+    branch: feature/p1-browser-collectors
     commit: null
     pull_request: null
     ci_status: not_run
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: Implement browser metadata-only collectors feeding the ledger; open PR into develop.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-1.2
