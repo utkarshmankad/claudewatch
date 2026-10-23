@@ -146,16 +146,21 @@ work_items:
   - prompt: '0.4'
     phase: 0
     title: Prepare global trust and accessibility foundations
-    status: not_started
+    status: in_progress
     planned_branch: feature/p0-global-foundations
-    branch: null
+    branch: feature/p0-global-foundations
     commit: null
     pull_request: null
     ci_status: not_run
     gate_status: not_evaluated
     blocker: null
-    last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    last_checkpoint:
+      at: '2026-10-23T00:40:00Z'
+      action: Claimed prompt 0.4; branch created from origin/develop 358b5ec
+      workspace_branch: feature/p0-global-foundations
+      base_sha: 358b5ec
+      pending_operation: null
+    next_action: Inspect manifest/permissions/UI strings; implement 0.4 scope per DELIVERY_PLAN.md
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-0.4
