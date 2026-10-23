@@ -1,4 +1,5 @@
 import { formatWindowEnd, validEpochMs, quotaCaption } from './formatters.mjs';
+import { summarizeLedger, ledgerLines } from './ledger-summary.mjs';
 
 // popup.js — fetches stats from background service worker via GET_STATS,
 // renders dual gauges (5h / 7d), site breakdown, plan comparison table, and SVG sparkline.
@@ -18,6 +19,11 @@ let gSelectedSite = 'claude';
 let gStats = null;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+// Message lookup with the English string as fallback (i18n.js is optional in tests).
+function t(key, subs, fallback) {
+  return window.TokenWatcherI18n ? window.TokenWatcherI18n.t(key, subs, fallback) : fallback;
+}
 
 function el(id) { return document.getElementById(id); }
 
@@ -53,12 +59,12 @@ function escapeHtml(value) {
 function fmtAgo(epochMs) {
   if (!epochMs) return '—';
   const sec = Math.round((Date.now() - epochMs) / 1000);
-  if (sec < 5)  return 'just now';
-  if (sec < 60) return `${sec}s ago`;
+  if (sec < 5)  return t('popJustNow', undefined, 'just now');
+  if (sec < 60) return t('popSecAgo', [String(sec)], `${sec}s ago`);
   const m = Math.floor(sec / 60);
-  if (m < 60)   return `${m}m ago`;
+  if (m < 60)   return t('popMinAgo', [String(m)], `${m}m ago`);
   const h = Math.floor(m / 60);
-  return `${h}h ${m % 60}m ago`;
+  return t('popHourMinAgo', [String(h), String(m % 60)], `${h}h ${m % 60}m ago`);
 }
 
 function fmtDuration(ms) {
@@ -108,23 +114,27 @@ function renderProviderHealth(health, site = null) {
   node.hidden = false;
   node.className = `provider-health${health.ok === false ? ' error' : health.stale ? ' stale' : ''}`;
   const fetchedAt = health.lastFetchAt ?? (health.ageMs == null ? null : Date.now() - health.ageMs);
-  const fetched = fetchedAt ? `Fetched from provider ${fmtAgo(fetchedAt)}` : 'Not fetched yet';
+  const fetched = fetchedAt
+    ? t('popFetched', [fmtAgo(fetchedAt)], `Fetched from provider ${fmtAgo(fetchedAt)}`)
+    : t('popNotFetched', undefined, 'Not fetched yet');
   let line;
   if (health.stale) {
-    const reason = health.staleMessage ?? (health.hasData ? 'Data is stale.' : 'Open a signed-in tab to fetch usage.');
+    const reason = health.staleMessage ?? (health.hasData
+      ? t('popStaleData', undefined, 'Data is stale.')
+      : t('popOpenTabFetch', undefined, 'Open a signed-in tab to fetch usage.'));
     line = `${reason} ${fetched}`;
   } else if (health.ok === false) {
     const status = health.status ? ` (HTTP ${health.status})` : '';
-    line = `Last update failed${status} · showing last known data. ${fetched}`;
+    line = t('popUpdateFailed', [status, fetched], `Last update failed${status} · showing last known data. ${fetched}`);
   } else {
-    line = `Provider-reported · ${fetched}`;
+    line = t('popProviderReported', [fetched], `Provider-reported · ${fetched}`);
   }
   node.textContent = line;
   if (health.stale || health.ok === false) {
     const retry = document.createElement('button');
     retry.type = 'button';
     retry.className = 'provider-retry';
-    retry.textContent = 'Retry now';
+    retry.textContent = t('popRetry', undefined, 'Retry now');
     retry.addEventListener('click', () => {
       retry.disabled = true;
       chrome.runtime.sendMessage({ type: 'REFRESH_NOW', site }, () => { void chrome.runtime.lastError; loadAndRender(); });
@@ -166,7 +176,7 @@ function renderSiteBreakdown(siteBreakdown, activeSite, providerUsage) {
     const scoped = quota?.additionalLimits?.find(limit => /codex/i.test(`${limit.name} ${limit.feature ?? ''}`));
     const usageText = quota
       ? `5h ${fmtPct(quota.pct5h)} · 7d ${fmtPct(quota.pct7d)}`
-      : (tokens > 0 ? `${fmtK(tokens)} local` : 'Open signed-in tab');
+      : (tokens > 0 ? t('popLocalTokens', [fmtK(tokens)], `${fmtK(tokens)} local`) : t('popOpenSignedTab', undefined, 'Open signed-in tab'));
     const forecastLabel = window.TokenWatcherContract.formatForecast(quota?.forecastMeta7d, fmtPct);
     const forecast = forecastLabel ? ` ${forecastLabel}` : '';
     const scopedText = scoped ? ` · Codex ${fmtPct(scoped.pct)}` : '';
@@ -192,7 +202,7 @@ function renderPlanTable(planTable) {
   const tbody = el('plan-tbody');
   if (!tbody) return;
   if (!planTable?.length) {
-    tbody.innerHTML = '<tr class="skeleton"><td colspan="3">No data</td></tr>';
+    tbody.innerHTML = `<tr class="skeleton"><td colspan="3">${escapeHtml(t('popNoData', undefined, 'No data'))}</td></tr>`;
     return;
   }
 
@@ -202,7 +212,7 @@ function renderPlanTable(planTable) {
     const cls5 = p5 == null ? 'null' : p5 >= 100 ? 'over' : p5 >= 80 ? 'high' : '';
     const cls7 = p7 == null ? 'null' : p7 >= 100 ? 'over' : p7 >= 80 ? 'high' : '';
     const cur = row.isCurrent;
-    const dot = cur ? '<span class="current-marker" title="Your plan"></span>' : '';
+    const dot = cur ? '<span class="current-marker" title="${escapeHtml(t('popYourPlan', undefined, 'Your plan'))}"></span>' : '';
 
     return `<tr class="${cur ? 'current-plan' : ''}">
       <td><span class="plan-name">${dot}${row.name}</span></td>
@@ -264,7 +274,7 @@ function tickCountdown() {
     el5h.textContent = fmtCountdown(left);
     el5h.className   = 'reset-clock' + (left < 5 * 60_000 ? ' urgent' : left < 30 * 60_000 ? ' warn' : '');
   }
-  setText('end-time-5h', gResetMs5h != null ? `Ends ${formatWindowEnd(gResetMs5h)}` : 'End time unavailable');
+  setText('end-time-5h', gResetMs5h != null ? t('popEnds', [formatWindowEnd(gResetMs5h)], `Ends ${formatWindowEnd(gResetMs5h)}`) : t('popEndUnavailable', undefined, 'End time unavailable'));
 
   const el7d = el('countdown-7d');
   if (el7d && gResetMs7d != null) {
@@ -272,7 +282,7 @@ function tickCountdown() {
     el7d.textContent = fmtCountdown(left);
     el7d.className   = 'reset-clock';
   }
-  setText('end-time-7d', gResetMs7d != null ? `Ends ${formatWindowEnd(gResetMs7d)}` : 'End time unavailable');
+  setText('end-time-7d', gResetMs7d != null ? t('popEnds', [formatWindowEnd(gResetMs7d)], `Ends ${formatWindowEnd(gResetMs7d)}`) : t('popEndUnavailable', undefined, 'End time unavailable'));
 
   setText('last-update', gLastTs ? fmtAgo(gLastTs) : '—');
 }
@@ -347,12 +357,15 @@ function render(stats) {
 
   // Alert (Claude rate-limit)
   if (gSelectedSite === 'claude' && rlType === 'over_limit') {
-    showAlert('Claude rate limit reached — resets in ' + (gResetMs5h ? fmtDuration(Math.max(0, gResetMs5h - Date.now())) : '—'), true);
+    const left = gResetMs5h ? fmtDuration(Math.max(0, gResetMs5h - Date.now())) : '—';
+    showAlert(t('popOverLimit', [left], `Claude rate limit reached — resets in ${left}`), true);
   } else if (gSelectedSite === 'claude' && rlType === 'approaching_limit') {
-    const rem = rlRemaining != null ? ` (${rlRemaining} msgs left)` : '';
-    showAlert(`Claude approaching limit${rem}`);
+    showAlert(rlRemaining != null
+      ? t('popApproachingRem', [String(rlRemaining)], `Claude approaching limit (${rlRemaining} msgs left)`)
+      : t('popApproaching', undefined, 'Claude approaching limit'));
   } else if (selectedPct5h != null && selectedPct5h >= 90) {
-    showAlert(`${selectedName} ${label5h.toLowerCase()} window ${Math.round(selectedPct5h)}% used`, selectedPct5h >= 100);
+    showAlert(t('popWindowUsed', [selectedName, label5h.toLowerCase(), String(Math.round(selectedPct5h))],
+      `${selectedName} ${label5h.toLowerCase()} window ${Math.round(selectedPct5h)}% used`), selectedPct5h >= 100);
   } else {
     showAlert(null);
   }
@@ -375,6 +388,26 @@ function render(stats) {
   renderSparkline(gUsageHistory, gActiveWin);
 }
 
+// ── Ledger summary ───────────────────────────────────────────────────────────
+
+const LEDGER_STATUS = {
+  error:   () => t('popLedgerError', undefined, 'Could not read the ledger. Try again in a moment.'),
+  empty:   () => t('popLedgerEmpty', undefined, 'No usage evidence yet. Open a signed-in Claude, ChatGPT or Gemini tab.'),
+  stale:   () => t('popLedgerStale', undefined, 'Some provider data is stale. Figures may lag the real quota.'),
+  partial: () => t('popLedgerPartial', undefined, 'Partial: browser activity collection is off or a provider has no reading. Unattributed use is not computed here.'),
+  ok:      () => t('popLedgerOk', undefined, 'Unattributed use is not computed here. Token counts are estimates, not billing.'),
+};
+
+function renderLedgerSummary(stats, activity) {
+  const summary = summarizeLedger({ stats, activity });
+  // State is stated in words and also set as an attribute; it never relies on color.
+  const status = el('ledger-status');
+  status.textContent = LEDGER_STATUS[summary.state]();
+  status.dataset.state = summary.state;
+  el('ledger-list').innerHTML = ledgerLines(summary, t)
+    .map(l => `<li><strong>${escapeHtml(l.name)}</strong> ${escapeHtml(l.text)}</li>`).join('');
+}
+
 // ── Data loading ──────────────────────────────────────────────────────────────
 
 function loadAndRender() {
@@ -385,6 +418,9 @@ function loadAndRender() {
       return;
     }
     render(stats);
+    chrome.runtime.sendMessage({ type: 'ACTIVITY_SUMMARY' }, (activity) => {
+      renderLedgerSummary(stats, chrome.runtime.lastError ? null : activity);
+    });
   });
 }
 
@@ -395,9 +431,12 @@ function setupTabs() {
     const btn = el(id);
     if (!btn) return;
     btn.addEventListener('click', () => {
-      el('tab-5h').classList.remove('active');
-      el('tab-7d').classList.remove('active');
+      ['tab-5h', 'tab-7d'].forEach(tabId => {
+        el(tabId).classList.remove('active');
+        el(tabId).setAttribute('aria-pressed', 'false');
+      });
       btn.classList.add('active');
+      btn.setAttribute('aria-pressed', 'true');
       gActiveWin = btn.dataset.win;
       renderSparkline(gUsageHistory, gActiveWin);
     });

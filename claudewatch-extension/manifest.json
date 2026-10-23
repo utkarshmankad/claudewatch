@@ -2,7 +2,8 @@
   "manifest_version": 3,
   "name": "Token Watcher",
   "version": "0.14.3",
-  "description": "Track AI token usage across Claude, ChatGPT, and Gemini in real-time. Monitor session limits, view history, and get alerts before you hit your limit.",
+  "default_locale": "en",
+  "description": "__MSG_extDescription__",
   "permissions": ["storage", "alarms", "notifications", "tabs", "scripting", "cookies", "idle"],
   "host_permissions": [
     "https://claude.ai/*",

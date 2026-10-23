@@ -25,13 +25,16 @@ export default defineConfig({
         'src/api/**/*.ts',
         'src/alerts/**/*.ts',
         'src/config/manager.ts',
+        'src/collectors/**/*.ts',
         'src/config/schema.ts',
         'src/daemon/costCache.ts',
+        'src/ledger/**/*.ts',
         'src/store/**/*.ts',
         'src/version.ts',
       ],
       exclude: [
         'src/**/__tests__/**',
+        'src/collectors/service.ts', // daemon wiring; exercised through the runner tests
       ],
     },
   },

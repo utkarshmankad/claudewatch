@@ -2,7 +2,7 @@
 // Accumulates SSE token counts across Claude, ChatGPT, and Gemini.
 // Maintains 5h/7d rolling windows, detects plan, updates badge.
 
-importScripts('provider-collectors.js', 'analytics.js', 'refresh-policy.js', 'provider-contract.js', 'provider-adapters.js');
+importScripts('provider-collectors.js', 'activity-collector.js', 'analytics.js', 'refresh-policy.js', 'provider-contract.js', 'provider-adapters.js');
 
 const TAG = '[TokenWatcher]';
 
@@ -66,6 +66,29 @@ async function getDeviceId() {
 // ── Local analytics (never sent off-device) ──────────────────────────────
 const analytics = self.TokenWatcherAnalytics.createStore(self.TokenWatcherAnalytics.chromeStorageAdapter());
 const track = (name, props) => analytics.record(name, props).catch(() => {});
+
+// ── Opt-in browser activity observations (metadata only) ───────────────
+const activity = self.TokenWatcherActivity.createStore(self.TokenWatcherActivity.chromeStorageAdapter());
+
+// Identifies the current browser run so local session ids reset on restart.
+async function browserEpoch() {
+  try {
+    const stored = await chrome.storage.session.get('activity_epoch');
+    if (stored.activity_epoch) return stored.activity_epoch;
+    const epoch = Date.now().toString(36);
+    await chrome.storage.session.set({ activity_epoch: epoch });
+    return epoch;
+  } catch { return 'e0'; }
+}
+
+async function recordActivity(msg, tab) {
+  if (tab.incognito) return { ok: false, reason: 'incognito_excluded' };
+  if (!(await activity.isEnabled())) return { ok: false, reason: 'not_enabled' };
+  const sessionId = await activity.sessionFor(tab.id, await browserEpoch());
+  return activity.record({
+    v: 1, id: msg.eventId, provider: msg.site, ts: msg.ts, sessionId, activityType: msg.activityType,
+  });
+}
 
 // Maps scheduler triggers onto the closed analytics trigger enum.
 function analyticsTrigger(trigger) {
@@ -827,6 +850,32 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     addTokens(msg.inputTokens ?? 0, msg.outputTokens ?? 0, msg.capturedAt, msg.rateLimit ?? null, msg.site ?? 'claude')
       .then(() => reply({ ok: true }))
       .catch(e => reply({ ok: false, err: e.message }));
+    return true;
+  }
+
+  if (msg.type === 'ACTIVITY_OBSERVED' && fromAllowedSite) {
+    recordActivity(msg, sender.tab).then(r => reply(r)).catch(() => reply({ ok: false }));
+    return true;
+  }
+
+  if (msg.type === 'ACTIVITY_SET_ENABLED' && fromExtension) {
+    activity.setEnabled(msg.enabled === true).then(r => reply(r)).catch(() => reply({ ok: false }));
+    return true;
+  }
+
+  if (msg.type === 'ACTIVITY_SUMMARY' && fromExtension) {
+    // Counts only: the popup never needs the observations themselves.
+    Promise.all([activity.isEnabled(), activity.list()]).then(([enabled, events]) => {
+      const since = Date.now() - 24 * 60 * 60 * 1000;
+      const counts24h = {};
+      for (const e of events) if (e.activityType === 'message_completed' && e.ts >= since) counts24h[e.provider] = (counts24h[e.provider] ?? 0) + 1;
+      reply({ enabled, counts24h });
+    }).catch(() => reply(null));
+    return true;
+  }
+
+  if (msg.type === 'ACTIVITY_CLEAR' && fromExtension) {
+    activity.clear().then(r => reply(r)).catch(() => reply({ ok: false }));
     return true;
   }
 

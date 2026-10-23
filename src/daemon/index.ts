@@ -22,6 +22,7 @@ import { sendEmailAlert } from '../alerts/email.js';
 import type { AlertPayload } from '../alerts/types.js';
 import type { Config, SpendThreshold } from '../config/schema.js';
 import { setCostCache } from './costCache.js';
+import { startCollectors } from '../collectors/service.js';
 import { startWebServer } from './server.js';
 import { pullCloudEvents, syncUsageEvent } from '../sync/cloudSync.js';
 
@@ -320,6 +321,7 @@ export async function startDaemon(): Promise<void> {
   const config = await loadConfig();
 
   await ccWatcher.start(); // non-fatal if Claude Code not installed
+  const stopCollectors = startCollectors(); // opt-in local collectors; all off until enabled
 
   const sessionPollerReady = await sessionPoller.init();
   if (sessionPollerReady) {
@@ -356,6 +358,7 @@ export async function startDaemon(): Promise<void> {
     console.log('\n[ClaudeWatch] shutting down');
     task.stop();
     ccWatcher.stop();
+    stopCollectors();
     webServer.close();
     closeDb();
     process.exit(0);

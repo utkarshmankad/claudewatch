@@ -5,70 +5,78 @@ plan_source_sha256: 2bd804a354aad4639704572c4b37f9cfcb6492f614482468e2b3fb75e028
 plan_document: DELIVERY_PLAN.md
 pilot_status: in_progress
 implementation_authorized: true
-current_phase: 0
-current_prompt: '0.3'
-work_item_status: awaiting_ci
-branch: feature/p0-provider-contract
-commit: b70410377e0e6254bde689564d099bb50fc2f687
-pull_request: https://github.com/utkarshmankad/claudewatch/pull/40
-ci_status: pending
-gate_status: not_evaluated
+current_phase: 1
+current_prompt: '1.5'
+work_item_status: in_progress
+branch: feature/p1-ledger-ui
+commit: null
+pull_request: null
+ci_status: not_run
+gate_status: deferred_to_final_gate
 blocker: null
 last_checkpoint:
-  at: '2026-10-23T00:50:00Z'
+  at: '2026-10-23T02:45:00Z'
   action: >-
-    Prompt 0.3 implemented and validated locally; PR #40 opened into develop
-  workspace_branch: feature/p0-provider-contract
-  workspace_head: b70410377e0e6254bde689564d099bb50fc2f687
-  base_sha: 358b5ec
+    Prompt 0.4 slice 2 (popup/settings strings, WCAG fixes, permissions doc) committed; 0.1-0.3 reconciled as merged
+  workspace_branch: feature/p0-global-foundations
+  base_sha: 57b7799
   worktree_path: null
   pending_operation: null
-next_action: Maintain PR #40 until CI is green; owner merges manually
+next_action: Maintain the prompt 1.5 PR; owner merges
 next_wake_time: null
 release_status: prohibited_during_pilot
 phases:
   - id: 0
     title: Reliability and measurement foundation
     status: in_progress
-    gate_status: not_evaluated
+    gate_status: deferred_to_final_gate
     evidence_files: []
     gate_decision: null
     pilot_eligible: true
   - id: 1
     title: Universal Usage Ledger
     status: not_started
-    gate_status: not_evaluated
+    gate_status: deferred_to_final_gate
     evidence_files: []
     gate_decision: null
     pilot_eligible: true
   - id: 2
     title: Quota Autopilot
     status: not_started
-    gate_status: not_evaluated
+    gate_status: deferred_to_final_gate
     evidence_files: []
     gate_decision: null
     pilot_eligible: true
   - id: 3
     title: Encrypted cross-device continuity
     status: not_started
-    gate_status: not_evaluated
+    gate_status: deferred_to_final_gate
     evidence_files: []
     gate_decision: null
     pilot_eligible: true
   - id: 4
     title: Community Limit Change Radar
     status: not_started
-    gate_status: not_evaluated
+    gate_status: deferred_to_final_gate
     evidence_files: []
     gate_decision: null
     pilot_eligible: true
   - id: 5
     title: Usage Wrapped and Plan ROI
     status: not_started
-    gate_status: not_evaluated
+    gate_status: deferred_to_final_gate
     evidence_files: []
     gate_decision: null
     pilot_eligible: true
+  - id: G
+    title: Final consolidated gate (all deferred phase 0-5 gates)
+    status: not_started
+    gate_status: not_evaluated
+    evidence_files: []
+    gate_decision: null
+    pilot_eligible: false
+    human_gate: true
+    note: Holds the Phase 0-5 exit criteria and evidence deferred by the owner on 2026-10-23. Must pass before Phase 6. See gates/DEFERRED_GATES.md.
   - id: 6
     title: Product Hunt release
     status: not_started
@@ -129,12 +137,12 @@ work_items:
   - prompt: '0.3'
     phase: 0
     title: Standardize provider data and confidence
-    status: awaiting_ci
+    status: completed
     planned_branch: feature/p0-provider-contract
     branch: feature/p0-provider-contract
     commit: b70410377e0e6254bde689564d099bb50fc2f687
     pull_request: https://github.com/utkarshmankad/claudewatch/pull/40
-    ci_status: pending
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint:
@@ -145,7 +153,7 @@ work_items:
       base_sha: 358b5ec
       worktree_path: null
       pending_operation: null
-    next_action: Maintain PR #40 until CI is green; owner merges manually
+    next_action: None. PR #40 merged into develop (merge commit 57b7799); phase gate for Phase 0 still pending.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-0.3
@@ -153,16 +161,21 @@ work_items:
   - prompt: '0.4'
     phase: 0
     title: Prepare global trust and accessibility foundations
-    status: not_started
+    status: completed
     planned_branch: feature/p0-global-foundations
-    branch: null
-    commit: null
-    pull_request: null
-    ci_status: not_run
+    branch: feature/p0-global-foundations
+    commit: ab4e7153e66700cce13d903d23ff0db0a1ef9c5f
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/42
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
-    last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    last_checkpoint:
+      at: '2026-10-23T02:45:00Z'
+      action: 'Slice 2 committed - popup/settings strings externalized, WCAG fixes, docs/PERMISSIONS.md'
+      workspace_branch: feature/p0-global-foundations
+      base_sha: 57b7799
+      pending_operation: null
+    next_action: None. PR #42 merged into develop (merge commit 6f1a2cb); Phase 0 gate pending human evidence. Follow-up in docs/PERMISSIONS.md - optional ChatGPT/Gemini host permissions not yet runtime requests.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-0.4
@@ -170,16 +183,16 @@ work_items:
   - prompt: '1.1'
     phase: 1
     title: Define the ledger and provenance model
-    status: not_started
+    status: completed
     planned_branch: feature/p1-ledger-model
-    branch: null
-    commit: null
-    pull_request: null
-    ci_status: not_run
+    branch: feature/p1-ledger-model
+    commit: 41c355d
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/47
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: None. PR #47 merged into develop (merge commit 848e91a); phase gate deferred to final gate.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-1.1
@@ -187,16 +200,16 @@ work_items:
   - prompt: '1.2'
     phase: 1
     title: Implement browser activity collectors
-    status: not_started
+    status: completed
     planned_branch: feature/p1-browser-collectors
-    branch: null
-    commit: null
-    pull_request: null
-    ci_status: not_run
+    branch: feature/p1-browser-collectors
+    commit: 8155a44a3c8c0b0e7a390d0e706459e126b10721
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/48
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: None. PR #48 merged into develop (merge commit 36561e9); phase gate deferred to final gate.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-1.2
@@ -204,16 +217,16 @@ work_items:
   - prompt: '1.3'
     phase: 1
     title: Implement coding assistant collectors
-    status: not_started
+    status: completed
     planned_branch: feature/p1-coding-collectors
-    branch: null
-    commit: null
-    pull_request: null
-    ci_status: not_run
+    branch: feature/p1-coding-collectors
+    commit: 6d5396791fcce29cdd3e496c04105bb2ca2b2b79
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/49
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: None. PR #49 merged into develop (merge commit b7ba2f0).
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-1.3
@@ -221,16 +234,16 @@ work_items:
   - prompt: '1.4'
     phase: 1
     title: Build account-wide reconciliation
-    status: not_started
+    status: completed
     planned_branch: feature/p1-reconciliation
-    branch: null
+    branch: feature/p1-reconciliation
     commit: null
-    pull_request: null
-    ci_status: not_run
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/50
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: Maintain the 1.4 PR until CI is green; owner merges.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-1.4
@@ -238,16 +251,16 @@ work_items:
   - prompt: '1.5'
     phase: 1
     title: Release the ledger user experience
-    status: not_started
+    status: awaiting_ci
     planned_branch: feature/p1-ledger-ui
-    branch: null
+    branch: feature/p1-ledger-ui
     commit: null
     pull_request: null
     ci_status: not_run
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: Maintain the 1.5 PR; owner merges. Human usability sessions (docs/LEDGER_UI.md) remain for the final gate.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-1.5

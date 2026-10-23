@@ -24,7 +24,7 @@ During the pilot, do not change `main` directly, merge into `main`, tag or publi
 
 The current phase and prompt point to the next work item, not proof it has started. Top-level branch, commit, PR, CI, and gate fields mirror that work item; null means no delivery artifact exists. Workspace branch and HEAD are recorded separately in the checkpoint. `planned_branch` is source intent, never evidence that a branch exists. Store a PR's number, URL, base, head, and head SHA when one exists. Record full commit SHAs and CI run URLs/results tied to the checked SHA.
 
-Use work-item statuses `not_started`, `in_progress`, `awaiting_ci`, `awaiting_review`, `blocked`, and `completed`. Use CI statuses `not_run`, `pending`, `passed`, and `failed`. Gate statuses are `not_evaluated`, `pending`, `passed`, `failed`, or `accepted_exception`; an exception is never an ordinary pass. Keep release status `prohibited_during_pilot` throughout the pilot.
+Use work-item statuses `not_started`, `in_progress`, `awaiting_ci`, `awaiting_review`, `blocked`, and `completed`. Use CI statuses `not_run`, `pending`, `passed`, and `failed`. Gate statuses are `not_evaluated`, `pending`, `passed`, `failed`, `accepted_exception`, or `deferred_to_final_gate` (owner directive 2026-10-23, see gates/DEFERRED_GATES.md; never a pass); an exception is never an ordinary pass. Keep release status `prohibited_during_pilot` throughout the pilot.
 
 Write recoverable checkpoints after every meaningful action: implementation edits, validation, branch creation, commit, push, PR creation/update, CI result, review decision, merge, gate decision, and blocker discovery. Include UTC time, prompt/operation key, actual branch and SHAs, PR/CI identifiers, evidence paths, result, blocker, and precise next action. Validate YAML before replacing state atomically. Record `next_wake_time` as a quoted ISO 8601 UTC time only for an authorized scheduled check; use null when waiting for human input or no wake is scheduled. State timestamps do not themselves create automations.
 
@@ -39,5 +39,9 @@ On every resume, read state first, then inspect worktree status, local and remot
 - Before pushing, compare local and remote tips. Before opening a PR, query by repository, head branch, base `develop`, and operation key across open, closed, and merged PRs. Reuse an existing matching PR. A closed unmerged PR requires a decision, not an automatic duplicate.
 - If a merge already happened, record the merge SHA and resume post-merge validation/checkpointing. Do not create a second branch, commit, or PR for the completed prompt. Delete only the merged prompt branch after verifying merge and checkpointing; preserve `main`, `develop`, and unrelated branches.
 - If remote state cannot be verified or recorded identifiers disagree, set a blocker and stop dependent actions. Do not guess. Mark a work item completed only after its required checks, review, merge where permitted, and evidence are verified.
+
+## Authorship and attribution (owner directive, 2026-10-23)
+
+Do not mention Claude, Claude Code or any AI tool as author or contributor: no `Co-Authored-By` or session trailers in commits, no "generated with" lines in PR descriptions, and no such mentions in code comments or file headers. This overrides the `Co-Authored-By: Claude` instruction in the routine prompt. References to Claude Code as a product the app monitors are unaffected. Keep the operation key in commit messages and PR bodies.
 
 This setup does not install a scheduler, start a delivery loop, or authorize implementation. Stop after validating the four orchestration files.
