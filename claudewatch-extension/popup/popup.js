@@ -1,4 +1,4 @@
-import { formatWindowEnd, validEpochMs } from './formatters.mjs';
+import { formatWindowEnd, validEpochMs, quotaCaption } from './formatters.mjs';
 
 // popup.js — fetches stats from background service worker via GET_STATS,
 // renders dual gauges (5h / 7d), site breakdown, plan comparison table, and SVG sparkline.
@@ -167,7 +167,8 @@ function renderSiteBreakdown(siteBreakdown, activeSite, providerUsage) {
     const usageText = quota
       ? `5h ${fmtPct(quota.pct5h)} · 7d ${fmtPct(quota.pct7d)}`
       : (tokens > 0 ? `${fmtK(tokens)} local` : 'Open signed-in tab');
-    const forecast = quota?.forecast7d != null ? ` → ${fmtPct(quota.forecast7d)}` : '';
+    const forecastLabel = window.TokenWatcherContract.formatForecast(quota?.forecastMeta7d, fmtPct);
+    const forecast = forecastLabel ? ` ${forecastLabel}` : '';
     const scopedText = scoped ? ` · Codex ${fmtPct(scoped.pct)}` : '';
     const account = quota?.email ? `<span class="site-account">${escapeHtml(quota.email)}</span>` : '';
 
@@ -320,10 +321,19 @@ function render(stats) {
   setText('label-7d', `${label7d} Rolling`);
   setText('reset-label-5h', `${label5h.toLowerCase()} resets in`);
   setText('reset-label-7d', `${label7d.toLowerCase()} resets in`);
-  const confidence5h = selected?.forecastMeta5h?.confidence ? ` · ${selected.forecastMeta5h.confidence}` : '';
-  const confidence7d = selected?.forecastMeta7d?.confidence ? ` · ${selected.forecastMeta7d.confidence}` : '';
-  setText('tokens-5h', selected?.forecast5h != null ? `Forecast ${fmtPct(selected.forecast5h)}${confidence5h}` : 'Account quota');
-  setText('tokens-7d', selected?.forecast7d != null ? `Forecast ${fmtPct(selected.forecast7d)}${confidence7d}` : 'Account quota');
+  const contract = window.TokenWatcherContract;
+  // Where each gauge value came from. Only Claude falls back to a local token estimate.
+  const sourceOf = (key, pct) => pct == null ? null
+    : selected?.[`pct${key}`] != null ? 'provider_reported'
+    : (stats[`pct${key}Source`] ?? 'local_estimate');
+  const caption = key => quotaCaption({
+    source: sourceOf(key, key === '5h' ? selectedPct5h : selectedPct7d),
+    forecastMeta: selected?.[`forecastMeta${key}`] ?? null,
+    errorCategory: selected?.readings?.find(r => r.windowType === key)?.error?.category ?? selectedHealth?.errorCategory ?? null,
+    fmtPct, contract,
+  });
+  setText('tokens-5h', caption('5h'));
+  setText('tokens-7d', caption('7d'));
   setText('pct-5h', fmtPct(selectedPct5h));
   setText('pct-7d', fmtPct(selectedPct7d));
   fillBar('fill-5h', selectedPct5h);
