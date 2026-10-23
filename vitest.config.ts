@@ -27,6 +27,7 @@ export default defineConfig({
         'src/config/manager.ts',
         'src/config/schema.ts',
         'src/daemon/costCache.ts',
+        'src/ledger/**/*.ts',
         'src/store/**/*.ts',
         'src/version.ts',
       ],

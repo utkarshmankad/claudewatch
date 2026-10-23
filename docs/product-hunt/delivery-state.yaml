@@ -7,11 +7,11 @@ pilot_status: in_progress
 implementation_authorized: true
 current_phase: 1
 current_prompt: '1.1'
-work_item_status: not_started
-branch: feature/p0-global-foundations
-commit: ab4e7153e66700cce13d903d23ff0db0a1ef9c5f
-pull_request: https://github.com/utkarshmankad/claudewatch/pull/42
-ci_status: passed
+work_item_status: in_progress
+branch: feature/p1-ledger-model
+commit: null
+pull_request: null
+ci_status: not_run
 gate_status: deferred_to_final_gate
 blocker: null
 last_checkpoint:
@@ -22,7 +22,7 @@ last_checkpoint:
   base_sha: 57b7799
   worktree_path: null
   pending_operation: null
-next_action: Start prompt 1.1 from develop (per-phase gates deferred to the final gate phase; see gates/DEFERRED_GATES.md)
+next_action: Open PR for prompt 1.1 into develop and maintain it; owner merges
 next_wake_time: null
 release_status: prohibited_during_pilot
 phases:
@@ -183,16 +183,16 @@ work_items:
   - prompt: '1.1'
     phase: 1
     title: Define the ledger and provenance model
-    status: not_started
+    status: in_progress
     planned_branch: feature/p1-ledger-model
-    branch: null
+    branch: feature/p1-ledger-model
     commit: null
     pull_request: null
     ci_status: not_run
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: 'Maintain the 1.1 PR until CI is green; owner merges. Next eligible prompt: 1.2 (browser collectors) needs the ledger merged.'
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-1.1
