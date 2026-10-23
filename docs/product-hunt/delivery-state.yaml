@@ -6,9 +6,9 @@ plan_document: DELIVERY_PLAN.md
 pilot_status: in_progress
 implementation_authorized: true
 current_phase: 1
-current_prompt: '1.3'
+current_prompt: '1.4'
 work_item_status: in_progress
-branch: feature/p1-coding-collectors
+branch: feature/p1-reconciliation
 commit: null
 pull_request: null
 ci_status: not_run
@@ -217,16 +217,16 @@ work_items:
   - prompt: '1.3'
     phase: 1
     title: Implement coding assistant collectors
-    status: awaiting_ci
+    status: completed
     planned_branch: feature/p1-coding-collectors
     branch: feature/p1-coding-collectors
-    commit: null
-    pull_request: null
-    ci_status: not_run
+    commit: 6d5396791fcce29cdd3e496c04105bb2ca2b2b79
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/49
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: 'Maintain the 1.3 PR until CI is green; owner merges. Open for independent work: 1.4 (needs only the merged ledger).'
+    next_action: None. PR #49 merged into develop (merge commit b7ba2f0).
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-1.3
@@ -234,16 +234,16 @@ work_items:
   - prompt: '1.4'
     phase: 1
     title: Build account-wide reconciliation
-    status: not_started
+    status: in_progress
     planned_branch: feature/p1-reconciliation
-    branch: null
+    branch: feature/p1-reconciliation
     commit: null
     pull_request: null
     ci_status: not_run
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: Implement reconciliation module per Prompt 1.4 and open PR into develop.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-1.4
