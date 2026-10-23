@@ -2,7 +2,7 @@
 // Accumulates SSE token counts across Claude, ChatGPT, and Gemini.
 // Maintains 5h/7d rolling windows, detects plan, updates badge.
 
-importScripts('provider-collectors.js');
+importScripts('provider-collectors.js', 'analytics.js', 'refresh-policy.js', 'provider-contract.js', 'provider-adapters.js');
 
 const TAG = '[TokenWatcher]';
 
@@ -44,7 +44,10 @@ const K_USAGE_HISTORY  = 'usage_history';    // 7d account-scoped quota snapshot
 const K_PROVIDER_ACCOUNTS = 'provider_accounts'; // {site: {accountKey: snapshot}}
 const K_PROVIDER_SELECTIONS = 'provider_selections'; // {site: accountKey}
 const K_DEVICE_ID = 'device_id';
+const K_STALE_STATE = 'analytics_stale_state'; // {site: {since, reason, explained}}
 const providerRefreshes = new Map();
+const K_REFRESH_STATE = site => `refresh_state_${site}`;
+const PROVIDER_SITES = ['chatgpt', 'gemini', 'claude'];
 
 // ── Storage helpers ───────────────────────────────────────────────────────
 const lget = (k)    => new Promise(r => chrome.storage.local.get(k,  d => r(d[k]  ?? null)));
@@ -58,6 +61,89 @@ async function getDeviceId() {
   let id = await lget(K_DEVICE_ID);
   if (!id) { id = crypto.randomUUID(); await lset(K_DEVICE_ID, id); }
   return id;
+}
+
+// ── Local analytics (never sent off-device) ──────────────────────────────
+const analytics = self.TokenWatcherAnalytics.createStore(self.TokenWatcherAnalytics.chromeStorageAdapter());
+const track = (name, props) => analytics.record(name, props).catch(() => {});
+
+// Maps scheduler triggers onto the closed analytics trigger enum.
+function analyticsTrigger(trigger) {
+  if (['install', 'startup', 'alarm', 'manual', 'wake', 'focus'].includes(trigger)) return trigger;
+  if (['tab_created', 'tab_activated', 'navigation'].includes(trigger)) return 'tab';
+  if (trigger === 'watchdog') return 'alarm';
+  if (trigger === 'stats_read') return 'manual';
+  return 'other';
+}
+
+async function getRefreshState(site) {
+  return { ...self.TokenWatcherRefresh.initialState(), ...((await lget(K_REFRESH_STATE(site))) ?? {}) };
+}
+
+// Records the outcome of one refresh and schedules the bounded, jittered retry alarm.
+async function recordRefreshOutcome(site, trigger, ok, category) {
+  const R = self.TokenWatcherRefresh;
+  const next = R.applyOutcome(await getRefreshState(site), { now: Date.now(), ok, category, trigger });
+  await lset(K_REFRESH_STATE(site), next);
+  const alarmName = `retry_${site}`;
+  if (next.nextRetryAt != null) chrome.alarms.create(alarmName, { when: Math.max(next.nextRetryAt, Date.now() + 30_000) });
+  else chrome.alarms.clear(alarmName);
+  return next;
+}
+
+// Classifies one finished refresh from the stored poll record (or the thrown error).
+async function classifyRefresh(site, startedAt, thrown) {
+  const A = self.TokenWatcherAnalytics;
+  const poll = (await lget(`last_usage_poll_${site}`)) ?? {};
+  const ok = !thrown && Date.parse(poll.lastSuccessAt ?? '') >= startedAt;
+  const pollIsFresh = Date.parse(poll.capturedAt ?? '') >= startedAt;
+  const errorCategory = ok ? 'none'
+    : thrown ? A.categorizeError(thrown.message)
+    : pollIsFresh ? A.categorizeError(poll.error, poll.status) : 'other';
+  return { ok, errorCategory };
+}
+
+async function trackRefreshOutcome(site, startedAt, trigger, { ok, errorCategory }) {
+  try {
+    const durationMs = Math.min(600_000, Math.max(0, Date.now() - startedAt));
+    await track('refresh_result', { provider: site, ok, errorCategory, trigger: analyticsTrigger(trigger), durationMs });
+    if (!ok) return;
+    const existing = await analytics.list();
+    if (!existing.some(e => e.name === 'provider_connected' && e.props.provider === site)) {
+      await track('provider_connected', { provider: site });
+    }
+    if (!existing.some(e => e.name === 'first_useful_reading')) {
+      const { installedAt } = await analytics.meta();
+      if (installedAt) await track('first_useful_reading', { provider: site, secondsSinceInstall: Math.round((Date.now() - installedAt) / 1000) });
+    }
+    const staleState = (await lget(K_STALE_STATE)) ?? {};
+    if (staleState[site]) {
+      await track('stale_ended', { provider: site, staleSeconds: Math.round((Date.now() - staleState[site].since) / 1000), explained: staleState[site].explained });
+      delete staleState[site];
+      await lset(K_STALE_STATE, staleState);
+    }
+  } catch { /* analytics must never affect refresh */ }
+}
+
+// Called from the heartbeat: records when a connected provider crosses the stale threshold.
+async function trackStaleTransitions() {
+  try {
+    const A = self.TokenWatcherAnalytics;
+    const connected = new Set((await analytics.list()).filter(e => e.name === 'provider_connected').map(e => e.props.provider));
+    const staleState = (await lget(K_STALE_STATE)) ?? {};
+    let changed = false;
+    for (const site of connected) {
+      const poll = (await lget(`last_usage_poll_${site}`)) ?? {};
+      const lastOk = Date.parse(poll.lastSuccessAt ?? '');
+      if (!Number.isFinite(lastOk) || Date.now() - lastOk <= PROVIDER_STALE_MS || staleState[site]) continue;
+      const reason = poll.ok === false ? A.categorizeError(poll.error, poll.status) : 'other';
+      const explained = poll.ok === false && reason !== 'other';
+      staleState[site] = { since: lastOk + PROVIDER_STALE_MS, reason, explained };
+      await track('stale_started', { provider: site, reason, explained });
+      changed = true;
+    }
+    if (changed) await lset(K_STALE_STATE, staleState);
+  } catch { /* analytics must never affect the heartbeat */ }
 }
 
 async function sendCoreEvent(event) {
@@ -77,18 +163,7 @@ function stableAccountKey(snapshot) {
   return `${snapshot.site}:${String(raw)}`;
 }
 
-function validateProviderSnapshot(snapshot) {
-  if (!snapshot || !['claude', 'chatgpt', 'gemini'].includes(snapshot.site)) return 'invalid_site';
-  if (!stableAccountKey(snapshot)) return 'account_identity_missing';
-  for (const key of ['pct5h', 'pct7d']) {
-    const value = snapshot[key];
-    if (value != null && (!Number.isFinite(value) || value < 0 || value > 1000)) return `invalid_${key}`;
-  }
-  for (const key of ['resetsAt5h', 'resetsAt7d']) {
-    if (snapshot[key] != null && !Number.isFinite(Date.parse(snapshot[key]))) return `invalid_${key}`;
-  }
-  return null;
-}
+const validateProviderSnapshot = snapshot => self.TokenWatcherContract.validateSnapshot(snapshot);
 
 // ── Badge ─────────────────────────────────────────────────────────────────
 function updateBadge(pct) {
@@ -103,79 +178,7 @@ function updateBadge(pct) {
   });
 }
 
-// ── Plan detection (Claude-specific) ─────────────────────────────────────
-function detectPlan(data) {
-  const s = (typeof data === 'string' ? data : JSON.stringify(data)).toLowerCase();
-  if (s.includes('max_20') || s.includes('max20'))              return 'max20x';
-  if (s.includes('max_5')  || s.includes('max5'))               return 'max5x';
-  if (s.includes('claude_max') || s.includes('"max"'))          return 'max';
-  if (s.includes('claude_pro') || s.includes('"pro"')
-      || s.includes("'pro'")  || s.includes('pro_plan'))        return 'pro';
-  if (s.includes('claude_free')|| s.includes('"free"')
-      || s.includes('free_plan'))                                return 'free';
-  return null;
-}
-
-// ── Rate-limit window extraction ──────────────────────────────────────────
-function extractRateLimitFromResponse(data) {
-  if (!data || typeof data !== 'object') return null;
-
-  // Current claude.ai /usage shape. Values are percentages (0..100), whereas
-  // older message_limit SSE events may use fractions (0..1).
-  if (data.five_hour || data.seven_day) {
-    return {
-      type: null,
-      remaining: null,
-      resetsAt: data.five_hour?.resets_at ?? null,
-      resetsAt7d: data.seven_day?.resets_at ?? null,
-      utilization5h: data.five_hour?.utilization ?? null,
-      utilization7d: data.seven_day?.utilization ?? null,
-    };
-  }
-
-  function fromWindows(windows) {
-    if (!windows || typeof windows !== 'object') return null;
-    const win5h = windows['5h'];
-    const win7d = windows['7d'];
-    if (!win5h && !win7d) return null;
-    return {
-      resetsAt:      win5h?.resets_at ? new Date(win5h.resets_at * 1000).toISOString() : null,
-      resetsAt7d:    win7d?.resets_at ? new Date(win7d.resets_at * 1000).toISOString() : null,
-      utilization5h: win5h?.utilization ?? null,
-      utilization7d: win7d?.utilization ?? null,
-    };
-  }
-
-  const windowsSources = [
-    data.windows, data.rate_limit?.windows, data.message_limit?.windows,
-    data.limits?.windows, data.usage?.windows,
-  ];
-  for (const w of windowsSources) {
-    const r = fromWindows(w);
-    if (r && (r.resetsAt || r.utilization5h != null)) {
-      return {
-        type:      data.type ?? data.rate_limit?.type ?? data.message_limit?.type ?? null,
-        remaining: data.remaining ?? data.rate_limit?.remaining ?? data.message_limit?.remaining ?? null,
-        ...r,
-      };
-    }
-  }
-
-  const candidates = [
-    data.rate_limit, data.rateLimit, data.message_limit,
-    data.account?.rate_limit, data.usage?.rate_limit,
-    data.limits?.rate_limit, data.limits,
-    data.current_period, data.window, data.usage_window,
-  ];
-  for (const c of candidates) {
-    if (!c || typeof c !== 'object') continue;
-    const resetsAt = c.resetsAt ?? c.resets_at ?? c.reset_at
-                   ?? c.windowResetsAt ?? c.window_resets_at
-                   ?? c.period_end ?? c.current_period_end ?? null;
-    if (resetsAt) return { type: c.type ?? null, resetsAt, remaining: c.remaining ?? c.messages_remaining ?? null };
-  }
-  return null;
-}
+const { detectPlan, extractRateLimitFromResponse, asPct } = self.TokenWatcherAdapters;
 
 async function mergeRateLimit(newInfo, { authoritative = false } = {}) {
   if (!newInfo) return;
@@ -196,109 +199,6 @@ async function mergeRateLimit(newInfo, { authoritative = false } = {}) {
 }
 
 // ── Provider quota normalization and history ─────────────────────────────
-const asPct = value => value == null ? null : (value <= 1 ? value * 100 : value);
-const fractionPct = value => value == null ? null : value * 100;
-const unixIso = value => Number.isFinite(value) ? new Date(value * 1000).toISOString() : null;
-
-function classifyChatGptWindows(rateLimit) {
-  const duration = window => window?.limit_window_seconds ?? window?.window_seconds ?? window?.window_size_seconds ?? null;
-  const split = Math.sqrt(5 * 3600 * 7 * 24 * 3600);
-  const primary = rateLimit?.primary_window ?? rateLimit?.session_window ?? rateLimit?.five_hour_window ?? null;
-  const secondary = rateLimit?.secondary_window ?? rateLimit?.weekly_window ?? rateLimit?.seven_day_window ?? null;
-  let w5h = null, w7d = null;
-  for (const w of [primary, secondary]) {
-    const seconds = duration(w);
-    if (!w || !Number.isFinite(seconds)) continue;
-    if (seconds < split) w5h = w; else w7d = w;
-  }
-  if (!w5h && primary && !Number.isFinite(duration(primary))) w5h = primary;
-  if (!w7d && secondary && !Number.isFinite(duration(secondary))) w7d = secondary;
-  return { w5h, w7d };
-}
-
-const chatGptPct = window => {
-  if (!window) return null;
-  const explicit = window.used_percent ?? window.utilization_percent ?? window.percent_used;
-  if (Number.isFinite(explicit)) return Math.min(100, Math.max(0, explicit));
-  const used = window.used ?? window.tokens_used;
-  const limit = window.limit ?? window.token_limit;
-  return Number.isFinite(used) && Number.isFinite(limit) && limit > 0
-    ? Math.min(100, Math.max(0, used / limit * 100)) : null;
-};
-
-const chatGptReset = window => {
-  const value = window?.reset_at ?? window?.reset_time ?? window?.resets_at;
-  if (typeof value === 'string' && Number.isFinite(Date.parse(value))) return value;
-  if (Number.isFinite(value)) return new Date(value * (value < 1e12 ? 1000 : 1)).toISOString();
-  if (Number.isFinite(window?.reset_after_seconds)) return new Date(Date.now() + window.reset_after_seconds * 1000).toISOString();
-  return null;
-};
-
-function normalizeChatGptUsage(raw, email) {
-  const usage = raw?.usage?.rate_limit ? raw.usage : raw?.data?.rate_limit ? raw.data : raw?.usage ?? raw;
-  if (!usage?.rate_limit) return null;
-  const resolvedEmail = usage.email ?? email ?? null;
-  const { w5h, w7d } = classifyChatGptWindows(usage.rate_limit);
-  const duration = window => window?.limit_window_seconds ?? window?.window_seconds ?? window?.window_size_seconds ?? null;
-  const additionalLimits = (Array.isArray(usage.additional_rate_limits) ? usage.additional_rate_limits : [])
-    .map(item => {
-      const window = item?.rate_limit?.primary_window ?? item?.rate_limit?.secondary_window;
-      if (typeof window?.used_percent !== 'number') return null;
-      return {
-        name: item.limit_name ?? item.metered_feature ?? 'Feature limit',
-        feature: item.metered_feature ?? null,
-        pct: window.used_percent, resetsAt: unixIso(window.reset_at),
-        windowSeconds: window.limit_window_seconds ?? null,
-      };
-    }).filter(Boolean).slice(0, 5);
-  return {
-    // Some personal sessions omit identity fields even though the quota is
-    // authoritative. Preserve that snapshot under one stable local account.
-    site: 'chatgpt', accountId: usage.account_id ?? usage.user_id ?? resolvedEmail ?? 'default', email: resolvedEmail,
-    plan: usage.plan_type ?? null,
-    pct5h: chatGptPct(w5h), pct7d: chatGptPct(w7d),
-    resetsAt5h: chatGptReset(w5h), resetsAt7d: chatGptReset(w7d),
-    windowSeconds5h: duration(w5h), windowSeconds7d: duration(w7d),
-    additionalLimits,
-  };
-}
-
-function parseBatchResponse(text, rpcId) {
-  for (const line of String(text ?? '').split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed === ")]}'" || /^\d+$/.test(trimmed)) continue;
-    try {
-      const rows = JSON.parse(trimmed);
-      for (const row of Array.isArray(rows) ? rows : []) {
-        if (row?.[0] === 'wrb.fr' && row?.[1] === rpcId && row[2]) return JSON.parse(row[2]);
-      }
-    } catch {}
-  }
-  return null;
-}
-
-function normalizeGeminiUsage(raw) {
-  const data = parseBatchResponse(raw?.batchText, raw?.rpcId ?? 'jSf9Qc');
-  if (!Array.isArray(data) || !Array.isArray(data[1])) return null;
-  let pct5h = null, pct7d = null, resetsAt5h = null, resetsAt7d = null;
-  for (const w of data[1]) {
-    if (!Array.isArray(w) || !Number.isFinite(w[1])) continue;
-    const pct = fractionPct(w[1]);
-    const reset = unixIso(w[3]?.[0]?.[0]);
-    if (w[2] === 1) { pct5h = pct; resetsAt5h = reset; }
-    if (w[2] === 2) { pct7d = pct; resetsAt7d = reset; }
-  }
-  return {
-    // WIZ internals can expose a request-scoped numeric value as accountId.
-    // Prefer the signed-in email, which remains stable across polls.
-    site: 'gemini', accountId: raw.email ?? raw.accountId ?? null, email: raw.email ?? null,
-    plan: data[0] != null ? `Plan ${data[0]}` : null,
-    pct5h, pct7d, resetsAt5h, resetsAt7d,
-    windowSeconds5h: 5 * 3600, windowSeconds7d: 7 * 24 * 3600,
-    additionalLimits: [],
-  };
-}
-
 function forecastWindowDetails(history, site, accountId, key, currentPct, resetsAt) {
   const now = Date.now();
   const resetMs = Date.parse(resetsAt ?? '');
@@ -321,8 +221,10 @@ function forecastWindowDetails(history, site, accountId, key, currentPct, resets
   const horizonHours = (resetMs - now) / 3600000;
   const coverageTarget = key === '5h' ? 3 : 48;
   const confidenceScore = Math.min(1, samples.length / 12) * Math.min(1, spanHours / coverageTarget) * Math.min(1, 12 / Math.max(1, horizonHours));
+  const projection = self.TokenWatcherContract.projectUsage({ currentPct, ratePerHour, horizonHours, now });
+  if (!projection) return null;
   return {
-    projectedPct: Math.min(100, Math.max(0, currentPct, currentPct + ratePerHour * horizonHours)),
+    ...projection,
     ratePerHour,
     sampleCount: samples.length,
     confidence: confidenceScore >= 0.67 ? 'high' : confidenceScore >= 0.34 ? 'medium' : 'low',
@@ -335,7 +237,9 @@ async function saveProviderSnapshot(snapshot, capturedAt) {
   if (validationError) throw new Error(validationError);
   const ts = Date.parse(capturedAt ?? '') || Date.now();
   const accountKey = stableAccountKey(snapshot);
-  const stored = { ...snapshot, accountKey, capturedAt: new Date(ts).toISOString(), ts };
+  const capturedIso = new Date(ts).toISOString();
+  const readings = self.TokenWatcherContract.toReadings(snapshot, { fetchedAt: capturedIso });
+  const stored = { ...snapshot, accountKey, capturedAt: capturedIso, ts, readings };
   const accounts = (await lget(K_PROVIDER_ACCOUNTS)) ?? {};
   accounts[snapshot.site] = accounts[snapshot.site] ?? {};
   accounts[snapshot.site][accountKey] = stored;
@@ -518,9 +422,12 @@ async function getStats() {
       snapshotMs ?? 0,
     ) || null;
     const ageMs = lastUpdatedAt ? Math.max(0, now - lastUpdatedAt) : null;
+    const freshness = self.TokenWatcherRefresh.describeFreshness(await getRefreshState(site), now, now);
     providerHealth[site] = {
       ...poll,
+      ...freshness,
       lastUpdatedAt,
+      lastFetchAt: freshness.lastFetchAt ?? lastUpdatedAt,
       ageMs,
       stale: ageMs == null || ageMs > PROVIDER_STALE_MS,
       hasData: Boolean(selected),
@@ -566,6 +473,10 @@ async function getStats() {
   const pct5h     = authPct5h ?? (capturedTokens5h > 0 ? (capturedTokens5h / limit5h) * 100 : null);
   const pct7d     = authPct7d ?? (capturedTokens7d > 0 ? (capturedTokens7d / (limit5h * 7)) * 100 : null);
 
+  // Provenance of the two gauge percentages: provider-reported, or a local token estimate.
+  const pct5hSource = authPct5h != null ? 'provider_reported' : (pct5h != null ? 'local_estimate' : null);
+  const pct7dSource = authPct7d != null ? 'provider_reported' : (pct7d != null ? 'local_estimate' : null);
+
   const tokens5h = authPct5h != null ? Math.round((authPct5h / 100) * limit5h)       : capturedTokens5h;
   const tokens7d = authPct7d != null ? Math.round((authPct7d / 100) * (limit5h * 7)) : capturedTokens7d;
 
@@ -606,6 +517,8 @@ async function getStats() {
     tokens7d,
     pct5h,
     pct7d,
+    pct5hSource,
+    pct7dSource,
     limit5h,
     resetMs5h:   resetMs,
     timeLeft5h:  Math.max(0, resetMs - now),
@@ -728,13 +641,26 @@ async function backfillFromConversations(orgId) {
   }
 }
 
+// Keeps a failed poll visible to the stale-reason logic instead of returning silently.
+async function recordPollFailure(site, error, status = 0) {
+  const previous = (await lget(`last_usage_poll_${site}`)) ?? {};
+  await lset(`last_usage_poll_${site}`, {
+    ok: false, capturedAt: new Date().toISOString(), lastSuccessAt: previous.lastSuccessAt ?? null,
+    consecutiveFailures: (previous.consecutiveFailures ?? 0) + 1, error, status, authPath: 'service_worker',
+  });
+}
+
 async function backgroundPoll() {
   console.log(`${TAG} background poll`);
   try {
     const resp = await fetch('https://claude.ai/api/organizations', {
       credentials: 'include', headers: { Accept: 'application/json' },
     });
-    if (!resp.ok) { console.log(`${TAG} poll /api/organizations → ${resp.status}`); return; }
+    if (!resp.ok) {
+      console.log(`${TAG} poll /api/organizations → ${resp.status}`);
+      await recordPollFailure('claude', 'organizations_fetch_failed', resp.status);
+      return;
+    }
     const data = await resp.json();
 
     const p = detectPlan(data);
@@ -766,23 +692,26 @@ async function backgroundPoll() {
           ok: true, capturedAt, lastSuccessAt: capturedAt,
           consecutiveFailures: 0, error: null, status: 200, authPath: 'service_worker',
         });
+      } else {
+        await recordPollFailure('claude', polled ? 'provider_schema_changed' : 'usage_fetch_failed', polled?.status ?? 0);
       }
       await backfillFromConversations(resolvedOrgId);
+    } else {
+      await recordPollFailure('claude', 'provider_schema_changed');
     }
 
     const stats = await getStats();
     updateBadge(stats.pct5h);
   } catch (err) {
     console.log(`${TAG} backgroundPoll error:`, err.message);
+    await recordPollFailure('claude', err.message).catch(() => {});
   }
 }
 
 async function saveProviderUsageResult(msg) {
   const site = msg.site ?? 'unknown';
   const capturedAt = msg.capturedAt ?? new Date().toISOString();
-  let normalized = null;
-  if (site === 'chatgpt') normalized = normalizeChatGptUsage(msg.snapshot, msg.snapshot?.email);
-  if (site === 'gemini') normalized = normalizeGeminiUsage(msg.snapshot);
+  const { snapshots: adapted, category } = self.TokenWatcherAdapters.adapt(msg);
   const snapshots = site === 'claude' && Array.isArray(msg.snapshot?.organizations) ? msg.snapshot.organizations : [];
   if (site === 'claude') await lset('claude_org_usage', snapshots);
   const first = snapshots[0];
@@ -792,12 +721,6 @@ async function saveProviderUsageResult(msg) {
     if (plan) await lset(K_PLAN, plan);
     const rateLimit = extractRateLimitFromResponse(first.usage);
     if (rateLimit) {
-      normalized = {
-        site: 'claude', accountId: first.orgId, email: null,
-        plan, pct5h: asPct(rateLimit.utilization5h), pct7d: asPct(rateLimit.utilization7d),
-        resetsAt5h: rateLimit.resetsAt, resetsAt7d: rateLimit.resetsAt7d,
-        windowSeconds5h: 5 * 3600, windowSeconds7d: 7 * 24 * 3600, additionalLimits: [],
-      };
       await mergeRateLimit(rateLimit, { authoritative: true });
       if (rateLimit.resetsAt) {
         const resetMs = Date.parse(rateLimit.resetsAt);
@@ -805,26 +728,17 @@ async function saveProviderUsageResult(msg) {
       }
     }
   }
-  const normalizedClaude = snapshots.map(item => {
-    const rateLimit = extractRateLimitFromResponse(item.usage);
-    if (!rateLimit) return null;
-    return {
-      site: 'claude', accountId: item.orgId, organizationId: item.orgId,
-      accountName: item.org?.name ?? item.org?.display_name ?? 'Claude organization', email: null,
-      plan: detectPlan(item.org) ?? detectPlan(item.usage),
-      pct5h: asPct(rateLimit.utilization5h), pct7d: asPct(rateLimit.utilization7d),
-      resetsAt5h: rateLimit.resetsAt, resetsAt7d: rateLimit.resetsAt7d,
-      windowSeconds5h: 5 * 3600, windowSeconds7d: 7 * 24 * 3600, additionalLimits: [],
-    };
-  }).filter(Boolean);
-  const toSave = site === 'claude' ? normalizedClaude : (normalized ? [normalized] : []);
+  // Impossible readings are dropped here so one bad window cannot corrupt stored history.
+  const toSave = adapted.filter(item => !validateProviderSnapshot(item));
   const previous = (await lget(`last_usage_poll_${site}`)) ?? {};
   const ok = Boolean(msg.ok) && toSave.length > 0;
+  // Nothing usable from a "successful" fetch, or only impossible values: the format changed.
   const validationFailure = Boolean(msg.ok) && toSave.length === 0;
   await lset(`last_usage_poll_${site}`, {
     ok, capturedAt, lastSuccessAt: ok ? capturedAt : (previous.lastSuccessAt ?? null),
     consecutiveFailures: ok ? 0 : (previous.consecutiveFailures ?? 0) + 1,
     error: validationFailure ? 'provider_schema_changed' : (msg.error ?? null),
+    errorCategory: ok ? null : (validationFailure ? 'provider_schema_changed' : category),
     status: msg.status ?? null, authPath: msg.authPath ?? 'page_bridge',
   });
   await Promise.all(toSave.map(item => enqueueProviderSnapshot(item, capturedAt)));
@@ -833,8 +747,8 @@ async function saveProviderUsageResult(msg) {
   return { ok, saved: toSave.length };
 }
 
-async function collectAllProviders() {
-  return Promise.allSettled(['chatgpt', 'gemini', 'claude'].map(site => collectProvider(site)));
+async function collectAllProviders(trigger = 'other') {
+  return Promise.allSettled(['chatgpt', 'gemini', 'claude'].map(site => collectProvider(site, trigger)));
 }
 
 function withRefreshTimeout(promise, site, timeoutMs = 30_000) {
@@ -844,10 +758,18 @@ function withRefreshTimeout(promise, site, timeoutMs = 30_000) {
   ]);
 }
 
-async function collectProvider(site) {
+async function collectProvider(site, trigger = 'other') {
   if (providerRefreshes.has(site)) return providerRefreshes.get(site);
+  const startedAt = Date.now();
+  let thrown = null;
   const refresh = collectProviderOnce(site)
-    .catch(error => console.warn(`${TAG} ${site} collector failed:`, error.message))
+    .catch(error => { thrown = error; console.warn(`${TAG} ${site} collector failed:`, error.message); })
+    .then(async () => {
+      const outcome = await classifyRefresh(site, startedAt, thrown);
+      await recordRefreshOutcome(site, trigger, outcome.ok, outcome.ok ? null : outcome.errorCategory)
+        .catch(error => console.warn(`${TAG} ${site} refresh state not saved:`, error.message));
+      await trackRefreshOutcome(site, startedAt, trigger, outcome);
+    })
     .finally(() => providerRefreshes.delete(site));
   providerRefreshes.set(site, refresh);
   return refresh;
@@ -864,16 +786,19 @@ async function collectProviderOnce(site) {
   return saveProviderUsageResult({ ...result, capturedAt: new Date().toISOString() });
 }
 
-async function requestProviderRefresh(reason, site = null, minimumAgeMs = 60_000) {
-  const sites = site ? [site] : ['chatgpt', 'gemini', 'claude'];
+// Idempotent: every trigger funnels through the policy, which decides whether to run.
+async function requestProviderRefresh(trigger, site = null) {
+  const R = self.TokenWatcherRefresh;
   const due = [];
-  for (const provider of sites) {
-    const lastAttempt = (await lget(`last_provider_refresh_attempt_${provider}`)) ?? 0;
-    if (Date.now() - lastAttempt >= minimumAgeMs) due.push(provider);
+  for (const provider of site ? [site] : PROVIDER_SITES) {
+    const decision = R.evaluate({
+      now: Date.now(), trigger, state: await getRefreshState(provider), inFlight: providerRefreshes.has(provider),
+    });
+    if (decision.run) due.push(provider);
   }
   if (!due.length) return false;
-  console.log(`${TAG} provider refresh requested: ${reason} (${due.join(', ')})`);
-  await Promise.allSettled(due.map(provider => collectProvider(provider)));
+  console.log(`${TAG} provider refresh requested: ${trigger} (${due.join(', ')})`);
+  await Promise.allSettled(due.map(provider => collectProvider(provider, trigger)));
   return true;
 }
 
@@ -955,6 +880,23 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     return true;
   }
 
+  if (msg.type === 'ANALYTICS_ACTIVE_DAY' && fromExtension) {
+    const surface = ['popup', 'settings', 'onboarding'].includes(msg.surface) ? msg.surface : null;
+    (surface ? analytics.recordActiveDay(surface) : Promise.resolve({ ok: false }))
+      .then(r => reply(r)).catch(() => reply({ ok: false }));
+    return true;
+  }
+
+  if (msg.type === 'ANALYTICS_ONBOARDING_DONE' && fromExtension) {
+    track('onboarding_completed', {}).then(() => reply({ ok: true }));
+    return true;
+  }
+
+  if (msg.type === 'ANALYTICS_CLEAR' && fromExtension) {
+    analytics.clear().then(() => lset(K_STALE_STATE, {})).then(() => reply({ ok: true })).catch(() => reply({ ok: false }));
+    return true;
+  }
+
   if (msg.type === 'SELECT_PROVIDER_ACCOUNT' && fromExtension) {
     selectProviderAccount(msg.site, msg.accountKey)
       .then(ok => reply({ ok }))
@@ -969,10 +911,18 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   }
 
   if (msg.type === 'GET_STATS' && (fromExtension || fromAllowedSite)) {
-    requestProviderRefresh('stats-read', sender.tab ? providerFromUrl(sender.tab.url) : null).catch(() => {});
+    requestProviderRefresh('stats_read', sender.tab ? providerFromUrl(sender.tab.url) : null).catch(() => {});
     getStats()
       .then(s  => reply(s))
       .catch(() => reply(null));
+    return true;
+  }
+
+  if (msg.type === 'REFRESH_NOW' && fromExtension) {
+    const site = PROVIDER_SITES.includes(msg.site) ? msg.site : null;
+    Promise.allSettled((site ? [site] : PROVIDER_SITES).map(provider => collectProvider(provider, 'manual')))
+      .then(async () => { const stats = await getStats(); reply({ ok: true, providerHealth: stats.providerHealth }); })
+      .catch(() => reply({ ok: false }));
     return true;
   }
 
@@ -992,9 +942,13 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     const s = await getStats();
     updateBadge(s.pct5h);
     ensureAlarms();
-    requestProviderRefresh('heartbeat-watchdog', null, (POLL_INTERVAL_MIN + 2) * 60_000).catch(() => {});
+    trackStaleTransitions();
+    requestProviderRefresh('watchdog').catch(() => {});
   } else if (alarm.name === 'poll') {
-    collectAllProviders().catch(err => console.warn(`${TAG} provider collection failed:`, err.message));
+    requestProviderRefresh('alarm').catch(err => console.warn(`${TAG} provider collection failed:`, err.message));
+  } else if (alarm.name.startsWith('retry_')) {
+    const site = alarm.name.slice('retry_'.length);
+    if (PROVIDER_SITES.includes(site)) requestProviderRefresh('retry', site).catch(() => {});
   }
 });
 
@@ -1005,39 +959,64 @@ chrome.runtime.onInstalled.addListener(({ reason }) => {
   chrome.action.setBadgeText({ text: '' });
   if (reason === 'install') {
     chrome.tabs.create({ url: chrome.runtime.getURL('onboarding/onboarding.html') });
+    track('installed', {});
   }
-  collectAllProviders().catch(() => {});
+  collectAllProviders('install').catch(() => {});
 });
 
 chrome.runtime.onStartup.addListener(() => {
   ensureAlarms();
-  collectAllProviders().catch(() => {});
+  collectAllProviders('startup').catch(() => {});
 });
 
 chrome.tabs.onActivated.addListener(({ tabId }) => {
   chrome.tabs.get(tabId, tab => {
     const site = providerFromUrl(tab?.url);
-    if (site) requestProviderRefresh('provider-tab-activated', site, 15_000).catch(() => {});
+    if (site) requestProviderRefresh('tab_activated', site).catch(() => {});
   });
+});
+
+chrome.tabs.onCreated.addListener(tab => {
+  const site = providerFromUrl(tab?.url ?? tab?.pendingUrl);
+  if (site) requestProviderRefresh('tab_created', site).catch(() => {});
 });
 
 chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
   const site = providerFromUrl(tab?.url);
   if (changeInfo.status === 'complete' && site) {
-    requestProviderRefresh('provider-tab-loaded', site, 0).catch(() => {});
+    requestProviderRefresh('navigation', site).catch(() => {});
   }
 });
 
+// A provider session cookie appearing again means sign-in succeeded: retry without waiting.
+chrome.cookies.onChanged.addListener(({ removed, cookie }) => {
+  if (removed) return;
+  const domain = cookie.domain.replace(/^\./, '').toLowerCase();
+  const isHost = host => domain === host || domain.endsWith(`.${host}`);
+  const site = isHost('claude.ai') ? 'claude'
+    : isHost('chatgpt.com') || isHost('chat.openai.com') ? 'chatgpt'
+    : isHost('gemini.google.com') ? 'gemini' : null;
+  if (!site) return;
+  getRefreshState(site).then(state => {
+    if (state.category === 'auth_expired') requestProviderRefresh('auth_recovery', site).catch(() => {});
+  }).catch(() => {});
+});
+
+// Service workers have no window, but they do receive connectivity events.
+self.addEventListener('online', () => { requestProviderRefresh('network_restored').catch(() => {}); });
+
 chrome.windows.onFocusChanged.addListener(windowId => {
   if (windowId !== chrome.windows.WINDOW_ID_NONE) {
-    requestProviderRefresh('browser-focused', null, POLL_INTERVAL_MIN * 60_000).catch(() => {});
+    requestProviderRefresh('focus').catch(() => {});
   }
 });
 
 chrome.idle.onStateChanged.addListener(state => {
-  if (state === 'active') requestProviderRefresh('browser-woke', null, POLL_INTERVAL_MIN * 60_000).catch(() => {});
+  if (state === 'active') requestProviderRefresh('wake').catch(() => {});
 });
 
 ensureAlarms();
+// The worker may have been suspended and restarted: re-check anything that is due.
+requestProviderRefresh('worker_restart').catch(() => {});
 
 console.log(`${TAG} service worker initialised`);

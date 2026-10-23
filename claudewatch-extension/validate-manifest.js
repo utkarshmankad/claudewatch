@@ -128,6 +128,11 @@ if (optionsPage) check(fileExists(optionsPage), `${optionsPage} exists`, `${opti
 console.log('\n── Expected files');
 const expectedFiles = [
   'provider-collectors.js',
+  'analytics.js',
+  'refresh-policy.js',
+  'provider-contract.js',
+  'provider-adapters.js',
+  'settings/analytics-debug.js',
   'interceptor.js',
   'content.js',
   'inpage.js',

@@ -104,6 +104,23 @@
           </div>
         </section>
 
+        <section class="card" id="analytics-debug" aria-labelledby="analytics-debug-title">
+          <h2 class="card-title" id="analytics-debug-title">Local analytics debug view</h2>
+          <p class="card-hint">Events and metrics below are stored only in this browser (schema v<span id="analytics-schema">1</span>, kept up to 90 days) and are never sent anywhere. Values without evidence show as unknown.</p>
+          <table class="metrics-table">
+            <caption class="sr-only">Baseline metrics</caption>
+            <thead><tr><th scope="col">Metric</th><th scope="col">Value</th><th scope="col">Basis</th></tr></thead>
+            <tbody id="analytics-metrics"></tbody>
+          </table>
+          <h3 class="debug-subtitle">Recent events (<span id="analytics-count">0</span>)</h3>
+          <pre class="debug-log" id="analytics-events" tabindex="0" aria-label="Recent analytics events"></pre>
+          <div class="debug-actions">
+            <button type="button" class="btn btn-ghost" id="analytics-refresh">Refresh</button>
+            <button type="button" class="btn btn-ghost" id="analytics-export">Download JSON</button>
+            <button type="button" class="btn btn-ghost" id="analytics-clear">Delete all analytics data</button>
+          </div>
+        </section>
+
         <!-- ABOUT -->
         <section class="card card-about">
           <h2 class="card-title">About</h2>
@@ -124,6 +141,8 @@
     </main>
 
   </div>
+  <script src="../analytics.js"></script>
+  <script src="analytics-debug.js"></script>
   <script src="settings.js"></script>
 </body>
 </html>

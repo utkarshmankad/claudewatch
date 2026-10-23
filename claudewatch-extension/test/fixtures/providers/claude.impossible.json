@@ -1,0 +1,47 @@
+{
+  "description": "Utilization above 100 percent is rejected, not clamped.",
+  "now": "2026-10-01T12:00:00.000Z",
+  "input": {
+    "site": "claude",
+    "capturedAt": "2026-10-01T12:00:00.000Z",
+    "ok": true,
+    "snapshot": {
+      "organizations": [
+        {
+          "orgId": "org-0001",
+          "org": {
+            "name": "Example Org",
+            "plan": "claude_pro"
+          },
+          "usage": {
+            "five_hour": {
+              "utilization": 140,
+              "resets_at": "2026-10-01T14:00:00.000Z"
+            },
+            "seven_day": {
+              "utilization": 18.5,
+              "resets_at": "2026-10-04T12:00:00.000Z"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "category": null,
+    "snapshotCount": 1,
+    "readings": [
+      {
+        "windowType": "5h",
+        "usedPct": null,
+        "errorCategory": "reading_invalid"
+      },
+      {
+        "windowType": "7d",
+        "usedPct": 18.5,
+        "errorCategory": null
+      }
+    ],
+    "rejectedBySnapshotValidation": true
+  }
+}
