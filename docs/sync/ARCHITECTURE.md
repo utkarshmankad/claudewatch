@@ -115,10 +115,12 @@ Defined as the allow-list tables above. Versioned as `sync-envelope.v1`: `{ v, e
 
 Client: sync state, last successful sync time, failure counts by enum reason, convergence time. Server: request counts, error codes, queue age, storage per account bucket. None of these carry usage values.
 
-## Open questions for the owner (blockers for 3.2, not for this PR)
+## Owner decisions (2026-10-23)
 
-1. Hosting vendor/regions and who holds the production account and secrets.
-2. Whether to accept the recovery-phrase burden or require the exported-backup alternative.
-3. Budget and ceiling for per-account storage (25 MB is a placeholder, not a measured number).
-4. Who performs the independent security review required by the Phase 3 gate.
-5. Whether the extension may add host permissions for the sync origins (affects store review; see `docs/PERMISSIONS.md`).
+Answers to the former open questions, chosen for least cost while keeping a hosted server. Item 3 is a placeholder ceiling, not a measured number.
+
+1. **Hosting:** a single free-tier serverless provider (Cloudflare Workers with D1/R2 as the default), in an account held by the owner. The routine holds no production secrets; deployment is an owner step. Regional pinning (EU, US) stays as designed, using whatever jurisdiction controls the free tier offers; if the free tier cannot pin a region, launch with one region and say so.
+2. **Recovery:** the exported-backup alternative is required; no recovery phrase. Losing the key loses cloud data but never local data, and the UI says so plainly.
+3. **Storage budget:** 5 MB per account ceiling (placeholder until measured against the free-tier limits).
+4. **Security review:** self-review against a public checklist plus the automated CodeQL and `npm audit` checks. Releases are labelled "not independently audited". This is recorded as a deferred item in `gates/DEFERRED_GATES.md`, not a gate pass.
+5. **Host permissions:** none at install. The sync origin is requested as an optional permission only when the user turns sync on.

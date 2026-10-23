@@ -13,7 +13,7 @@ commit: 1ff5027a580481fc00a7f757a2081a31454009f0
 pull_request: https://github.com/utkarshmankad/claudewatch/pull/58
 ci_status: passed
 gate_status: deferred_to_final_gate
-blocker: Prompt 3.2 waits for owner answers to the five open questions in docs/sync/ARCHITECTURE.md (hosting vendor, recovery model, storage budget, security reviewer, host permissions).
+blocker: null
 last_checkpoint:
   at: '2026-10-23T16:00:00Z'
   action: >-
@@ -22,7 +22,7 @@ last_checkpoint:
   base_sha: adb85dc
   worktree_path: null
   pending_operation: null
-next_action: Owner answers the open questions in docs/sync/ARCHITECTURE.md; then start 3.2 on feature/p3-encrypted-sync.
+next_action: Start 3.2 on feature/p3-encrypted-sync once the owner-decisions PR merges.
 next_wake_time: null
 release_status: prohibited_during_pilot
 phases:
@@ -378,9 +378,9 @@ work_items:
     pull_request: null
     ci_status: not_run
     gate_status: not_evaluated
-    blocker: Owner has not answered the open questions in docs/sync/ARCHITECTURE.md (hosting vendor and account, recovery model, storage budget, security reviewer, host permissions).
+    blocker: null
     last_checkpoint: null
-    next_action: Owner answers the open questions; then branch feature/p3-encrypted-sync from develop.
+    next_action: Owner decisions recorded in docs/sync/ARCHITECTURE.md (2026-10-23); start 3.2 on feature/p3-encrypted-sync once this PR merges. Production deployment and secrets remain owner-only steps.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-3.2
