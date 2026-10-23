@@ -1,6 +1,6 @@
 # Recommendation policy engine
 
-Code: `src/recommend/policy.ts` (engine), `src/recommend/simulate.ts` (scenario harness). Tests: `src/recommend/__tests__/policy.test.ts`. Prompt 2.2, operation key `2026-10-10.1/prompt-2.2`. The engine is pure and deterministic: the same inputs always give the same answer. Nothing is wired to the dashboard yet (Prompt 2.3) and no route is added; the UI will assemble `ProviderInput[]` from [forecasts](FORECASTS.md) and its own sign-in and health state.
+Code: `src/recommend/policy.ts` (engine), `src/recommend/simulate.ts` (scenario harness). Tests: `src/recommend/__tests__/policy.test.ts`. Prompt 2.2, operation key `2026-10-10.1/prompt-2.2`. The engine is pure and deterministic: the same inputs always give the same answer. The extension popup uses a JavaScript port of it (see [AUTOPILOT.md](AUTOPILOT.md), Prompt 2.3); no daemon route is added. A UI assembles `ProviderInput[]` from [forecasts](FORECASTS.md) and its own sign-in and health state.
 
 **It ranks remaining quota and risk. It does not rank model quality**, and every explanation says so.
 
@@ -50,4 +50,4 @@ For each eligible provider: headroom is the minimum over its windows of `100 - r
 
 ## Not done here
 
-UI, preference persistence and instrumentation events (2.3); decision alerts (2.4); real-history evaluation of recommendations (final gate evidence).
+Decision alerts (2.4); real-history evaluation of recommendations (final gate evidence).

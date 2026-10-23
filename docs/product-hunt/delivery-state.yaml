@@ -7,7 +7,7 @@ pilot_status: in_progress
 implementation_authorized: true
 current_phase: 2
 current_prompt: '2.3'
-work_item_status: in_progress
+work_item_status: awaiting_ci
 branch: feature/p2-autopilot-ui
 commit: null
 pull_request: null
@@ -22,7 +22,7 @@ last_checkpoint:
   base_sha: 57b7799
   worktree_path: null
   pending_operation: null
-next_action: Implement prompt 2.3 on feature/p2-autopilot-ui
+next_action: Maintain the prompt 2.3 PR; owner merges
 next_wake_time: null
 release_status: prohibited_during_pilot
 phases:
@@ -302,7 +302,7 @@ work_items:
   - prompt: '2.3'
     phase: 2
     title: Create the Autopilot user experience
-    status: in_progress
+    status: awaiting_ci
     planned_branch: feature/p2-autopilot-ui
     branch: feature/p2-autopilot-ui
     commit: null
@@ -316,7 +316,7 @@ work_items:
       workspace_branch: feature/p2-autopilot-ui
       base_sha: 02fb137
       pending_operation: null
-    next_action: Implement Autopilot UI in extension dashboard per plan 2.3, then open PR into develop.
+    next_action: Maintain the 2.3 PR until CI is green; owner merges. Popup forecasts are coarse and uncalibrated; notification frequency is stored but unused until 2.4; popup.js syntax error from 0.4 fixed here.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-2.3

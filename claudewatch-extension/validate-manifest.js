@@ -157,6 +157,13 @@ const expectedFiles = [
   'popup/popup.css',
   'popup/popup.js',
   'popup/formatters.mjs',
+  'autopilot/policy.mjs',
+  'autopilot/inputs.mjs',
+  'autopilot/view-model.mjs',
+  'autopilot/popup-ui.mjs',
+  'autopilot/store.mjs',
+  'autopilot/messages.mjs',
+  'settings/autopilot-settings.mjs',
 ];
 for (const f of expectedFiles) {
   check(fileExists(f), `${f} exists`, `${f} not found`);

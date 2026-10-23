@@ -156,6 +156,53 @@
         </div>
 
       </form>
+
+      <!-- AUTOPILOT: changes save immediately, separately from the form above -->
+      <section class="card" id="autopilot-card" aria-labelledby="ap-set-title">
+        <h2 class="card-title" id="ap-set-title" data-i18n="apSetTitle">Autopilot</h2>
+        <p class="card-hint" data-i18n="apSetHint">Recommends which provider to use next from your remaining quota. It never reads prompts or conversations.</p>
+
+        <label class="toggle-row" for="ap-enabled">
+          <span class="toggle-text"><span class="toggle-label" data-i18n="apSetEnabled">Show Autopilot recommendations</span><span class="toggle-hint" data-i18n="apSetEnabledHint">Turn off to hide the recommendation card</span></span>
+          <span class="switch"><input type="checkbox" id="ap-enabled" /><span class="switch-track"></span></span>
+        </label>
+
+        <div class="identity-grid">
+          <label><span data-i18n="apSetTask">Task type</span>
+            <select id="ap-task" aria-describedby="ap-task-hint"></select>
+            <span class="toggle-hint" id="ap-task-hint" data-i18n="apSetTaskHint">Used with your own provider preference, never as a quality ranking</span>
+          </label>
+          <label><span data-i18n="apSetReserve">Reserved quota (%)</span>
+            <input type="number" id="ap-reserved" min="0" max="90" step="5" inputmode="numeric" aria-describedby="ap-reserved-hint" />
+            <span class="toggle-hint" id="ap-reserved-hint" data-i18n="apSetReserveHint">Percent of each window to keep back, from 0 to 90</span>
+          </label>
+        </div>
+
+        <label class="toggle-row spaced" for="ap-hours-on">
+          <span class="toggle-text"><span class="toggle-label" data-i18n="apSetHoursOn">Use working hours</span><span class="toggle-hint" data-i18n="apSetHoursHint">Outside these hours five-hour limits are not counted. Uses this computer's time zone.</span></span>
+          <span class="switch"><input type="checkbox" id="ap-hours-on" /><span class="switch-track"></span></span>
+        </label>
+        <div class="identity-grid">
+          <label><span data-i18n="apSetHoursStart">Start hour</span><input type="number" id="ap-hours-start" min="0" max="23" step="1" inputmode="numeric" /></label>
+          <label><span data-i18n="apSetHoursEnd">End hour</span><input type="number" id="ap-hours-end" min="0" max="24" step="1" inputmode="numeric" /></label>
+        </div>
+
+        <div class="identity-grid">
+          <label><span data-i18n="apSetNotify">Notification frequency</span>
+            <select id="ap-notify" aria-describedby="ap-notify-hint"></select>
+            <span class="toggle-hint" id="ap-notify-hint" data-i18n="apSetNotifyHint">Saved now. Used by Autopilot alerts when they are released.</span>
+          </label>
+          <label><span data-i18n="apSetPinned">Prefer this provider when it is usable</span>
+            <select id="ap-pinned"></select>
+          </label>
+        </div>
+
+        <fieldset class="threshold-list" id="ap-exclude">
+          <legend class="card-hint" data-i18n="apSetExclude">Never recommend</legend>
+        </fieldset>
+
+        <p class="card-hint" id="ap-saved" role="status" aria-live="polite"></p>
+      </section>
     </main>
 
   </div>
@@ -165,5 +212,6 @@
   <script src="activity-settings.js"></script>
   <script src="analytics-debug.js"></script>
   <script src="settings.js"></script>
+  <script type="module" src="autopilot-settings.mjs"></script>
 </body>
 </html>

@@ -129,6 +129,7 @@ header {
 .btn-primary { background: var(--brand); color: #fff; }
 .btn-primary:hover { background: var(--brand-dk); }
 .btn-sm { padding: 5px 12px; font-size: 10px; }
+.btn-xs { padding: 2px 8px; font-size: 9px; }
 
 /* ── Section base ───────────────────────────────────────────────────────── */
 .section { padding: 11px 13px; }
@@ -553,3 +554,17 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 .ledger-list { margin: 0; padding: 0; list-style: none; font-size: 11px; }
 .ledger-list li { margin-bottom: 3px; }
 .ledger-hint { margin: 6px 0 0; font-size: 10px; opacity: .7; }
+
+/* ── Autopilot ──────────────────────────────────────────────────────────── */
+.autopilot { padding: 11px 13px; }
+.ap-status { font-size: 10px; color: var(--text-secondary); margin: 0 0 8px; }
+.ap-headline { font-size: 13px; font-weight: 700; color: var(--text-primary); margin: 0 0 4px; }
+.ap-detail { font-size: 10px; color: var(--text-secondary); margin: 0 0 3px; }
+.ap-warn { font-size: 10px; color: var(--amber); margin: 0 0 6px; }
+.ap-warn::before { content: '! '; font-weight: 700; }
+.ap-change { font-size: 10px; color: var(--text-primary); margin: 4px 0; padding-left: 6px; border-left: 2px solid var(--brand); }
+.ap-actions { display: flex; gap: 6px; margin: 8px 0 6px; flex-wrap: wrap; }
+.ap-alts { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
+.ap-why summary { font-size: 10px; color: var(--text-secondary); cursor: pointer; }
+.ap-why summary:focus-visible, .autopilot button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.ap-why-list { margin: 6px 0 0; padding-left: 16px; font-size: 9px; color: var(--text-secondary); }
