@@ -22,7 +22,7 @@ last_checkpoint:
   base_sha: 57b7799
   worktree_path: null
   pending_operation: null
-next_action: Implement prompt 1.5 (ledger UI) on feature/p1-ledger-ui; open PR into develop when complete
+next_action: Maintain the prompt 1.5 PR; owner merges
 next_wake_time: null
 release_status: prohibited_during_pilot
 phases:
@@ -251,7 +251,7 @@ work_items:
   - prompt: '1.5'
     phase: 1
     title: Release the ledger user experience
-    status: in_progress
+    status: awaiting_ci
     planned_branch: feature/p1-ledger-ui
     branch: feature/p1-ledger-ui
     commit: null
@@ -260,7 +260,7 @@ work_items:
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Implement ledger view, filters, states, export/delete, extension summary, usability scenarios; then open PR into develop.
+    next_action: Maintain the 1.5 PR; owner merges. Human usability sessions (docs/LEDGER_UI.md) remain for the final gate.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-1.5

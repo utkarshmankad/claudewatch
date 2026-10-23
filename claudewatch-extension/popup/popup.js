@@ -1,4 +1,5 @@
 import { formatWindowEnd, validEpochMs, quotaCaption } from './formatters.mjs';
+import { summarizeLedger, ledgerLines } from './ledger-summary.mjs';
 
 // popup.js — fetches stats from background service worker via GET_STATS,
 // renders dual gauges (5h / 7d), site breakdown, plan comparison table, and SVG sparkline.
@@ -387,6 +388,26 @@ function render(stats) {
   renderSparkline(gUsageHistory, gActiveWin);
 }
 
+// ── Ledger summary ───────────────────────────────────────────────────────────
+
+const LEDGER_STATUS = {
+  error:   () => t('popLedgerError', undefined, 'Could not read the ledger. Try again in a moment.'),
+  empty:   () => t('popLedgerEmpty', undefined, 'No usage evidence yet. Open a signed-in Claude, ChatGPT or Gemini tab.'),
+  stale:   () => t('popLedgerStale', undefined, 'Some provider data is stale. Figures may lag the real quota.'),
+  partial: () => t('popLedgerPartial', undefined, 'Partial: browser activity collection is off or a provider has no reading. Unattributed use is not computed here.'),
+  ok:      () => t('popLedgerOk', undefined, 'Unattributed use is not computed here. Token counts are estimates, not billing.'),
+};
+
+function renderLedgerSummary(stats, activity) {
+  const summary = summarizeLedger({ stats, activity });
+  // State is stated in words and also set as an attribute; it never relies on color.
+  const status = el('ledger-status');
+  status.textContent = LEDGER_STATUS[summary.state]();
+  status.dataset.state = summary.state;
+  el('ledger-list').innerHTML = ledgerLines(summary, t)
+    .map(l => `<li><strong>${escapeHtml(l.name)}</strong> ${escapeHtml(l.text)}</li>`).join('');
+}
+
 // ── Data loading ──────────────────────────────────────────────────────────────
 
 function loadAndRender() {
@@ -397,6 +418,9 @@ function loadAndRender() {
       return;
     }
     render(stats);
+    chrome.runtime.sendMessage({ type: 'ACTIVITY_SUMMARY' }, (activity) => {
+      renderLedgerSummary(stats, chrome.runtime.lastError ? null : activity);
+    });
   });
 }
 

@@ -224,3 +224,18 @@ body {
 .leaderboard { margin-top: 18px; }
 .leaderboard h3 { font-size: 12px; margin-bottom: 8px; }
 .leaderboard div { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid var(--border); }
+
+/* Usage ledger (Prompt 1.5). States use text and a left border, never color alone. */
+.ledger-panel h3 { font-size: 13px; margin: 16px 0 6px; }
+.ledger-filters { display: flex; flex-wrap: wrap; gap: 8px 12px; margin: 12px 0; align-items: end; }
+.ledger-filters label { display: flex; flex-direction: column; font-size: 11px; color: var(--muted); gap: 2px; }
+.ledger-filters select { font-size: 12px; padding: 4px 6px; }
+.ledger-state { margin: 8px 0; padding: 8px 12px; border-left: 4px solid var(--muted); background: var(--bg); font-size: 12px; }
+.ledger-state-stale, .ledger-state-partial { border-left-color: var(--amber); }
+.ledger-state ul { margin: 4px 0 0 16px; padding: 0; }
+.ledger-changes { padding-left: 16px; font-size: 12px; }
+.ledger-changes li { margin-bottom: 6px; }
+.ledger-notice { font-size: 12px; font-weight: 600; }
+.ledger-delete { margin-top: 12px; font-size: 12px; }
+.ledger-panel .btn { font-size: 12px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); cursor: pointer; }
+.ledger-panel .btn-danger { border-color: var(--red); color: var(--red); font-weight: 600; }

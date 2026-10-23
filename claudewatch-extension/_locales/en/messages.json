@@ -350,5 +350,35 @@
   },
   "popEndUnavailable": {
     "message": "End time unavailable"
+  },
+  "popLedger": {
+    "message": "Usage ledger"
+  },
+  "popLedgerOpen": {
+    "message": "Full ledger is in the dashboard"
+  },
+  "popLedgerEmpty": {
+    "message": "No usage evidence yet. Open a signed-in Claude, ChatGPT or Gemini tab."
+  },
+  "popLedgerLoading": {
+    "message": "Loading ledger…"
+  },
+  "popLedgerError": {
+    "message": "Could not read the ledger. Try again in a moment."
+  },
+  "popLedgerStale": {
+    "message": "Some provider data is stale. Figures may lag the real quota."
+  },
+  "popLedgerPartial": {
+    "message": "Partial: browser activity collection is off or a provider has no reading. Unattributed use is not computed here."
+  },
+  "popLedgerOk": {
+    "message": "Unattributed use is not computed here. Token counts are estimates, not billing."
+  },
+  "popLedgerReported": {
+    "message": "Provider-reported: $1"
+  },
+  "popLedgerObserved": {
+    "message": "Estimated from $1 message(s) seen here in 24h"
   }
 }

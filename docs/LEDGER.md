@@ -72,3 +72,5 @@ Storage is always UTC epoch ms. Daily rollups use `localDay(ts, ianaTimeZone)`; 
 - No persistence layer, collectors, API surface or UI.
 - Retention and deletion are pure functions; scheduling and user-facing controls come with the store.
 - Property-style tests use a seeded PRNG rather than a property-testing library (none is a dependency).
+
+User-facing views, filters, export and delete: [LEDGER_UI.md](LEDGER_UI.md).
