@@ -13,7 +13,7 @@ commit: ab4e7153e66700cce13d903d23ff0db0a1ef9c5f
 pull_request: https://github.com/utkarshmankad/claudewatch/pull/42
 ci_status: passed
 gate_status: not_evaluated
-blocker: 'Phase 0 gate is a human gate: prompts 0.1-0.4 merged; owner must supply gate evidence and decision (gates/phase-0/) before Phase 1 starts.'
+blocker: 'Phase 0 gate is a human gate: prompts 0.1-0.4 merged; missing 24h soak, privacy review, baseline dashboard and owner decision (see gates/phase-0/README.md) before Phase 1 starts.'
 last_checkpoint:
   at: '2026-10-23T02:45:00Z'
   action: >-
