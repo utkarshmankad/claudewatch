@@ -380,12 +380,14 @@ work_items:
     gate_status: not_evaluated
     blocker: null
     last_checkpoint:
-      at: '2026-10-23T22:00:00Z'
-      action: Claimed 3.2; branch created from develop da98520
+      at: '2026-10-23T22:40:00Z'
+      action: >-
+        WIP checkpoint 1 pushed: e2ee crypto, allow-list, envelope, client, service handler, dev server, 56 tests, DEPLOYMENT.md
       workspace_branch: feature/p3-encrypted-sync
       base_sha: da98520
       pending_operation: null
-    next_action: Implement the sync client crypto, envelope, queue and local service per docs/sync/ARCHITECTURE.md; open the PR when scope and local checks pass.
+    next_action: >-
+      Remaining 3.2 scope: wire the sync module into the extension (opt-in UI, optional host permission for the sync origin, key storage in chrome.storage.local, local-only default with a no-fetch test); update docs/PERMISSIONS.md; run npm run check, test:browser, validate:extension, audit; then open the PR into develop. D1/R2 store adapter is an owner deployment step.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-3.2

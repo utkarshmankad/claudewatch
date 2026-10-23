@@ -1,0 +1,67 @@
+// In-memory storage for the sync service. Production maps the same shapes onto D1/R2 (docs/sync/DEPLOYMENT.md).
+export interface DeviceRecord {
+  deviceId: string;
+  signPublic: string;
+  encPublic: string;
+  enrolledAt: number;
+  lastSeenAt: number;
+  revoked: boolean;
+}
+
+export interface ObjectRecord {
+  seq: number;
+  objectId: string;
+  epoch: number;
+  schemaVersion: number;
+  nonce: string;
+  ciphertext: string;
+  bytes: number;
+  receivedAt: number;
+}
+
+export interface KeyWrapRecord {
+  deviceId: string;
+  epoch: number;
+  fromEncPublic: string;
+  wrapped: { ephemeralPublic: string; nonce: string; ciphertext: string };
+}
+
+export interface EnrollmentRecord {
+  tokenHash: string;
+  accountId: string;
+  expiresAt: number;
+  joined?: { signPublic: string; encPublic: string };
+  approved?: { deviceId: string; epoch: number; fromEncPublic: string; wrapped: KeyWrapRecord['wrapped'] };
+}
+
+export interface AccountRecord {
+  accountId: string;
+  region: string;
+  createdAt: number;
+  lastActiveAt: number;
+  epoch: number;
+  nextSeq: number;
+  storageBytes: number;
+  devices: Map<string, DeviceRecord>;
+  objects: ObjectRecord[];
+  objectIds: Map<string, number>; // objectId -> seq, makes uploads idempotent
+  keyWraps: KeyWrapRecord[];
+}
+
+export interface AuditEvent {
+  type:
+    | 'account_created' | 'device_enrolled' | 'device_revoked' | 'objects_written' | 'account_deleted'
+    | 'auth_failed' | 'rate_limited' | 'epoch_rotated' | 'retention_pruned' | 'inactive_warning';
+  at: number;
+  accountId?: string;
+  deviceId?: string;
+  count?: number;
+  bytesBucket?: string;
+}
+
+export class MemoryStore {
+  accounts = new Map<string, AccountRecord>();
+  enrollments = new Map<string, EnrollmentRecord>();
+  deleted = new Map<string, number>(); // opaque account id -> deletion time (tombstone, 35 days)
+  audit: AuditEvent[] = [];
+}
