@@ -70,7 +70,7 @@ describe('first-run permission explanations', () => {
     const explained = JSON.stringify(en);
     for (const perm of manifest.permissions) expect(explained, perm).toContain(perm);
     expect(onboarding).toContain('id="permissions"');
-    for (const host of manifest.optional_host_permissions) expect(explained).toContain(new URL(host.replace('*', '')).host);
+    for (const host of manifest.optional_host_permissions) expect(explained).toContain(new URL(host.replace(/\*/g, '')).host);
   });
 });
 
