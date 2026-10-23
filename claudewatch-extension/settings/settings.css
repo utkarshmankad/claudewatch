@@ -363,3 +363,12 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+/* ── Autopilot ──────────────────────────────────────────────────────────── */
+#autopilot-card { margin-top: 16px; }
+.identity-grid select { width: 100%; margin-top: 5px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-input); color: var(--text-primary); font: 10px var(--mono); }
+.identity-grid .toggle-hint { display: block; margin-top: 4px; }
+#ap-exclude { border: 0; margin-top: 16px; display: flex; flex-wrap: wrap; gap: 6px 16px; }
+#ap-exclude legend { margin-bottom: 6px; }
+#ap-exclude label { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: 11px; }
+#autopilot-card:has(#ap-enabled:not(:checked)) .identity-grid, #autopilot-card:has(#ap-enabled:not(:checked)) #ap-exclude { opacity: 0.55; }

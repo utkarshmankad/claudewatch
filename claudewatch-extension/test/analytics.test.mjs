@@ -35,6 +35,15 @@ describe('event schema', () => {
       alert_action: { action: 'wait', provider: 'claude' },
       report_shared: { channel: 'copy' },
       active_day: { surface: 'popup' },
+      recommendation_impression: { action: 'use', provider: 'claude', confidence: 'medium', state: 'ready' },
+      explanation_viewed: { action: 'wait' },
+      autopilot_alert_shown: { kind: 'block_likely', arm: 'autopilot' }, autopilot_alert_action: { action: 'dismiss', kind: 'threshold' },
+      alert_feedback: { verdict: 'false_positive' }, experiment_assigned: { arm: 'threshold' },
+      provider_opened: { provider: 'gemini', source: 'alternative' },
+      wait_chosen: { provider: 'none' },
+      recommendation_dismissed: { action: 'use' },
+      preference_changed: { setting: 'reserved' },
+      autopilot_toggled: { enabled: false },
     };
     expect(Object.keys(samples).sort()).toEqual(Object.keys(A.EVENT_DEFINITIONS).sort());
     for (const [name, props] of Object.entries(samples)) expect(A.validateEvent(ev(name, props)), name).toEqual({ ok: true, errors: [] });

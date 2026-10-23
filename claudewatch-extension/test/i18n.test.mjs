@@ -9,7 +9,7 @@ const read = (p) => readFileSync(join(root, p), 'utf8');
 const en = JSON.parse(read('_locales/en/messages.json'));
 const xa = JSON.parse(read('_locales/en_XA/messages.json'));
 const pages = ['onboarding/onboarding.html', 'privacy/privacy.html', 'settings/settings.html', 'popup/popup.html'];
-const scripts = ['popup/popup.js', 'popup/ledger-summary.mjs', 'settings/settings.js'];
+const scripts = ['popup/popup.js', 'popup/ledger-summary.mjs', 'settings/settings.js', 'autopilot/popup-ui.mjs', 'autopilot/messages.mjs', 'settings/autopilot-settings.mjs', 'settings/alert-settings.mjs'];
 
 describe('locale catalogs', () => {
   it('en_XA is in sync with the generated pseudo-locale (run scripts/build-locales.mjs)', () => {

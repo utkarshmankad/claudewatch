@@ -2,7 +2,17 @@
 // Accumulates SSE token counts across Claude, ChatGPT, and Gemini.
 // Maintains 5h/7d rolling windows, detects plan, updates badge.
 
-importScripts('provider-collectors.js', 'activity-collector.js', 'analytics.js', 'refresh-policy.js', 'provider-contract.js', 'provider-adapters.js');
+// The worker is an ES module so Autopilot alerts can share the popup's policy code. These classic scripts
+// register themselves on `self`, so importing them for side effects is equivalent to the old importScripts.
+import './provider-collectors.js';
+import './activity-collector.js';
+import './analytics.js';
+import './refresh-policy.js';
+import './provider-contract.js';
+import './provider-adapters.js';
+import { evaluateAlerts, recordAlertAction } from './autopilot/alert-runner.mjs';
+import { PROVIDER_URLS } from './autopilot/view-model.mjs';
+import { openProviderText } from './autopilot/messages.mjs';
 
 const TAG = '[TokenWatcher]';
 
@@ -822,8 +832,48 @@ async function requestProviderRefresh(trigger, site = null) {
   if (!due.length) return false;
   console.log(`${TAG} provider refresh requested: ${trigger} (${due.join(', ')})`);
   await Promise.allSettled(due.map(provider => collectProvider(provider, trigger)));
+  runAlerts();
   return true;
 }
+
+// ── Autopilot alerts ──────────────────────────────────────────────────────
+const alertLookup = (key, subs, fallback) => {
+  try { return chrome.i18n.getMessage(key, subs) || fallback; } catch { return fallback; }
+};
+let alertsRunning = false;
+
+async function showAlert({ id, title, message, provider }) {
+  await new Promise(resolve => chrome.notifications.create(`ap-alert-${id}-${provider ?? 'none'}`, {
+    type: 'basic', iconUrl: chrome.runtime.getURL('icons/icon128.png'), title, message, priority: 0,
+    buttons: provider ? [{ title: openProviderText(alertLookup) }] : [],
+  }, () => { void chrome.runtime.lastError; resolve(); }));
+}
+
+// Decision alerts never throw into the refresh path; one evaluation runs at a time.
+async function runAlerts() {
+  if (alertsRunning) return;
+  alertsRunning = true;
+  try {
+    await evaluateAlerts({ stats: await getStats(), notify: showAlert, track, t: alertLookup });
+  } catch (err) {
+    console.warn(`${TAG} alert evaluation failed:`, err.message);
+  } finally {
+    alertsRunning = false;
+  }
+}
+
+const alertProvider = id => { const p = id.split('-').pop(); return PROVIDER_SITES.includes(p) ? p : null; };
+function openAlertProvider(id) {
+  const provider = alertProvider(id);
+  if (!provider) return;
+  chrome.tabs.create({ url: PROVIDER_URLS[provider] });
+  recordAlertAction('switch_provider', provider, Date.now(), track).catch(() => {});
+}
+chrome.notifications.onClicked.addListener(id => { if (id.startsWith('ap-alert-')) { openAlertProvider(id); chrome.notifications.clear(id); } });
+chrome.notifications.onButtonClicked.addListener(id => { if (id.startsWith('ap-alert-')) { openAlertProvider(id); chrome.notifications.clear(id); } });
+chrome.notifications.onClosed.addListener((id, byUser) => {
+  if (byUser && id.startsWith('ap-alert-')) recordAlertAction('dismiss', alertProvider(id), Date.now(), track).catch(() => {});
+});
 
 function providerFromUrl(url) {
   if (url?.startsWith('https://chatgpt.com/') || url?.startsWith('https://chat.openai.com/')) return 'chatgpt';
@@ -941,6 +991,27 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     return true;
   }
 
+  // Autopilot UI events. Only allow-listed names reach the store, and the store validates props
+  // against the closed schema, so no free text or identifiers can be recorded.
+  if (msg.type === 'ANALYTICS_AUTOPILOT' && fromExtension) {
+    const names = ['recommendation_impression', 'explanation_viewed', 'provider_opened', 'wait_chosen', 'recommendation_dismissed', 'preference_changed', 'autopilot_toggled', 'alert_feedback'];
+    (names.includes(msg.name) ? analytics.record(msg.name, msg.props ?? {}) : Promise.resolve({ ok: false }))
+      .then(async (r) => {
+        // First recommendation ever shown: the activation-time metric reads this event.
+        if (r?.ok && msg.name === 'recommendation_impression') {
+          const existing = await analytics.list();
+          if (!existing.some(e => e.name === 'first_recommendation')) {
+            await track('first_recommendation', { kind: msg.props?.state === 'all_limited' ? 'wait' : 'provider_switch' });
+          }
+        }
+        // Opening a provider or choosing to wait is credited to a recent alert, if there is one.
+        if (r?.ok && msg.name === 'provider_opened') recordAlertAction('switch_provider', msg.props?.provider, Date.now(), track).catch(() => {});
+        if (r?.ok && msg.name === 'wait_chosen') recordAlertAction('wait', null, Date.now(), track).catch(() => {});
+        reply(r ?? { ok: false });
+      }).catch(() => reply({ ok: false }));
+    return true;
+  }
+
   if (msg.type === 'ANALYTICS_CLEAR' && fromExtension) {
     analytics.clear().then(() => lset(K_STALE_STATE, {})).then(() => reply({ ok: true })).catch(() => reply({ ok: false }));
     return true;
@@ -977,7 +1048,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
 
   if (msg.type === 'SET_PLAN' && (fromExtension || fromAllowedSite)) {
     lset(K_PLAN, msg.plan)
-      .then(() => reply({ ok: true }))
+      .then(() => { recordAlertAction('plan_action', null, Date.now(), track).catch(() => {}); reply({ ok: true }); })
       .catch(() => reply({ ok: false }));
     return true;
   }
@@ -992,6 +1063,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     updateBadge(s.pct5h);
     ensureAlarms();
     trackStaleTransitions();
+    runAlerts();
     requestProviderRefresh('watchdog').catch(() => {});
   } else if (alarm.name === 'poll') {
     requestProviderRefresh('alarm').catch(err => console.warn(`${TAG} provider collection failed:`, err.message));

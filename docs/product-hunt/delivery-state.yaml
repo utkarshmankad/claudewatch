@@ -5,24 +5,24 @@ plan_source_sha256: 2bd804a354aad4639704572c4b37f9cfcb6492f614482468e2b3fb75e028
 plan_document: DELIVERY_PLAN.md
 pilot_status: in_progress
 implementation_authorized: true
-current_phase: 1
-current_prompt: '1.5'
-work_item_status: in_progress
-branch: feature/p1-ledger-ui
+current_phase: 3
+current_prompt: '3.1'
+work_item_status: awaiting_review
+branch: feature/p3-sync-design
 commit: null
-pull_request: null
+pull_request: https://github.com/utkarshmankad/claudewatch/pull/58
 ci_status: not_run
 gate_status: deferred_to_final_gate
 blocker: null
 last_checkpoint:
-  at: '2026-10-23T02:45:00Z'
+  at: '2026-10-23T15:00:00Z'
   action: >-
-    Prompt 0.4 slice 2 (popup/settings strings, WCAG fixes, permissions doc) committed; 0.1-0.3 reconciled as merged
-  workspace_branch: feature/p0-global-foundations
-  base_sha: 57b7799
+    Reconciled 2.4 as merged; claimed prompt 3.1 from develop adb85dc
+  workspace_branch: feature/p3-sync-design
+  base_sha: adb85dc
   worktree_path: null
   pending_operation: null
-next_action: Maintain the prompt 1.5 PR; owner merges
+next_action: Human gate. Owner approves and merges design PR #58 (no auto-merge); 3.2 waits for it.
 next_wake_time: null
 release_status: prohibited_during_pilot
 phases:
@@ -35,14 +35,14 @@ phases:
     pilot_eligible: true
   - id: 1
     title: Universal Usage Ledger
-    status: not_started
+    status: in_progress
     gate_status: deferred_to_final_gate
     evidence_files: []
     gate_decision: null
     pilot_eligible: true
   - id: 2
     title: Quota Autopilot
-    status: not_started
+    status: completed
     gate_status: deferred_to_final_gate
     evidence_files: []
     gate_decision: null
@@ -251,16 +251,16 @@ work_items:
   - prompt: '1.5'
     phase: 1
     title: Release the ledger user experience
-    status: awaiting_ci
+    status: completed
     planned_branch: feature/p1-ledger-ui
     branch: feature/p1-ledger-ui
     commit: null
-    pull_request: null
-    ci_status: not_run
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/51
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Maintain the 1.5 PR; owner merges. Human usability sessions (docs/LEDGER_UI.md) remain for the final gate.
+    next_action: None. PR #51 merged into develop (merge commit c86b71f). Human usability sessions (docs/LEDGER_UI.md) remain for the final gate.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-1.5
@@ -268,16 +268,16 @@ work_items:
   - prompt: '2.1'
     phase: 2
     title: Build reset-aware forecasts and safe burn rates
-    status: not_started
+    status: completed
     planned_branch: feature/p2-forecast-engine
-    branch: null
-    commit: null
-    pull_request: null
-    ci_status: not_run
+    branch: feature/p2-forecast-engine
+    commit: fd51642
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/54
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: None. PR #54 merged into develop (merge commit 96a683c); phase gate deferred to final gate. Exhaustion probability is uncalibrated on synthetic fixtures (docs/FORECASTS.md); real-history backtest remains for the final gate.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-2.1
@@ -285,16 +285,16 @@ work_items:
   - prompt: '2.2'
     phase: 2
     title: Implement the recommendation policy engine
-    status: not_started
+    status: completed
     planned_branch: feature/p2-policy-engine
-    branch: null
-    commit: null
-    pull_request: null
-    ci_status: not_run
+    branch: feature/p2-policy-engine
+    commit: 1737ab2c0bc87ef62f0254af7862ef22ab78eda5
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/55
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: None. PR #55 merged into develop (merge commit 02fb137); phase gate deferred to final gate. Recommendations are not validated on real history (final gate).
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-2.2
@@ -302,16 +302,21 @@ work_items:
   - prompt: '2.3'
     phase: 2
     title: Create the Autopilot user experience
-    status: not_started
+    status: completed
     planned_branch: feature/p2-autopilot-ui
-    branch: null
-    commit: null
-    pull_request: null
+    branch: feature/p2-autopilot-ui
+    commit: 9d8c1f9
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/56
     ci_status: not_run
     gate_status: not_evaluated
     blocker: null
-    last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    last_checkpoint:
+      at: '2026-10-23T12:00:00Z'
+      action: Claimed prompt 2.3 from develop 02fb137
+      workspace_branch: feature/p2-autopilot-ui
+      base_sha: 02fb137
+      pending_operation: null
+    next_action: None. PR #56 merged into develop (merge commit b0b6272); phase gate deferred to final gate. Popup forecasts are coarse and uncalibrated; notification frequency is stored but unused until 2.4; popup.js syntax error from 0.4 fixed here.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-2.3
@@ -319,16 +324,21 @@ work_items:
   - prompt: '2.4'
     phase: 2
     title: Tune alerts and validate product value
-    status: not_started
+    status: completed
     planned_branch: feature/p2-alert-experiments
-    branch: null
-    commit: null
-    pull_request: null
-    ci_status: not_run
+    branch: feature/p2-alert-experiments
+    commit: eea041a3e669f1e9e282f6b06f0fbca2f91d2f3e
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/57
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
-    last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    last_checkpoint:
+      at: '2026-10-23T14:00:00Z'
+      action: Implemented decision alerts, experiment and settings; validated locally; opening PR into develop
+      workspace_branch: feature/p2-alert-experiments
+      base_sha: b0b6272
+      pending_operation: null
+    next_action: None. PR #57 merged into develop (merge commit adb85dc); phase gate deferred to final gate. Experiment success rate is unmeasured until beta; extension service worker is now an ES module.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-2.4
@@ -336,11 +346,11 @@ work_items:
   - prompt: '3.1'
     phase: 3
     title: Approve the sync threat model and architecture
-    status: not_started
+    status: awaiting_review
     planned_branch: feature/p3-sync-design
-    branch: null
+    branch: feature/p3-sync-design
     commit: null
-    pull_request: null
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/58
     ci_status: not_run
     gate_status: not_evaluated
     blocker: null

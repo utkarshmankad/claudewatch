@@ -6,7 +6,7 @@ Operation key: 2026-10-10.1/prompt-0.4
 | --- | --- | --- |
 | `storage` | Settings and local usage history | `permStorage*` |
 | `alarms` | Scheduled refresh | `permAlarms*` |
-| `notifications` | Threshold alerts | `permNotifications*` |
+| `notifications` | Autopilot decision alerts and the experiment's threshold alerts | `permNotifications*` |
 | `tabs`, `scripting` | Find signed-in provider tabs and inject the gauge | `permTabs*` |
 | `cookies` | Read the provider session cookie to call the provider's own usage endpoint | `permCookies*` |
 | `idle` | Pause polling while the machine is idle | `permAlarms*` |

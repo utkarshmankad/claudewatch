@@ -1,5 +1,6 @@
 import { formatWindowEnd, validEpochMs, quotaCaption } from './formatters.mjs';
 import { summarizeLedger, ledgerLines } from './ledger-summary.mjs';
+import { initAutopilot, updateAutopilot } from '../autopilot/popup-ui.mjs';
 
 // popup.js — fetches stats from background service worker via GET_STATS,
 // renders dual gauges (5h / 7d), site breakdown, plan comparison table, and SVG sparkline.
@@ -212,7 +213,7 @@ function renderPlanTable(planTable) {
     const cls5 = p5 == null ? 'null' : p5 >= 100 ? 'over' : p5 >= 80 ? 'high' : '';
     const cls7 = p7 == null ? 'null' : p7 >= 100 ? 'over' : p7 >= 80 ? 'high' : '';
     const cur = row.isCurrent;
-    const dot = cur ? '<span class="current-marker" title="${escapeHtml(t('popYourPlan', undefined, 'Your plan'))}"></span>' : '';
+    const dot = cur ? `<span class="current-marker" title="${escapeHtml(t('popYourPlan', undefined, 'Your plan'))}"></span>` : '';
 
     return `<tr class="${cur ? 'current-plan' : ''}">
       <td><span class="plan-name">${dot}${row.name}</span></td>
@@ -415,9 +416,11 @@ function loadAndRender() {
     if (chrome.runtime.lastError) {
       console.warn('[popup] sendMessage error:', chrome.runtime.lastError.message);
       render(null);
+      updateAutopilot(null).catch(() => {});
       return;
     }
     render(stats);
+    updateAutopilot(stats).catch(() => {});
     chrome.runtime.sendMessage({ type: 'ACTIVITY_SUMMARY' }, (activity) => {
       renderLedgerSummary(stats, chrome.runtime.lastError ? null : activity);
     });
@@ -478,6 +481,13 @@ document.addEventListener('DOMContentLoaded', () => {
   setText('version', `v${manifest.version}`);
 
   chrome.runtime.sendMessage({ type: 'ANALYTICS_ACTIVE_DAY', surface: 'popup' }, () => void chrome.runtime.lastError);
+  initAutopilot({
+    t,
+    fmtTime: (ms) => formatWindowEnd(ms),
+    openTab: (url) => { chrome.tabs.create({ url }); window.close(); },
+    // Enum-only event; the service worker validates it against the closed analytics schema.
+    track: (eventName, props) => chrome.runtime.sendMessage({ type: 'ANALYTICS_AUTOPILOT', name: eventName, props }, () => void chrome.runtime.lastError),
+  });
   setupButtons();
   setupTabs();
   loadAndRender();
