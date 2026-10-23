@@ -104,6 +104,23 @@
           </div>
         </section>
 
+        <section class="card" id="activity-consent" aria-labelledby="activity-title">
+          <h2 class="card-title" id="activity-title">Browser activity ledger</h2>
+          <p class="card-hint">Off by default. When on, Token Watcher notes that you used Claude, ChatGPT or Gemini in this browser, so quota changes can be explained. These notes are evidence of local use, not measurements of your quota. Private windows are never recorded.</p>
+          <p class="card-hint"><strong>Recorded:</strong></p>
+          <ul id="activity-recorded"></ul>
+          <p class="card-hint"><strong>Never recorded:</strong></p>
+          <ul id="activity-never"></ul>
+          <label class="toggle-row" for="activity-enabled">
+            <span class="toggle-text"><span class="toggle-label">Record browser activity</span><span class="toggle-hint">Stored only in this browser and kept for 30 days</span></span>
+            <span class="switch"><input type="checkbox" id="activity-enabled" /><span class="switch-track"></span></span>
+          </label>
+          <p class="card-hint" id="activity-count" role="status" aria-live="polite"></p>
+          <div class="actions">
+            <button type="button" class="btn btn-ghost" id="activity-delete">Delete recorded activity now</button>
+          </div>
+        </section>
+
         <section class="card" id="analytics-debug" aria-labelledby="analytics-debug-title">
           <h2 class="card-title" id="analytics-debug-title" data-i18n="setDebugTitle">Local analytics debug view</h2>
           <p class="card-hint">Events and metrics below are stored only in this browser (schema v<span id="analytics-schema">1</span>, kept up to 90 days) and are never sent anywhere. Values without evidence show as unknown.</p>
@@ -144,6 +161,8 @@
   </div>
   <script src="../i18n.js"></script>
   <script src="../analytics.js"></script>
+  <script src="../activity-collector.js"></script>
+  <script src="activity-settings.js"></script>
   <script src="analytics-debug.js"></script>
   <script src="settings.js"></script>
 </body>

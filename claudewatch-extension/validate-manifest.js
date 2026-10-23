@@ -138,6 +138,8 @@ console.log('\n── Expected files');
 const expectedFiles = [
   'provider-collectors.js',
   'analytics.js',
+  'activity-collector.js',
+  'settings/activity-settings.js',
   'refresh-policy.js',
   'provider-contract.js',
   'provider-adapters.js',
