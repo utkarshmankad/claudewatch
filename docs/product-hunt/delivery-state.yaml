@@ -9,8 +9,8 @@ current_phase: 2
 current_prompt: '2.4'
 work_item_status: awaiting_ci
 branch: feature/p2-alert-experiments
-commit: null
-pull_request: null
+commit: 6545479
+pull_request: https://github.com/utkarshmankad/claudewatch/pull/57
 ci_status: not_run
 gate_status: deferred_to_final_gate
 blocker: null
@@ -327,8 +327,8 @@ work_items:
     status: awaiting_ci
     planned_branch: feature/p2-alert-experiments
     branch: feature/p2-alert-experiments
-    commit: null
-    pull_request: null
+    commit: 6545479
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/57
     ci_status: not_run
     gate_status: not_evaluated
     blocker: null
