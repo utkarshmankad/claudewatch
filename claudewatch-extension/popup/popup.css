@@ -12,7 +12,7 @@
 
   --text-primary:   #e2e2ed;
   --text-secondary: #8888a6;
-  --text-muted:     #44445a;
+  --text-muted:     #8888a6;
 
   --brand:     #6366f1;
   --brand-dk:  #4f46e5;
@@ -536,3 +536,12 @@ footer {
 }
 .provider-retry:disabled { opacity: .5; cursor: default; }
 .provider-retry:focus-visible { outline: 2px solid currentColor; outline-offset: 1px; }
+
+/* Keyboard focus: visible ring on every interactive control (WCAG 2.4.7) */
+button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid #a5b4fc;
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

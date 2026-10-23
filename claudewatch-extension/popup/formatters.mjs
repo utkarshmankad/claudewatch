@@ -7,7 +7,7 @@ export function formatWindowEnd(value, { locale, timeZone } = {}) {
   const epochMs = validEpochMs(value);
   if (epochMs == null) return '—';
 
-  return new Intl.DateTimeFormat(locale, {
+  return new Intl.DateTimeFormat(locale ?? globalThis.TokenWatcherI18n?.formatLocale(), {
     weekday: 'short',
     month: 'short',
     day: 'numeric',

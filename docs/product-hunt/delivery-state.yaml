@@ -6,24 +6,23 @@ plan_document: DELIVERY_PLAN.md
 pilot_status: in_progress
 implementation_authorized: true
 current_phase: 0
-current_prompt: '0.3'
-work_item_status: awaiting_ci
-branch: feature/p0-provider-contract
-commit: b70410377e0e6254bde689564d099bb50fc2f687
-pull_request: https://github.com/utkarshmankad/claudewatch/pull/40
-ci_status: pending
+current_prompt: '0.4'
+work_item_status: in_progress
+branch: feature/p0-global-foundations
+commit: null
+pull_request: null
+ci_status: not_run
 gate_status: not_evaluated
 blocker: null
 last_checkpoint:
-  at: '2026-10-23T00:50:00Z'
+  at: '2026-10-23T02:45:00Z'
   action: >-
-    Prompt 0.3 implemented and validated locally; PR #40 opened into develop
-  workspace_branch: feature/p0-provider-contract
-  workspace_head: b70410377e0e6254bde689564d099bb50fc2f687
-  base_sha: 358b5ec
+    Prompt 0.4 slice 2 (popup/settings strings, WCAG fixes, permissions doc) committed; 0.1-0.3 reconciled as merged
+  workspace_branch: feature/p0-global-foundations
+  base_sha: 57b7799
   worktree_path: null
   pending_operation: null
-next_action: Maintain PR #40 until CI is green; owner merges manually
+next_action: Run full checks, open PR for prompt 0.4 into develop
 next_wake_time: null
 release_status: prohibited_during_pilot
 phases:
@@ -129,12 +128,12 @@ work_items:
   - prompt: '0.3'
     phase: 0
     title: Standardize provider data and confidence
-    status: awaiting_ci
+    status: completed
     planned_branch: feature/p0-provider-contract
     branch: feature/p0-provider-contract
     commit: b70410377e0e6254bde689564d099bb50fc2f687
     pull_request: https://github.com/utkarshmankad/claudewatch/pull/40
-    ci_status: pending
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint:
@@ -145,7 +144,7 @@ work_items:
       base_sha: 358b5ec
       worktree_path: null
       pending_operation: null
-    next_action: Maintain PR #40 until CI is green; owner merges manually
+    next_action: None. PR #40 merged into develop (merge commit 57b7799); phase gate for Phase 0 still pending.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-0.3
@@ -162,13 +161,13 @@ work_items:
     gate_status: not_evaluated
     blocker: null
     last_checkpoint:
-      at: '2026-10-23T00:40:00Z'
-      action: 'WIP checkpoint - slice 1 committed; extension tests and validate pass locally'
+      at: '2026-10-23T02:45:00Z'
+      action: 'Slice 2 committed - popup/settings strings externalized, WCAG fixes, docs/PERMISSIONS.md'
       workspace_branch: feature/p0-global-foundations
-      base_sha: 358b5ec
+      base_sha: 57b7799
       pending_operation: null
     next_action: >-
-      WIP slice 1 done (i18n.js, _locales en + en_XA, privacy page, first-run permission explainer, naming). Remaining: externalize popup/settings/background strings and use locale-aware formatting there; move optional providers (chatgpt/gemini hosts) to runtime permission requests or document why not feasible; WCAG audit (keyboard, focus, contrast e.g. --text-3 #44445a on #0f0f12, screen reader) with fixes and notes; observability; run full checks incl. browser tests; open PR into develop.
+      Run full checks and open PR into develop. Known follow-up (documented in docs/PERMISSIONS.md): optional ChatGPT/Gemini host permissions not moved to runtime requests; needs browser-level verification.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-0.4

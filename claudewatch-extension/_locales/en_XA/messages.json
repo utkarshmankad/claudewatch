@@ -134,5 +134,221 @@
   "extDescription": {
     "message": "[Ţŕàçķ ÀÎ ţöķéñ ûšàĝé àçŕöšš Çļàûðé, ÇĥàţĜÞŢ, àñð Ĝéɱîñî îñ ŕéàļ-ţîɱé. Ṁöñîţöŕ šéššîöñ ļîɱîţš, ṽîéŵ ĥîšţöŕý, àñð ĝéţ àļéŕţš ƀéƒöŕé ýöû ĥîţ ýöûŕ ļîɱîţ.·····················································]",
     "description": "Extension store description (max 132 characters is recommended by Chrome)."
+  },
+  "popWaitingTitle": {
+    "message": "[Ŵàîţîñĝ ƒöŕ ðàţà…······]"
+  },
+  "popWaitingHint": {
+    "message": "[Öþéñ à šîĝñéð-îñ Çļàûðé, ÇĥàţĜÞŢ, öŕ Ĝéɱîñî ţàƀ ţö çöļļéçţ ûšàĝé àûţöɱàţîçàļļý····························]"
+  },
+  "popOpenClaude": {
+    "message": "[Öþéñ Çļàûðé →·····]"
+  },
+  "popOpenChatgpt": {
+    "message": "[ÇĥàţĜÞŢ →····]"
+  },
+  "popOpenGemini": {
+    "message": "[Ĝéɱîñî →···]"
+  },
+  "popSources": {
+    "message": "[Šöûŕçéš···]"
+  },
+  "popTokenHistory": {
+    "message": "[Ţöķéñ Ĥîšţöŕý·····]"
+  },
+  "popNoDataYet": {
+    "message": "[Ñö ðàţà ýéţ····]"
+  },
+  "popPlanComparison": {
+    "message": "[Çļàûðé Þļàñ Çöɱþàŕîšöñ········]"
+  },
+  "popColPlan": {
+    "message": "[Þļàñ··]"
+  },
+  "popSettings": {
+    "message": "[Šéţţîñĝš ⚙····]"
+  },
+  "popLastCaptured": {
+    "message": "[Ļàšţ ţöķéñ çàþţûŕéð·······]"
+  },
+  "popProviderAccount": {
+    "message": "[Þŕöṽîðéŕ àççöûñţ······]"
+  },
+  "popCol5hTitle": {
+    "message": "[% öƒ 5-ĥöûŕ ŵîñðöŵ ļîɱîţ ûšéð···········]"
+  },
+  "popCol7dTitle": {
+    "message": "[% öƒ 7-ðàý ŕöļļîñĝ ļîɱîţ ûšéð···········]"
+  },
+  "setSubtitle": {
+    "message": "[Éẋţéñšîöñ Šéţţîñĝš·······]"
+  },
+  "setNotifications": {
+    "message": "[Ñöţîƒîçàţîöñš·····]"
+  },
+  "setAlertsLabel": {
+    "message": "[Éñàƀļé ûšàĝé àļéŕţš·······]"
+  },
+  "setAlertsHint": {
+    "message": "[Šĥöŵ ðéšķţöþ ñöţîƒîçàţîöñš ŵĥéñ ţĥŕéšĥöļðš àŕé çŕöššéð···················]"
+  },
+  "setThresholds": {
+    "message": "[Àļéŕţ Ţĥŕéšĥöļðš······]"
+  },
+  "setThresholdsHint": {
+    "message": "[Éàçĥ ţĥŕéšĥöļð ƒîŕéš öñçé þéŕ šéššîöñ ŵîñðöŵ, ţĥéñ ŕé-àŕɱš ŵĥéñ ţĥé ŵîñðöŵ ŕéšéţš.·····························]"
+  },
+  "setT80": {
+    "message": "[Àþþŕöàçĥîñĝ ļîɱîţ — ĝööð ţîɱé ţö ŵŕàþ ûþ··············]"
+  },
+  "setT90": {
+    "message": "[Ĥîĝĥ ûšàĝé — šàṽé ýöûŕ ŵöŕķ··········]"
+  },
+  "setT95": {
+    "message": "[Çŕîţîçàļ — šéššîöñ àļɱöšţ éẋĥàûšţéð·············]"
+  },
+  "setGaugeLabel": {
+    "message": "[Îñ-þàĝé ûšàĝé ĝàûĝé·······]"
+  },
+  "setGaugeHint": {
+    "message": "[Šĥöŵ ţĥé çöɱþàçţ ǫûöţà ĝàûĝé öñ šûþþöŕţéð þŕöṽîðéŕ þàĝéš····················]"
+  },
+  "setCoreLabel": {
+    "message": "[Šĥàŕé ûšàĝé ŵîţĥ ļöçàļ Ţöķéñ Ŵàţçĥéŕ Çöŕé···············]"
+  },
+  "setCoreHint": {
+    "message": "[Öþţ îñ ţö šéñðîñĝ ɱéţàðàţà-öñļý éṽéñţš ţö ļöçàļĥöšţ:7734. Þŕöɱþţš àñð ŕéšþöñšéš àŕé ñéṽéŕ šéñţ.··································]"
+  },
+  "setDebugTitle": {
+    "message": "[Ļöçàļ àñàļýţîçš ðéƀûĝ ṽîéŵ··········]"
+  },
+  "setMetricsCaption": {
+    "message": "[Ɓàšéļîñé ɱéţŕîçš······]"
+  },
+  "setColMetric": {
+    "message": "[Ṁéţŕîç···]"
+  },
+  "setColValue": {
+    "message": "[Ṽàļûé··]"
+  },
+  "setColBasis": {
+    "message": "[Ɓàšîš··]"
+  },
+  "setRefresh": {
+    "message": "[Ŕéƒŕéšĥ···]"
+  },
+  "setDownload": {
+    "message": "[Ðöŵñļöàð ĴŠÖÑ·····]"
+  },
+  "setDeleteAnalytics": {
+    "message": "[Ðéļéţé àļļ àñàļýţîçš ðàţà·········]"
+  },
+  "setPrivacyPage": {
+    "message": "[Þŕîṽàçý þàĝé·····]"
+  },
+  "setAbout": {
+    "message": "[Àƀöûţ··]"
+  },
+  "setVersion": {
+    "message": "[Ṽéŕšîöñ···]"
+  },
+  "setExtId": {
+    "message": "[Éẋţéñšîöñ ÎÐ·····]"
+  },
+  "setSave": {
+    "message": "[Šàṽé Šéţţîñĝš·····]"
+  },
+  "setReset": {
+    "message": "[Ŕéšéţ ţö ðéƒàûļţš······]"
+  },
+  "setPrivacyTitle": {
+    "message": "[Þŕîṽàçý àñð àñàļýţîçš········]"
+  },
+  "setEventsLabel": {
+    "message": "[Ŕéçéñţ àñàļýţîçš éṽéñţš·········]"
+  },
+  "setUserIdPh": {
+    "message": "[Öþţîöñàļ þšéûðöñýɱöûš ûšéŕ ÎÐ···········]"
+  },
+  "setTeamIdPh": {
+    "message": "[Öþţîöñàļ ţéàɱ ÎÐ······]"
+  },
+  "popJustNow": {
+    "message": "[ĵûšţ ñöŵ···]"
+  },
+  "popSecAgo": {
+    "message": "[$1š àĝö···]"
+  },
+  "popMinAgo": {
+    "message": "[$1ɱ àĝö···]"
+  },
+  "popHourMinAgo": {
+    "message": "[$1ĥ $2ɱ àĝö····]"
+  },
+  "popFetched": {
+    "message": "[Ƒéţçĥéð ƒŕöɱ þŕöṽîðéŕ $1·········]"
+  },
+  "popNotFetched": {
+    "message": "[Ñöţ ƒéţçĥéð ýéţ······]"
+  },
+  "popStaleData": {
+    "message": "[Ðàţà îš šţàļé.·····]"
+  },
+  "popOpenTabFetch": {
+    "message": "[Öþéñ à šîĝñéð-îñ ţàƀ ţö ƒéţçĥ ûšàĝé.·············]"
+  },
+  "popUpdateFailed": {
+    "message": "[Ļàšţ ûþðàţé ƒàîļéð$1 · šĥöŵîñĝ ļàšţ ķñöŵñ ðàţà. $2··················]"
+  },
+  "popProviderReported": {
+    "message": "[Þŕöṽîðéŕ-ŕéþöŕţéð · $1········]"
+  },
+  "popRetry": {
+    "message": "[Ŕéţŕý ñöŵ····]"
+  },
+  "popLocalTokens": {
+    "message": "[$1 ļöçàļ···]"
+  },
+  "popOpenSignedTab": {
+    "message": "[Öþéñ šîĝñéð-îñ ţàƀ·······]"
+  },
+  "popNoData": {
+    "message": "[Ñö ðàţà···]"
+  },
+  "popYourPlan": {
+    "message": "[Ýöûŕ þļàñ····]"
+  },
+  "popEnds": {
+    "message": "[Éñðš $1···]"
+  },
+  "popOverLimit": {
+    "message": "[Çļàûðé ŕàţé ļîɱîţ ŕéàçĥéð — ŕéšéţš îñ $1··············]"
+  },
+  "popApproaching": {
+    "message": "[Çļàûðé àþþŕöàçĥîñĝ ļîɱîţ·········]"
+  },
+  "popApproachingRem": {
+    "message": "[Çļàûðé àþþŕöàçĥîñĝ ļîɱîţ ($1 ɱšĝš ļéƒţ)··············]"
+  },
+  "popWindowUsed": {
+    "message": "[$1 $2 ŵîñðöŵ $3% ûšéð········]"
+  },
+  "setSaved": {
+    "message": "[Šàṽéð ✓···]"
+  },
+  "setSavedNoCore": {
+    "message": "[Šàṽéð ŵîţĥöûţ Ļöçàļ Çöŕé àççéšš···········]"
+  },
+  "setResetDone": {
+    "message": "[Ŕéšéţ ţö ðéƒàûļţš ✓·······]"
+  },
+  "setResetConfirm": {
+    "message": "[Ŕéšéţ àļļ šéţţîñĝš ţö ðéƒàûļţš?···········]"
+  },
+  "popChartLabel": {
+    "message": "[Ţöķéñ ĥîšţöŕý çĥàŕţ·······]"
+  },
+  "popEndUnavailable": {
+    "message": "[Éñð ţîɱé ûñàṽàîļàƀļé·······]"
   }
 }

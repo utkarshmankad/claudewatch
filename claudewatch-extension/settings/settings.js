@@ -1,6 +1,11 @@
 // Settings page script: loads from chrome.storage.sync, saves user
 // preferences, and updates the About section from runtime / local storage.
 
+// Message lookup with the English string as fallback.
+function t(key, subs, fallback) {
+  return window.TokenWatcherI18n ? window.TokenWatcherI18n.t(key, subs, fallback) : fallback;
+}
+
 const DEFAULTS = {
   alertsEnabled: true,
   thresholds:    [80, 90, 95],
@@ -77,13 +82,13 @@ function renderAbout() {
 let confirmTimer = null;
 
 async function save(settings) {
-  let confirmation = 'Saved ✓';
+  let confirmation = t('setSaved', undefined, 'Saved ✓');
   if (settings.coreSyncEnabled) {
     const granted = await chrome.permissions.request({ origins: ['http://localhost:7734/*'] });
     if (!granted) {
       settings.coreSyncEnabled = false;
       id('core-sync-enabled').checked = false;
-      confirmation = 'Saved without Local Core access';
+      confirmation = t('setSavedNoCore', undefined, 'Saved without Local Core access');
     }
   } else {
     await chrome.permissions.remove({ origins: ['http://localhost:7734/*'] });
@@ -102,7 +107,7 @@ async function resetToDefaults() {
   await syncSet(DEFAULTS);
   applyToForm(DEFAULTS);
   const el = id('save-confirm');
-  el.textContent = 'Reset to defaults ✓';
+  el.textContent = t('setResetDone', undefined, 'Reset to defaults ✓');
   el.classList.add('visible');
   clearTimeout(confirmTimer);
   confirmTimer = setTimeout(() => el.classList.remove('visible'), 2500);
@@ -144,6 +149,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Reset button
   id('btn-reset').addEventListener('click', async () => {
-    if (confirm('Reset all settings to defaults?')) await resetToDefaults();
+    if (confirm(t('setResetConfirm', undefined, 'Reset all settings to defaults?'))) await resetToDefaults();
   });
 });
