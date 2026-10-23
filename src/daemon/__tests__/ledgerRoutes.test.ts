@@ -72,4 +72,18 @@ describe('ledger routes', () => {
     expect(await res.json()).toEqual({ ok: true, deleted: 2 });
     expect(readLedgerFile(path)).toHaveLength(0);
   });
+
+  it('serves forecasts and validates parameters', async () => {
+    appendToLedgerFile(path, Array.from({ length: 6 }, (_, i) => mk(T0 - (5 - i) * 10 * 60_000, {
+      kind: 'provider_snapshot', source: 'web', confidence: 'high', measurementMethod: 'provider_reported',
+      measures: { quotaPercentUsed: i * 4 }, window: { type: 'five_hour', resetAt: T0 + 3 * 3600_000 },
+    })), T0 + 3600_000);
+    const ok = await (await fetch(`${base}/api/forecast?provider=claude&account=work&window=five_hour&reserved=10`)).json() as { state: string; reservedPercent: number; usedPercent: number };
+    expect(ok.state).toBe('ok');
+    expect(ok.reservedPercent).toBe(10);
+    expect(ok.usedPercent).toBe(20);
+    for (const q of ['provider=nope&account=work', 'provider=claude', 'provider=claude&account=work&window=x', 'provider=claude&account=work&reserved=101']) {
+      expect((await fetch(`${base}/api/forecast?${q}`)).status).toBe(400);
+    }
+  });
 });

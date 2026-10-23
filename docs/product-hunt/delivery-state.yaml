@@ -7,7 +7,7 @@ pilot_status: in_progress
 implementation_authorized: true
 current_phase: 1
 current_prompt: '2.1'
-work_item_status: in_progress
+work_item_status: awaiting_ci
 branch: feature/p2-forecast-engine
 commit: null
 pull_request: null
@@ -22,7 +22,7 @@ last_checkpoint:
   base_sha: 57b7799
   worktree_path: null
   pending_operation: null
-next_action: Implement prompt 2.1 forecast engine on feature/p2-forecast-engine
+next_action: Maintain the prompt 2.1 PR; owner merges
 next_wake_time: null
 release_status: prohibited_during_pilot
 phases:
@@ -277,7 +277,7 @@ work_items:
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Implement forecast engine (src/forecast), tests, backtests, docs; open PR into develop
+    next_action: Maintain the 2.1 PR until CI is green; owner merges. Exhaustion probability is uncalibrated on synthetic fixtures (docs/FORECASTS.md); real-history backtest remains for the final gate.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-2.1
