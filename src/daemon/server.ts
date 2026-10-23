@@ -11,6 +11,7 @@ import { VERSION } from '../version.js';
 import { recommendPlan, reconcileAttribution } from '../analytics/insights.js';
 import { syncUsageEvent } from '../sync/cloudSync.js';
 
+import { getCollectorHealth } from '../collectors/service.js';
 export const WEB_PORT = 7734;
 
 // ---------------------------------------------------------------------------
@@ -107,6 +108,9 @@ export function startWebServer(config: Config): Server {
       res.status(500).json({ error: (err as Error).message });
     }
   });
+
+  // Collector health: enabled state, exact paths read, counts, last observation, format compatibility.
+  app.get('/api/collectors', (_req, res) => { res.json({ collectors: getCollectorHealth() }); });
 
   // ---------------------------------------------------------------------------
   // GET /api/status
