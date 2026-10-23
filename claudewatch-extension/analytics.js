@@ -48,6 +48,10 @@
     recommendation_dismissed: { description: 'User dismissed the current Autopilot recommendation.', props: { action: ['use', 'wait'] } },
     preference_changed: { description: 'User changed an Autopilot preference.', props: { setting: ['task', 'reserved', 'working_hours', 'notification_frequency', 'pinned', 'excluded'] } },
     autopilot_toggled: { description: 'User turned Autopilot recommendations on or off.', props: { enabled: 'bool' } },
+    autopilot_alert_shown: { description: 'An Autopilot or experiment-arm notification was shown.', props: { kind: ['action_changed', 'block_likely', 'reset_approaching', 'plan_review', 'threshold'], arm: ['threshold', 'autopilot'] } },
+    autopilot_alert_action: { description: 'User acted on a notification within the attribution window.', props: { action: ['switch_provider', 'wait', 'plan_action', 'dismiss'], kind: ['action_changed', 'block_likely', 'reset_approaching', 'plan_review', 'threshold'] } },
+    alert_feedback: { description: 'User rated a notification from the history.', props: { verdict: ['useful', 'false_positive'] } },
+    experiment_assigned: { description: 'Local alert experiment arm assigned after opt-in.', props: { arm: ['threshold', 'autopilot'] } },
     active_day: { description: 'Extension surface opened; at most one per local day.', props: { surface: ['popup', 'settings', 'onboarding'] } },
   });
 

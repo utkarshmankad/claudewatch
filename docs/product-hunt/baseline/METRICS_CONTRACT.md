@@ -56,7 +56,9 @@ See the schema file for exact property types. Summary:
 | `explanation_viewed` / `provider_opened` / `wait_chosen` / `recommendation_dismissed` | user interactions with the Autopilot card | emitted (Prompt 2.3) |
 | `preference_changed` / `autopilot_toggled` | Autopilot setting changed (which setting only, never its value) / recommendations turned on or off | emitted (Prompt 2.3) |
 | `attribution_measured` | needs the Phase 1 ledger/reconciliation | **defined, no emitter yet** (Phase 1.4) |
-| `alert_shown` / `alert_action` | the extension has the `notifications` permission but no alert code | **defined, no emitter yet** (Phase 2) |
+| `autopilot_alert_shown` / `autopilot_alert_action` | an Autopilot or experiment-arm notification was shown / the user acted on it inside the 60 minute attribution window | emitted (Prompt 2.4) |
+| `alert_feedback` / `experiment_assigned` | user rated a notification from the history / local experiment arm assigned after opt-in | emitted (Prompt 2.4) |
+| `alert_shown` / `alert_action` | superseded by the `autopilot_alert_*` events (they carry the alert kind); kept in the schema, not emitted | **defined, no emitter** |
 | `report_shared` | no sharing feature exists | **defined, no emitter yet** (Phase 5) |
 
 ## Metric formulas

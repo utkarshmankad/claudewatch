@@ -202,7 +202,7 @@ describe('wiring', () => {
   const read = f => readFileSync(root + f, 'utf8');
   it('the service worker loads the collector and checks opt-in, incognito and sender', () => {
     const bg = read('background.js');
-    expect(bg).toMatch(/importScripts\([^)]*activity-collector\.js/);
+    expect(bg).toMatch(/import '\.\/activity-collector\.js'/);
     expect(bg).toMatch(/tab\.incognito/);
     expect(bg).toMatch(/ACTIVITY_OBSERVED' && fromAllowedSite/);
     expect(bg).toMatch(/ACTIVITY_SET_ENABLED' && fromExtension/);

@@ -21,7 +21,7 @@ Alternatives are an alphabetical, unranked "Also available" list with their own 
 
 ## Controls (settings page, saved immediately)
 
-Task type, reserved quota (0 to 90 percent), working hours (local time zone, offset re-read at each popup open so daylight saving applies), notification frequency, preferred provider, and never-recommend providers (exclusion beats preference). Preferences live in `chrome.storage.sync` (`autopilotPrefs`); the last recommendation summary (provider names, flags, percentages) in `chrome.storage.local`. **Notification frequency is stored but nothing consumes it yet**: Autopilot alerts are Prompt 2.4.
+Task type, reserved quota (0 to 90 percent), working hours (local time zone, offset re-read at each popup open so daylight saving applies), notification frequency, preferred provider, and never-recommend providers (exclusion beats preference). Preferences live in `chrome.storage.sync` (`autopilotPrefs`); the last recommendation summary (provider names, flags, percentages) in `chrome.storage.local`. Notification frequency decides which Autopilot alerts may fire; see [AUTOPILOT_ALERTS.md](AUTOPILOT_ALERTS.md).
 
 ## Engine and data
 
@@ -52,4 +52,4 @@ The card is a labelled region with a polite live region; state and confidence ar
 
 ## Known limits
 
-Not validated on real usage history. Forecasts in the popup are coarser than the daemon's. Notification frequency has no effect until 2.4. The explanation is built from structured codes, so it can differ in wording from the English `explanation` of the TypeScript engine.
+Not validated on real usage history. Forecasts in the popup are coarser than the daemon's. Alerts and the experiment are described in AUTOPILOT_ALERTS.md. The explanation is built from structured codes, so it can differ in wording from the English `explanation` of the TypeScript engine.

@@ -37,6 +37,8 @@ describe('event schema', () => {
       active_day: { surface: 'popup' },
       recommendation_impression: { action: 'use', provider: 'claude', confidence: 'medium', state: 'ready' },
       explanation_viewed: { action: 'wait' },
+      autopilot_alert_shown: { kind: 'block_likely', arm: 'autopilot' }, autopilot_alert_action: { action: 'dismiss', kind: 'threshold' },
+      alert_feedback: { verdict: 'false_positive' }, experiment_assigned: { arm: 'threshold' },
       provider_opened: { provider: 'gemini', source: 'alternative' },
       wait_chosen: { provider: 'none' },
       recommendation_dismissed: { action: 'use' },
