@@ -1,0 +1,33 @@
+{
+  "description": "Usage keys were renamed; no known window shape remains.",
+  "now": "2026-10-01T12:00:00.000Z",
+  "input": {
+    "site": "claude",
+    "capturedAt": "2026-10-01T12:00:00.000Z",
+    "ok": true,
+    "snapshot": {
+      "organizations": [
+        {
+          "orgId": "org-0001",
+          "org": {
+            "name": "Example Org",
+            "plan": "claude_pro"
+          },
+          "usage": {
+            "current": {
+              "pct": 42
+            },
+            "weekly": {
+              "pct": 18
+            }
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "category": "provider_schema_changed",
+    "snapshotCount": 0,
+    "readings": []
+  }
+}

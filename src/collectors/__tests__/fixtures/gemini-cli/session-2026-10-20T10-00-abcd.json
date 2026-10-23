@@ -1,0 +1,1 @@
+{"sessionId":"gem-sess-1","projectHash":"p","messages":[{"type":"user","timestamp":"2026-10-20T10:00:00.000Z","content":"SECRET PROMPT TEXT"},{"type":"gemini","timestamp":"2026-10-20T10:00:04.000Z","content":"SECRET RESPONSE TEXT","model":"gemini-2.5-pro","tokens":{"input":210,"output":60,"cached":20,"thoughts":5,"total":295}}]}

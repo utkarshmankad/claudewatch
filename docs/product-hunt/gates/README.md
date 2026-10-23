@@ -35,3 +35,7 @@ Phase 6 and Prompts 6.1 through 6.6 remain in the plan unchanged, including stor
 ## State validation
 
 Validate that YAML parses with unique keys, lists exactly seven ordered phases and 32 unique ordered prompt IDs, and retains all required tracking fields. Check every recorded evidence path and every plan/source reference. Verify phase/prompt pointers and top-level status agree with the selected work item. Before resuming, reconcile recorded branches, commits, PRs, and CI with actual repository/GitHub state as described in the operating rules.
+
+## Owner directive: deferred gates
+
+On 2026-10-23 the owner deferred the Phase 0-5 gates to a consolidated final gate phase before Phase 6. See [DEFERRED_GATES.md](DEFERRED_GATES.md). The evidence and decision layout above still applies at that final gate.

@@ -2,7 +2,7 @@
 // Accumulates SSE token counts across Claude, ChatGPT, and Gemini.
 // Maintains 5h/7d rolling windows, detects plan, updates badge.
 
-importScripts('provider-collectors.js', 'analytics.js', 'refresh-policy.js');
+importScripts('provider-collectors.js', 'activity-collector.js', 'analytics.js', 'refresh-policy.js', 'provider-contract.js', 'provider-adapters.js');
 
 const TAG = '[TokenWatcher]';
 
@@ -66,6 +66,29 @@ async function getDeviceId() {
 // ── Local analytics (never sent off-device) ──────────────────────────────
 const analytics = self.TokenWatcherAnalytics.createStore(self.TokenWatcherAnalytics.chromeStorageAdapter());
 const track = (name, props) => analytics.record(name, props).catch(() => {});
+
+// ── Opt-in browser activity observations (metadata only) ───────────────
+const activity = self.TokenWatcherActivity.createStore(self.TokenWatcherActivity.chromeStorageAdapter());
+
+// Identifies the current browser run so local session ids reset on restart.
+async function browserEpoch() {
+  try {
+    const stored = await chrome.storage.session.get('activity_epoch');
+    if (stored.activity_epoch) return stored.activity_epoch;
+    const epoch = Date.now().toString(36);
+    await chrome.storage.session.set({ activity_epoch: epoch });
+    return epoch;
+  } catch { return 'e0'; }
+}
+
+async function recordActivity(msg, tab) {
+  if (tab.incognito) return { ok: false, reason: 'incognito_excluded' };
+  if (!(await activity.isEnabled())) return { ok: false, reason: 'not_enabled' };
+  const sessionId = await activity.sessionFor(tab.id, await browserEpoch());
+  return activity.record({
+    v: 1, id: msg.eventId, provider: msg.site, ts: msg.ts, sessionId, activityType: msg.activityType,
+  });
+}
 
 // Maps scheduler triggers onto the closed analytics trigger enum.
 function analyticsTrigger(trigger) {
@@ -163,18 +186,7 @@ function stableAccountKey(snapshot) {
   return `${snapshot.site}:${String(raw)}`;
 }
 
-function validateProviderSnapshot(snapshot) {
-  if (!snapshot || !['claude', 'chatgpt', 'gemini'].includes(snapshot.site)) return 'invalid_site';
-  if (!stableAccountKey(snapshot)) return 'account_identity_missing';
-  for (const key of ['pct5h', 'pct7d']) {
-    const value = snapshot[key];
-    if (value != null && (!Number.isFinite(value) || value < 0 || value > 1000)) return `invalid_${key}`;
-  }
-  for (const key of ['resetsAt5h', 'resetsAt7d']) {
-    if (snapshot[key] != null && !Number.isFinite(Date.parse(snapshot[key]))) return `invalid_${key}`;
-  }
-  return null;
-}
+const validateProviderSnapshot = snapshot => self.TokenWatcherContract.validateSnapshot(snapshot);
 
 // ── Badge ─────────────────────────────────────────────────────────────────
 function updateBadge(pct) {
@@ -189,79 +201,7 @@ function updateBadge(pct) {
   });
 }
 
-// ── Plan detection (Claude-specific) ─────────────────────────────────────
-function detectPlan(data) {
-  const s = (typeof data === 'string' ? data : JSON.stringify(data)).toLowerCase();
-  if (s.includes('max_20') || s.includes('max20'))              return 'max20x';
-  if (s.includes('max_5')  || s.includes('max5'))               return 'max5x';
-  if (s.includes('claude_max') || s.includes('"max"'))          return 'max';
-  if (s.includes('claude_pro') || s.includes('"pro"')
-      || s.includes("'pro'")  || s.includes('pro_plan'))        return 'pro';
-  if (s.includes('claude_free')|| s.includes('"free"')
-      || s.includes('free_plan'))                                return 'free';
-  return null;
-}
-
-// ── Rate-limit window extraction ──────────────────────────────────────────
-function extractRateLimitFromResponse(data) {
-  if (!data || typeof data !== 'object') return null;
-
-  // Current claude.ai /usage shape. Values are percentages (0..100), whereas
-  // older message_limit SSE events may use fractions (0..1).
-  if (data.five_hour || data.seven_day) {
-    return {
-      type: null,
-      remaining: null,
-      resetsAt: data.five_hour?.resets_at ?? null,
-      resetsAt7d: data.seven_day?.resets_at ?? null,
-      utilization5h: data.five_hour?.utilization ?? null,
-      utilization7d: data.seven_day?.utilization ?? null,
-    };
-  }
-
-  function fromWindows(windows) {
-    if (!windows || typeof windows !== 'object') return null;
-    const win5h = windows['5h'];
-    const win7d = windows['7d'];
-    if (!win5h && !win7d) return null;
-    return {
-      resetsAt:      win5h?.resets_at ? new Date(win5h.resets_at * 1000).toISOString() : null,
-      resetsAt7d:    win7d?.resets_at ? new Date(win7d.resets_at * 1000).toISOString() : null,
-      utilization5h: win5h?.utilization ?? null,
-      utilization7d: win7d?.utilization ?? null,
-    };
-  }
-
-  const windowsSources = [
-    data.windows, data.rate_limit?.windows, data.message_limit?.windows,
-    data.limits?.windows, data.usage?.windows,
-  ];
-  for (const w of windowsSources) {
-    const r = fromWindows(w);
-    if (r && (r.resetsAt || r.utilization5h != null)) {
-      return {
-        type:      data.type ?? data.rate_limit?.type ?? data.message_limit?.type ?? null,
-        remaining: data.remaining ?? data.rate_limit?.remaining ?? data.message_limit?.remaining ?? null,
-        ...r,
-      };
-    }
-  }
-
-  const candidates = [
-    data.rate_limit, data.rateLimit, data.message_limit,
-    data.account?.rate_limit, data.usage?.rate_limit,
-    data.limits?.rate_limit, data.limits,
-    data.current_period, data.window, data.usage_window,
-  ];
-  for (const c of candidates) {
-    if (!c || typeof c !== 'object') continue;
-    const resetsAt = c.resetsAt ?? c.resets_at ?? c.reset_at
-                   ?? c.windowResetsAt ?? c.window_resets_at
-                   ?? c.period_end ?? c.current_period_end ?? null;
-    if (resetsAt) return { type: c.type ?? null, resetsAt, remaining: c.remaining ?? c.messages_remaining ?? null };
-  }
-  return null;
-}
+const { detectPlan, extractRateLimitFromResponse, asPct } = self.TokenWatcherAdapters;
 
 async function mergeRateLimit(newInfo, { authoritative = false } = {}) {
   if (!newInfo) return;
@@ -282,109 +222,6 @@ async function mergeRateLimit(newInfo, { authoritative = false } = {}) {
 }
 
 // ── Provider quota normalization and history ─────────────────────────────
-const asPct = value => value == null ? null : (value <= 1 ? value * 100 : value);
-const fractionPct = value => value == null ? null : value * 100;
-const unixIso = value => Number.isFinite(value) ? new Date(value * 1000).toISOString() : null;
-
-function classifyChatGptWindows(rateLimit) {
-  const duration = window => window?.limit_window_seconds ?? window?.window_seconds ?? window?.window_size_seconds ?? null;
-  const split = Math.sqrt(5 * 3600 * 7 * 24 * 3600);
-  const primary = rateLimit?.primary_window ?? rateLimit?.session_window ?? rateLimit?.five_hour_window ?? null;
-  const secondary = rateLimit?.secondary_window ?? rateLimit?.weekly_window ?? rateLimit?.seven_day_window ?? null;
-  let w5h = null, w7d = null;
-  for (const w of [primary, secondary]) {
-    const seconds = duration(w);
-    if (!w || !Number.isFinite(seconds)) continue;
-    if (seconds < split) w5h = w; else w7d = w;
-  }
-  if (!w5h && primary && !Number.isFinite(duration(primary))) w5h = primary;
-  if (!w7d && secondary && !Number.isFinite(duration(secondary))) w7d = secondary;
-  return { w5h, w7d };
-}
-
-const chatGptPct = window => {
-  if (!window) return null;
-  const explicit = window.used_percent ?? window.utilization_percent ?? window.percent_used;
-  if (Number.isFinite(explicit)) return Math.min(100, Math.max(0, explicit));
-  const used = window.used ?? window.tokens_used;
-  const limit = window.limit ?? window.token_limit;
-  return Number.isFinite(used) && Number.isFinite(limit) && limit > 0
-    ? Math.min(100, Math.max(0, used / limit * 100)) : null;
-};
-
-const chatGptReset = window => {
-  const value = window?.reset_at ?? window?.reset_time ?? window?.resets_at;
-  if (typeof value === 'string' && Number.isFinite(Date.parse(value))) return value;
-  if (Number.isFinite(value)) return new Date(value * (value < 1e12 ? 1000 : 1)).toISOString();
-  if (Number.isFinite(window?.reset_after_seconds)) return new Date(Date.now() + window.reset_after_seconds * 1000).toISOString();
-  return null;
-};
-
-function normalizeChatGptUsage(raw, email) {
-  const usage = raw?.usage?.rate_limit ? raw.usage : raw?.data?.rate_limit ? raw.data : raw?.usage ?? raw;
-  if (!usage?.rate_limit) return null;
-  const resolvedEmail = usage.email ?? email ?? null;
-  const { w5h, w7d } = classifyChatGptWindows(usage.rate_limit);
-  const duration = window => window?.limit_window_seconds ?? window?.window_seconds ?? window?.window_size_seconds ?? null;
-  const additionalLimits = (Array.isArray(usage.additional_rate_limits) ? usage.additional_rate_limits : [])
-    .map(item => {
-      const window = item?.rate_limit?.primary_window ?? item?.rate_limit?.secondary_window;
-      if (typeof window?.used_percent !== 'number') return null;
-      return {
-        name: item.limit_name ?? item.metered_feature ?? 'Feature limit',
-        feature: item.metered_feature ?? null,
-        pct: window.used_percent, resetsAt: unixIso(window.reset_at),
-        windowSeconds: window.limit_window_seconds ?? null,
-      };
-    }).filter(Boolean).slice(0, 5);
-  return {
-    // Some personal sessions omit identity fields even though the quota is
-    // authoritative. Preserve that snapshot under one stable local account.
-    site: 'chatgpt', accountId: usage.account_id ?? usage.user_id ?? resolvedEmail ?? 'default', email: resolvedEmail,
-    plan: usage.plan_type ?? null,
-    pct5h: chatGptPct(w5h), pct7d: chatGptPct(w7d),
-    resetsAt5h: chatGptReset(w5h), resetsAt7d: chatGptReset(w7d),
-    windowSeconds5h: duration(w5h), windowSeconds7d: duration(w7d),
-    additionalLimits,
-  };
-}
-
-function parseBatchResponse(text, rpcId) {
-  for (const line of String(text ?? '').split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed === ")]}'" || /^\d+$/.test(trimmed)) continue;
-    try {
-      const rows = JSON.parse(trimmed);
-      for (const row of Array.isArray(rows) ? rows : []) {
-        if (row?.[0] === 'wrb.fr' && row?.[1] === rpcId && row[2]) return JSON.parse(row[2]);
-      }
-    } catch {}
-  }
-  return null;
-}
-
-function normalizeGeminiUsage(raw) {
-  const data = parseBatchResponse(raw?.batchText, raw?.rpcId ?? 'jSf9Qc');
-  if (!Array.isArray(data) || !Array.isArray(data[1])) return null;
-  let pct5h = null, pct7d = null, resetsAt5h = null, resetsAt7d = null;
-  for (const w of data[1]) {
-    if (!Array.isArray(w) || !Number.isFinite(w[1])) continue;
-    const pct = fractionPct(w[1]);
-    const reset = unixIso(w[3]?.[0]?.[0]);
-    if (w[2] === 1) { pct5h = pct; resetsAt5h = reset; }
-    if (w[2] === 2) { pct7d = pct; resetsAt7d = reset; }
-  }
-  return {
-    // WIZ internals can expose a request-scoped numeric value as accountId.
-    // Prefer the signed-in email, which remains stable across polls.
-    site: 'gemini', accountId: raw.email ?? raw.accountId ?? null, email: raw.email ?? null,
-    plan: data[0] != null ? `Plan ${data[0]}` : null,
-    pct5h, pct7d, resetsAt5h, resetsAt7d,
-    windowSeconds5h: 5 * 3600, windowSeconds7d: 7 * 24 * 3600,
-    additionalLimits: [],
-  };
-}
-
 function forecastWindowDetails(history, site, accountId, key, currentPct, resetsAt) {
   const now = Date.now();
   const resetMs = Date.parse(resetsAt ?? '');
@@ -407,8 +244,10 @@ function forecastWindowDetails(history, site, accountId, key, currentPct, resets
   const horizonHours = (resetMs - now) / 3600000;
   const coverageTarget = key === '5h' ? 3 : 48;
   const confidenceScore = Math.min(1, samples.length / 12) * Math.min(1, spanHours / coverageTarget) * Math.min(1, 12 / Math.max(1, horizonHours));
+  const projection = self.TokenWatcherContract.projectUsage({ currentPct, ratePerHour, horizonHours, now });
+  if (!projection) return null;
   return {
-    projectedPct: Math.min(100, Math.max(0, currentPct, currentPct + ratePerHour * horizonHours)),
+    ...projection,
     ratePerHour,
     sampleCount: samples.length,
     confidence: confidenceScore >= 0.67 ? 'high' : confidenceScore >= 0.34 ? 'medium' : 'low',
@@ -421,7 +260,9 @@ async function saveProviderSnapshot(snapshot, capturedAt) {
   if (validationError) throw new Error(validationError);
   const ts = Date.parse(capturedAt ?? '') || Date.now();
   const accountKey = stableAccountKey(snapshot);
-  const stored = { ...snapshot, accountKey, capturedAt: new Date(ts).toISOString(), ts };
+  const capturedIso = new Date(ts).toISOString();
+  const readings = self.TokenWatcherContract.toReadings(snapshot, { fetchedAt: capturedIso });
+  const stored = { ...snapshot, accountKey, capturedAt: capturedIso, ts, readings };
   const accounts = (await lget(K_PROVIDER_ACCOUNTS)) ?? {};
   accounts[snapshot.site] = accounts[snapshot.site] ?? {};
   accounts[snapshot.site][accountKey] = stored;
@@ -655,6 +496,10 @@ async function getStats() {
   const pct5h     = authPct5h ?? (capturedTokens5h > 0 ? (capturedTokens5h / limit5h) * 100 : null);
   const pct7d     = authPct7d ?? (capturedTokens7d > 0 ? (capturedTokens7d / (limit5h * 7)) * 100 : null);
 
+  // Provenance of the two gauge percentages: provider-reported, or a local token estimate.
+  const pct5hSource = authPct5h != null ? 'provider_reported' : (pct5h != null ? 'local_estimate' : null);
+  const pct7dSource = authPct7d != null ? 'provider_reported' : (pct7d != null ? 'local_estimate' : null);
+
   const tokens5h = authPct5h != null ? Math.round((authPct5h / 100) * limit5h)       : capturedTokens5h;
   const tokens7d = authPct7d != null ? Math.round((authPct7d / 100) * (limit5h * 7)) : capturedTokens7d;
 
@@ -695,6 +540,8 @@ async function getStats() {
     tokens7d,
     pct5h,
     pct7d,
+    pct5hSource,
+    pct7dSource,
     limit5h,
     resetMs5h:   resetMs,
     timeLeft5h:  Math.max(0, resetMs - now),
@@ -887,9 +734,7 @@ async function backgroundPoll() {
 async function saveProviderUsageResult(msg) {
   const site = msg.site ?? 'unknown';
   const capturedAt = msg.capturedAt ?? new Date().toISOString();
-  let normalized = null;
-  if (site === 'chatgpt') normalized = normalizeChatGptUsage(msg.snapshot, msg.snapshot?.email);
-  if (site === 'gemini') normalized = normalizeGeminiUsage(msg.snapshot);
+  const { snapshots: adapted, category } = self.TokenWatcherAdapters.adapt(msg);
   const snapshots = site === 'claude' && Array.isArray(msg.snapshot?.organizations) ? msg.snapshot.organizations : [];
   if (site === 'claude') await lset('claude_org_usage', snapshots);
   const first = snapshots[0];
@@ -899,12 +744,6 @@ async function saveProviderUsageResult(msg) {
     if (plan) await lset(K_PLAN, plan);
     const rateLimit = extractRateLimitFromResponse(first.usage);
     if (rateLimit) {
-      normalized = {
-        site: 'claude', accountId: first.orgId, email: null,
-        plan, pct5h: asPct(rateLimit.utilization5h), pct7d: asPct(rateLimit.utilization7d),
-        resetsAt5h: rateLimit.resetsAt, resetsAt7d: rateLimit.resetsAt7d,
-        windowSeconds5h: 5 * 3600, windowSeconds7d: 7 * 24 * 3600, additionalLimits: [],
-      };
       await mergeRateLimit(rateLimit, { authoritative: true });
       if (rateLimit.resetsAt) {
         const resetMs = Date.parse(rateLimit.resetsAt);
@@ -912,26 +751,17 @@ async function saveProviderUsageResult(msg) {
       }
     }
   }
-  const normalizedClaude = snapshots.map(item => {
-    const rateLimit = extractRateLimitFromResponse(item.usage);
-    if (!rateLimit) return null;
-    return {
-      site: 'claude', accountId: item.orgId, organizationId: item.orgId,
-      accountName: item.org?.name ?? item.org?.display_name ?? 'Claude organization', email: null,
-      plan: detectPlan(item.org) ?? detectPlan(item.usage),
-      pct5h: asPct(rateLimit.utilization5h), pct7d: asPct(rateLimit.utilization7d),
-      resetsAt5h: rateLimit.resetsAt, resetsAt7d: rateLimit.resetsAt7d,
-      windowSeconds5h: 5 * 3600, windowSeconds7d: 7 * 24 * 3600, additionalLimits: [],
-    };
-  }).filter(Boolean);
-  const toSave = site === 'claude' ? normalizedClaude : (normalized ? [normalized] : []);
+  // Impossible readings are dropped here so one bad window cannot corrupt stored history.
+  const toSave = adapted.filter(item => !validateProviderSnapshot(item));
   const previous = (await lget(`last_usage_poll_${site}`)) ?? {};
   const ok = Boolean(msg.ok) && toSave.length > 0;
+  // Nothing usable from a "successful" fetch, or only impossible values: the format changed.
   const validationFailure = Boolean(msg.ok) && toSave.length === 0;
   await lset(`last_usage_poll_${site}`, {
     ok, capturedAt, lastSuccessAt: ok ? capturedAt : (previous.lastSuccessAt ?? null),
     consecutiveFailures: ok ? 0 : (previous.consecutiveFailures ?? 0) + 1,
     error: validationFailure ? 'provider_schema_changed' : (msg.error ?? null),
+    errorCategory: ok ? null : (validationFailure ? 'provider_schema_changed' : category),
     status: msg.status ?? null, authPath: msg.authPath ?? 'page_bridge',
   });
   await Promise.all(toSave.map(item => enqueueProviderSnapshot(item, capturedAt)));
@@ -1020,6 +850,32 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     addTokens(msg.inputTokens ?? 0, msg.outputTokens ?? 0, msg.capturedAt, msg.rateLimit ?? null, msg.site ?? 'claude')
       .then(() => reply({ ok: true }))
       .catch(e => reply({ ok: false, err: e.message }));
+    return true;
+  }
+
+  if (msg.type === 'ACTIVITY_OBSERVED' && fromAllowedSite) {
+    recordActivity(msg, sender.tab).then(r => reply(r)).catch(() => reply({ ok: false }));
+    return true;
+  }
+
+  if (msg.type === 'ACTIVITY_SET_ENABLED' && fromExtension) {
+    activity.setEnabled(msg.enabled === true).then(r => reply(r)).catch(() => reply({ ok: false }));
+    return true;
+  }
+
+  if (msg.type === 'ACTIVITY_SUMMARY' && fromExtension) {
+    // Counts only: the popup never needs the observations themselves.
+    Promise.all([activity.isEnabled(), activity.list()]).then(([enabled, events]) => {
+      const since = Date.now() - 24 * 60 * 60 * 1000;
+      const counts24h = {};
+      for (const e of events) if (e.activityType === 'message_completed' && e.ts >= since) counts24h[e.provider] = (counts24h[e.provider] ?? 0) + 1;
+      reply({ enabled, counts24h });
+    }).catch(() => reply(null));
+    return true;
+  }
+
+  if (msg.type === 'ACTIVITY_CLEAR' && fromExtension) {
+    activity.clear().then(r => reply(r)).catch(() => reply({ ok: false }));
     return true;
   }
 

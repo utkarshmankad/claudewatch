@@ -1,0 +1,37 @@
+{
+  "description": "Weekly window omitted.",
+  "now": "2026-10-01T12:00:00.000Z",
+  "input": {
+    "site": "chatgpt",
+    "capturedAt": "2026-10-01T12:00:00.000Z",
+    "ok": true,
+    "snapshot": {
+      "email": "user@example.test",
+      "account_id": "acct-0001",
+      "plan_type": "plus",
+      "rate_limit": {
+        "primary_window": {
+          "used_percent": 37,
+          "limit_window_seconds": 18000,
+          "reset_at": 1790863200
+        }
+      }
+    }
+  },
+  "expect": {
+    "category": null,
+    "snapshotCount": 1,
+    "readings": [
+      {
+        "windowType": "5h",
+        "usedPct": 37,
+        "errorCategory": null
+      },
+      {
+        "windowType": "7d",
+        "usedPct": null,
+        "errorCategory": "window_unavailable"
+      }
+    ]
+  }
+}

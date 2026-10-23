@@ -91,3 +91,5 @@ export interface AnalyticsResponse {
   leaderboard: Array<{ userId: string; tokens: number; events: number }>;
   planRecommendation: { status: string; utilizationPct: number | null; message: string };
 }
+
+export type { LedgerView, LedgerRow, LedgerFilter, QuotaChange, EvidenceLabel, ViewState } from '../ledger/view.js';

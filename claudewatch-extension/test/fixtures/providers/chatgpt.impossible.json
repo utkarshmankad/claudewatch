@@ -1,0 +1,43 @@
+{
+  "description": "A reset time months away is not a reset of a 5h window.",
+  "now": "2026-10-01T12:00:00.000Z",
+  "input": {
+    "site": "chatgpt",
+    "capturedAt": "2026-10-01T12:00:00.000Z",
+    "ok": true,
+    "snapshot": {
+      "email": "user@example.test",
+      "account_id": "acct-0001",
+      "plan_type": "plus",
+      "rate_limit": {
+        "primary_window": {
+          "used_percent": 37,
+          "limit_window_seconds": 18000,
+          "reset_at": 1798632000
+        },
+        "secondary_window": {
+          "used_percent": 61,
+          "limit_window_seconds": 604800,
+          "reset_at": 1791115200
+        }
+      }
+    }
+  },
+  "expect": {
+    "category": null,
+    "snapshotCount": 1,
+    "readings": [
+      {
+        "windowType": "5h",
+        "usedPct": null,
+        "errorCategory": "reading_invalid"
+      },
+      {
+        "windowType": "7d",
+        "usedPct": 61,
+        "errorCategory": null
+      }
+    ],
+    "rejectedBySnapshotValidation": true
+  }
+}

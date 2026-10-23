@@ -12,7 +12,7 @@
 
   --text-primary:   #e2e2ed;
   --text-secondary: #8888a6;
-  --text-muted:     #44445a;
+  --text-muted:     #8888a6;
 
   --brand:     #6366f1;
   --brand-dk:  #4f46e5;
@@ -536,3 +536,20 @@ footer {
 }
 .provider-retry:disabled { opacity: .5; cursor: default; }
 .provider-retry:focus-visible { outline: 2px solid currentColor; outline-offset: 1px; }
+
+/* Keyboard focus: visible ring on every interactive control (WCAG 2.4.7) */
+button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid #a5b4fc;
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+/* Usage ledger summary: state is shown in words; the left rule is decoration only. */
+.ledger-status { margin: 0 0 6px; padding-left: 8px; border-left: 3px solid var(--border, #e2e8f0); font-size: 11px; }
+.ledger-status[data-state="stale"], .ledger-status[data-state="partial"] { border-left-color: #f59e0b; }
+.ledger-status[data-state="error"] { border-left-color: #ef4444; }
+.ledger-list { margin: 0; padding: 0; list-style: none; font-size: 11px; }
+.ledger-list li { margin-bottom: 3px; }
+.ledger-hint { margin: 6px 0 0; font-size: 10px; opacity: .7; }

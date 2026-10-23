@@ -1,0 +1,16 @@
+{
+  "description": "Session cookie expired; the usage endpoint answered 401.",
+  "now": "2026-10-01T12:00:00.000Z",
+  "input": {
+    "site": "claude",
+    "capturedAt": "2026-10-01T12:00:00.000Z",
+    "ok": false,
+    "status": 401,
+    "error": "unauthorized"
+  },
+  "expect": {
+    "category": "auth_expired",
+    "snapshotCount": 0,
+    "readings": []
+  }
+}
