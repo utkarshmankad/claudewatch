@@ -40,4 +40,8 @@ On every resume, read state first, then inspect worktree status, local and remot
 - If a merge already happened, record the merge SHA and resume post-merge validation/checkpointing. Do not create a second branch, commit, or PR for the completed prompt. Delete only the merged prompt branch after verifying merge and checkpointing; preserve `main`, `develop`, and unrelated branches.
 - If remote state cannot be verified or recorded identifiers disagree, set a blocker and stop dependent actions. Do not guess. Mark a work item completed only after its required checks, review, merge where permitted, and evidence are verified.
 
+## Authorship and attribution (owner directive, 2026-10-23)
+
+Do not mention Claude, Claude Code or any AI tool as author or contributor: no `Co-Authored-By` or session trailers in commits, no "generated with" lines in PR descriptions, and no such mentions in code comments or file headers. This overrides the `Co-Authored-By: Claude` instruction in the routine prompt. References to Claude Code as a product the app monitors are unaffected. Keep the operation key in commit messages and PR bodies.
+
 This setup does not install a scheduler, start a delivery loop, or authorize implementation. Stop after validating the four orchestration files.
