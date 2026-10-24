@@ -7,11 +7,11 @@ pilot_status: in_progress
 implementation_authorized: true
 current_phase: 3
 current_prompt: '3.4'
-work_item_status: awaiting_ci
+work_item_status: completed
 branch: feature/p3-companion-alerts
 commit: c283d42c24ddd960a3fad359357540dfb93e1683
 pull_request: https://github.com/utkarshmankad/claudewatch/pull/65
-ci_status: pending
+ci_status: passed
 gate_status: deferred_to_final_gate
 blocker: null
 last_checkpoint:
@@ -21,7 +21,7 @@ last_checkpoint:
   base_sha: 82a4db3
   worktree_path: null
   pending_operation: null
-next_action: Owner reviews and merges the 3.4 PR (no auto-merge; it records accepted security risks).
+next_action: Owner merges Phase 3 promotion PR #66 (develop to main); then a sync-back PR (main to develop) is opened. Phase 4 is blocked until both merge.
 next_wake_time: null
 release_status: prohibited_during_pilot
 phases:
@@ -56,7 +56,11 @@ phases:
     pilot_eligible: true
   - id: 3
     title: Encrypted cross-device continuity
-    status: not_started
+    promotion_pr: https://github.com/utkarshmankad/claudewatch/pull/66
+    promotion_status: open
+    sync_back_pr: null
+    sync_back_status: not_opened
+    status: completed
     gate_status: deferred_to_final_gate
     evidence_files: []
     gate_decision: null
@@ -417,12 +421,12 @@ work_items:
   - prompt: '3.4'
     phase: 3
     title: Deliver companion alerts and security validation
-    status: awaiting_ci
+    status: completed
     planned_branch: feature/p3-companion-alerts
     branch: feature/p3-companion-alerts
     commit: c283d42c24ddd960a3fad359357540dfb93e1683
     pull_request: https://github.com/utkarshmankad/claudewatch/pull/65
-    ci_status: pending
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint:
@@ -432,7 +436,7 @@ work_items:
       base_sha: 82a4db3
       pending_operation: null
     next_action: >-
-      Owner reviews and merges (no auto-merge: records accepted security risks R1-R7). Phase 3 is then complete; promotion PR follows. Known limits: no push transport (owner supplies Web Push sender and VAPID keys); companion page not wired to the sync client (no browser bundle); no real push delivery tested; self-review only, independent review deferred to the final gate.
+      None. PR #65 merged into develop by the owner (merge commit eca3430). Phase 3 promotion PR #66 is open for the owner. Known limits: no push transport (owner supplies Web Push sender and VAPID keys); companion page not wired to the sync client (no browser bundle); no real push delivery tested; self-review only, independent review deferred to the final gate.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-3.4
