@@ -588,16 +588,17 @@ work_items:
   - prompt: '5.5'
     phase: 5
     title: Validate the acquisition loop
-    status: in_progress
+    status: awaiting_ci
     planned_branch: feature/p5-growth-experiment
     branch: feature/p5-growth-experiment
-    commit: null
+    commit: 1985eda7c21f0ff6a167b5cd89efff82fc0f223c
     pull_request: null
     ci_status: not_run
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Claimed by the hourly routine 2026-10-24; implementation in progress. The live beta run needs a consented cohort and cannot be performed by the routine.
+    next_action: >-
+      Open the PR into develop and wait for CI. Framework and protocol only (src/wrapped/growthExperiment.ts, docs/GROWTH_EXPERIMENT.md). DEFERRED as gate evidence: the live opt-in beta (needs a consented cohort and deployed endpoints), variant selection and removal of losing variants; no measurement exists and none is claimed. Browser tests could not run locally (Chromium download failed); CI must run them.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-5.5
