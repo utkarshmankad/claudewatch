@@ -516,16 +516,16 @@ work_items:
   - prompt: '5.1'
     phase: 5
     title: Define weekly metrics and plan economics
-    status: in_progress
+    status: awaiting_ci
     planned_branch: feature/p5-wrapped-metrics
     branch: feature/p5-wrapped-metrics
     commit: null
     pull_request: null
-    ci_status: not_run
+    ci_status: pending
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Implement 5.1 metrics definitions, pricing catalog and tests; open PR into develop.
+    next_action: Wait for CI on the 5.1 PR; auto-merge is enabled. Pricing catalog ships no prices; the pricing source audit remains a deferred Phase 5 gate artifact.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-5.1
