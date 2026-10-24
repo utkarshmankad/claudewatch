@@ -78,8 +78,8 @@ phases:
     pilot_eligible: true
   - id: 5
     title: Usage Wrapped and Plan ROI
-    promotion_pr: null
-    promotion_status: not_opened
+    promotion_pr: https://github.com/utkarshmankad/claudewatch/pull/89
+    promotion_status: open
     sync_back_pr: null
     sync_back_status: not_opened
     status: completed
