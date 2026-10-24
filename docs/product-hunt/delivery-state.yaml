@@ -6,7 +6,7 @@ plan_document: DELIVERY_PLAN.md
 pilot_status: in_progress
 implementation_authorized: true
 current_phase: 3
-current_prompt: '3.4'
+current_prompt: '4.3'
 work_item_status: completed
 branch: feature/p3-companion-alerts
 commit: c283d42c24ddd960a3fad359357540dfb93e1683
@@ -21,7 +21,7 @@ last_checkpoint:
   base_sha: 82a4db3
   worktree_path: null
   pending_operation: null
-next_action: Owner merges Phase 3 promotion PR #66 (develop to main); then a sync-back PR (main to develop) is opened. Phase 4 is blocked until both merge.
+next_action: Phase 3 promoted (PR #66 merged into main, sync-back PR #68 merged into develop). Prompt 4.1 design merged (PR #70). Prompt 4.2 in progress on feature/p4-radar-pipeline.
 next_wake_time: null
 release_status: prohibited_during_pilot
 phases:
@@ -57,9 +57,9 @@ phases:
   - id: 3
     title: Encrypted cross-device continuity
     promotion_pr: https://github.com/utkarshmankad/claudewatch/pull/66
-    promotion_status: open
-    sync_back_pr: null
-    sync_back_status: not_opened
+    promotion_status: merged
+    sync_back_pr: https://github.com/utkarshmankad/claudewatch/pull/68
+    sync_back_status: merged
     status: completed
     gate_status: deferred_to_final_gate
     evidence_files: []
@@ -87,7 +87,7 @@ phases:
     gate_decision: null
     pilot_eligible: false
     human_gate: true
-    note: Holds the Phase 0-5 exit criteria and evidence deferred by the owner on 2026-10-23. Must pass before Phase 6. See gates/DEFERRED_GATES.md.
+    note: Holds the Phase 0-5 exit criteria and evidence deferred by the owner on 2026-10-23. Must pass before Phase 6. See gates/DEFERRED_GATES.md. Also holds the deferred Prompt 4.4 Radar beta (ADR-0002).
   - id: 6
     title: Product Hunt release
     status: not_started
@@ -436,7 +436,7 @@ work_items:
       base_sha: 82a4db3
       pending_operation: null
     next_action: >-
-      None. PR #65 merged into develop by the owner (merge commit eca3430). Phase 3 promotion PR #66 is open for the owner. Known limits: no push transport (owner supplies Web Push sender and VAPID keys); companion page not wired to the sync client (no browser bundle); no real push delivery tested; self-review only, independent review deferred to the final gate.
+      None. PR #65 merged into develop by the owner (merge commit eca3430). Phase 3 promotion PR #66 merged into main; sync-back #68 merged into develop. Known limits: no push transport (owner supplies Web Push sender and VAPID keys); companion page not wired to the sync client (no browser bundle); no real push delivery tested; self-review only, independent review deferred to the final gate.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-3.4
@@ -444,16 +444,16 @@ work_items:
   - prompt: '4.1'
     phase: 4
     title: Define anonymous contribution and privacy rules
-    status: not_started
+    status: completed
     planned_branch: feature/p4-radar-privacy
-    branch: null
-    commit: null
-    pull_request: null
-    ci_status: not_run
+    branch: feature/p4-radar-privacy
+    commit: a2cb30a56bff2dcc13d5ca776d303313eb6b5f0a
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/70
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: None. Design PR #70 merged into develop by the owner (merge commit 18d4770). Open questions 1-5 in docs/radar/PRIVACY_AND_ARCHITECTURE.md remain unanswered; 4.2 builds to the design defaults.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-4.1
@@ -461,16 +461,16 @@ work_items:
   - prompt: '4.2'
     phase: 4
     title: Build aggregate ingestion and anomaly detection
-    status: not_started
+    status: completed
     planned_branch: feature/p4-radar-pipeline
-    branch: null
-    commit: null
-    pull_request: null
-    ci_status: not_run
+    branch: feature/p4-radar-pipeline
+    commit: 5f95671dbe36412fc44fae89da58b93e52fc8dac
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/71
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: None. PR #71 merged into develop (merge commit bd5d2a5). Real-history backtest, privacy and legal review, and the open design questions remain for the final gate.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-4.2
@@ -478,16 +478,16 @@ work_items:
   - prompt: '4.3'
     phase: 4
     title: Create the Radar experience and safe remote fixes
-    status: not_started
+    status: completed
     planned_branch: feature/p4-radar-ui-config
-    branch: null
-    commit: null
-    pull_request: null
-    ci_status: not_run
+    branch: feature/p4-radar-ui-config
+    commit: 28a47503a87da2a45f1b994776c7d50fe2631b67
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/72
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: None. PR #72 merged into develop (squash). Signing service, key custody, config distribution, extension consumption and a live incident feed are not built and need owner decisions.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-4.3
@@ -495,16 +495,16 @@ work_items:
   - prompt: '4.4'
     phase: 4
     title: Run a controlled Radar beta
-    status: not_started
+    status: deferred_to_phase_6
     planned_branch: feature/p4-radar-beta
     branch: null
     commit: null
     pull_request: null
     ci_status: not_run
-    gate_status: not_evaluated
+    gate_status: deferred_to_phase_6_release_gate
     blocker: null
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: 'Owner decision 2026-10-24 (docs/radar/ADR-0002-radar-beta-release-gate.md): the 4.4 human gate moves to Phase 6 as the final requirement of the release. Not started and not a blocker for Phase 4 promotion. Before release the owner must supply a consented beta cohort, a deployed ingestion endpoint and feed, signing-key custody, and a privacy review of real stored records; no measurement may be fabricated.'
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-4.4

@@ -13,6 +13,9 @@ import { syncUsageEvent } from '../sync/cloudSync.js';
 
 import { getCollectorHealth, ledgerPath } from '../collectors/service.js';
 import { registerLedgerRoutes } from './ledgerRoutes.js';
+import { registerRadarRoutes } from './radarRoutes.js';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 export const WEB_PORT = 7734;
 
 // ---------------------------------------------------------------------------
@@ -114,6 +117,7 @@ export function startWebServer(config: Config): Server {
   app.get('/api/collectors', (_req, res) => { res.json({ collectors: getCollectorHealth() }); });
 
   registerLedgerRoutes(app, ledgerPath);
+  registerRadarRoutes(app, { prefsPath: () => join(homedir(), '.claudewatch', 'radar-prefs.json') });
 
   // ---------------------------------------------------------------------------
   // GET /api/status

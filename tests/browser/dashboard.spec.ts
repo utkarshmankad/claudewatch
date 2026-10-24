@@ -22,6 +22,8 @@ const emptyLedger: LedgerView = {
   totalsByLabel: { provider_reported: NO_TOTALS, measured: NO_TOTALS, estimated: NO_TOTALS, reconciled: NO_TOTALS, corrected: NO_TOTALS, unattributed: NO_TOTALS },
   options: { providers: [], accounts: [], devices: [], clients: [], sources: [], confidences: [] },
 };
+const emptyRadar = { state: 'empty', beta: true, generatedAt: 0, incidents: [], disclaimer: 'Radar shows aggregated observations from opted-in Token Watcher users. These are not provider announcements and may be wrong. Check your provider before acting on them.' };
+const radarPrefs = { enabled: false, minConfidence: 0.5, providers: [], kinds: [], notifyOnResolved: false };
 const T = Date.UTC(2026, 9, 1, 12, 0, 0);
 const filledLedger: LedgerView = {
   ...emptyLedger, state: 'partial', stateReasons: ['no_provider_snapshots'], totalRecords: 2, matched: 2, providerMovementPoints: 10, unidentifiedPoints: { low: 10, high: 10 },
@@ -44,6 +46,8 @@ test('renders spend and analytics from daemon responses', async ({ page }) => {
       '/api/alerts': { alerts: [] },
       '/api/analytics': analytics,
       '/api/ledger': emptyLedger,
+      '/api/radar': emptyRadar,
+      '/api/radar/prefs': radarPrefs,
     };
     const path = new URL(route.request().url()).pathname;
     if (!(path in responses)) throw new Error(`Unexpected API request: ${path}`);
@@ -56,6 +60,8 @@ test('renders spend and analytics from daemon responses', async ({ page }) => {
   await expect(page.getByText('No alerts fired yet.', { exact: true })).toBeVisible();
   await expect(page.getByText('1,200', { exact: true })).toBeVisible();
   await expect(page.locator('a[href="/api/report?days=30&format=csv"]')).toHaveAttribute('href', '/api/report?days=30&format=csv');
+  await expect(page.getByText('not provider announcements', { exact: false })).toBeVisible();
+  await expect(page.getByLabel('Notify me about Radar incidents')).not.toBeChecked();
   expect(errors).toEqual([]);
 });
 
@@ -65,7 +71,7 @@ test('ledger shows an empty state, then text-labelled evidence with filters, exp
   await page.route('**/api/**', async route => {
     const url = new URL(route.request().url());
     requests.push(`${route.request().method()} ${url.pathname}${url.search}`);
-    const responses: Record<string, unknown> = { '/api/status': status, '/api/usage': { rows: [] }, '/api/alerts': { alerts: [] }, '/api/analytics': analytics, '/api/ledger': ledger };
+    const responses: Record<string, unknown> = { '/api/status': status, '/api/usage': { rows: [] }, '/api/alerts': { alerts: [] }, '/api/analytics': analytics, '/api/ledger': ledger, '/api/radar': emptyRadar, '/api/radar/prefs': radarPrefs };
     if (route.request().method() === 'DELETE') { ledger = emptyLedger; await route.fulfill({ json: { ok: true, deleted: 2 } }); return; }
     await route.fulfill({ json: responses[url.pathname] });
   });

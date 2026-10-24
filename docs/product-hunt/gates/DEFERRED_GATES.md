@@ -26,3 +26,7 @@ Phases 1-5: evidence is collected as each phase's prompts land and listed in the
 ## Phase 3 independent security review (deferred, owner decision 2026-10-23)
 
 No independent reviewer is engaged. Phase 3 relies on self-review against a public checklist plus CodeQL and `npm audit`. The sync feature is labelled "not independently audited" and this item stays open for the final gate.
+
+## Prompt 4.4 Radar beta (moved to the Phase 6 release gate, owner decision 2026-10-24)
+
+The 4.4 human gate is no longer a Phase 4 blocker. It is the **final requirement of the Phase 6 release**: the release must not proceed until the controlled Radar beta has run and its internal launch decision is published, or the owner records an explicit exception. Required inputs the owner must supply: a consented beta cohort, a deployed ingestion endpoint and feed, signing-key custody, and a privacy review of real stored records. Until then Radar stays labelled beta and no measurement may be fabricated. See [ADR-0002](../../radar/ADR-0002-radar-beta-release-gate.md).
