@@ -96,3 +96,8 @@ export type { LedgerView, LedgerRow, LedgerFilter, QuotaChange, EvidenceLabel, V
 export type { RadarView, RadarIncidentView, RadarViewState } from '../radar/view.js';
 export type { RadarNotifyPrefs } from '../radar/notify.js';
 export type { DiagnosticPreview } from '../radar/diagnostics.js';
+
+import type { Choices, WrappedReport } from '../wrapped/report.js';
+import type { PrivacyPreview } from '../wrapped/render.js';
+export type WrappedChoices = Choices;
+export interface WrappedPreviewResponse { report: WrappedReport; html: string; svg: string; preview: PrivacyPreview }

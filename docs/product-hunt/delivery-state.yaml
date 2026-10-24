@@ -78,7 +78,11 @@ phases:
     pilot_eligible: true
   - id: 5
     title: Usage Wrapped and Plan ROI
-    status: not_started
+    promotion_pr: null
+    promotion_status: not_opened
+    sync_back_pr: null
+    sync_back_status: not_opened
+    status: completed
     gate_status: deferred_to_final_gate
     evidence_files: []
     gate_decision: null
@@ -516,16 +520,16 @@ work_items:
   - prompt: '5.1'
     phase: 5
     title: Define weekly metrics and plan economics
-    status: awaiting_ci
+    status: completed
     planned_branch: feature/p5-wrapped-metrics
     branch: feature/p5-wrapped-metrics
     commit: 76e805d
     pull_request: https://github.com/utkarshmankad/claudewatch/pull/83
-    ci_status: pending
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Wait for CI on the 5.1 PR; auto-merge is enabled. Pricing catalog ships no prices; the pricing source audit remains a deferred Phase 5 gate artifact.
+    next_action: None. PR #83 merged into develop (merge commit 4dc87a2). Pricing catalog ships no prices; the pricing source audit remains a deferred Phase 5 gate artifact.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-5.1
@@ -533,50 +537,54 @@ work_items:
   - prompt: '5.2'
     phase: 5
     title: Build the private Usage Wrapped report
-    status: not_started
+    status: completed
     planned_branch: feature/p5-private-wrapped
-    branch: null
-    commit: null
-    pull_request: null
-    ci_status: not_run
+    branch: feature/p5-private-wrapped
+    commit: 84ac14a0147244d6eff323e0b8847319c48d8cfd
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/84
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: None. PR #84 merged into develop.
     next_wake_time: null
-    evidence_files: []
+    evidence_files:
+      - docs/WRAPPED_REPORT.md
+      - src/wrapped/__tests__/__snapshots__/report.test.ts.snap
     operation_key: 2026-10-10.1/prompt-5.2
     pending_operation: null
   - prompt: '5.3'
     phase: 5
     title: Create privacy-safe share cards
-    status: not_started
+    status: completed
     planned_branch: feature/p5-share-cards
-    branch: null
-    commit: null
-    pull_request: null
-    ci_status: not_run
+    branch: feature/p5-share-cards
+    commit: 15fc0de16c69ff986954890d1ee36c7d7226c4d6
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/86
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: None. PR #86 merged into develop.
     next_wake_time: null
-    evidence_files: []
+    evidence_files:
+      - docs/SHARE_CARDS.md
+      - src/wrapped/__tests__/shareCards.test.ts
     operation_key: 2026-10-10.1/prompt-5.3
     pending_operation: null
   - prompt: '5.4'
     phase: 5
     title: Implement transparent plan recommendations
-    status: not_started
+    status: completed
     planned_branch: feature/p5-plan-roi
-    branch: null
-    commit: null
-    pull_request: null
-    ci_status: not_run
+    branch: feature/p5-plan-roi
+    commit: 0aff498358599505205cb6b9b655c3cbaf46c9fb
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/85
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: None. PR #85 merged into develop. No UI/CLI surface yet; Phase 5 gate evidence deferred.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-5.4
@@ -584,16 +592,17 @@ work_items:
   - prompt: '5.5'
     phase: 5
     title: Validate the acquisition loop
-    status: not_started
+    status: completed
     planned_branch: feature/p5-growth-experiment
-    branch: null
-    commit: null
-    pull_request: null
-    ci_status: not_run
+    branch: feature/p5-growth-experiment
+    commit: 1985eda7c21f0ff6a167b5cd89efff82fc0f223c
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/87
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: >-
+      PR #87 merged into develop (merge commit f28966c). Framework and protocol only: the live opt-in beta, measured results, variant selection and removal of losing variants are deferred Phase 5 gate evidence (needs a consented cohort and deployed endpoints). No measurement exists.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-5.5
