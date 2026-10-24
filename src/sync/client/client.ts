@@ -89,6 +89,7 @@ interface SyncState {
   heldSeqs?: number[];
   // Added by the Phase 3 security review.
   trustedKeys?: string[]; // encPublic values this device has pinned; key distribution goes only to these
+  revokedKeys?: string[]; // keys of devices this device revoked; never re-pinned, whatever the service's device list says
   keylessSeqs?: Array<{ seq: number; epoch: number }>; // objects skipped for want of an epoch key, retried once the key arrives
 }
 
@@ -324,6 +325,7 @@ export class SyncClient {
   }
 
   private pinKey(encPublic: string): void {
+    if (this.s.revokedKeys?.includes(encPublic)) return;
     const keys = (this.s.trustedKeys ??= [this.s.deviceKeys.encPublic]);
     if (!keys.includes(encPublic)) keys.push(encPublic);
   }
@@ -825,6 +827,13 @@ export class SyncClient {
     const s = this.s;
     const epoch = s.epoch + 1;
     const ak = generateAccountKey();
+    // Remember the revoked device's key so a service that later lists it as active cannot get the new key sent to it.
+    const listed = (await (await this.api('GET', '/v1/devices')).json()) as { devices: Array<{ deviceId: string; encPublic: string }> };
+    const revokedKey = listed.devices.find((d) => d.deviceId === deviceId)?.encPublic;
+    if (revokedKey) {
+      (s.revokedKeys ??= []).push(revokedKey);
+      s.trustedKeys = (s.trustedKeys ?? []).filter((k) => k !== revokedKey);
+    }
     await this.api('POST', `/v1/devices/${encodeURIComponent(deviceId)}/revoke`, { newEpoch: epoch });
     s.keys[String(epoch)] = toB64(ak);
     s.epoch = epoch;

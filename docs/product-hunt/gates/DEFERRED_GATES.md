@@ -25,7 +25,7 @@ Phases 1-5: evidence is collected as each phase's prompts land and listed in the
 
 ## Phase 3 independent security review (deferred, owner decision 2026-10-23)
 
-No independent reviewer is engaged. Phase 3 relies on self-review against a public checklist plus CodeQL and `npm audit`. The sync feature is labelled "not independently audited" and this item stays open for the final gate.
+No independent reviewer is engaged. Phase 3 relies on self-review against a public checklist plus CodeQL and `npm audit`. The sync feature is labelled "not independently audited" and this item stays open for the final gate. An AI-assisted review with fixes was added on 2026-10-24 ([phase-3/security-review.md](phase-3/security-review.md)); it is not independent, and the owner decides whether it closes the item.
 
 ## Prompt 4.4 Radar beta (moved to the Phase 6 release gate, owner decision 2026-10-24)
 

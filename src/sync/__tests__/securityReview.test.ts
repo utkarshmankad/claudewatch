@@ -145,6 +145,17 @@ describe('key distribution against a dishonest service', () => {
     expect(c.status().epoch).toBe(3);
   });
 
+  it('never sends a new key to a device this client revoked, even if the service lists it as active', async () => {
+    const r = rig();
+    const { a, b } = await pair(r);
+    r.hooks.after = (path, method, _b, res) => (path === '/v1/devices' && method === 'GET'
+      ? replace(res, (j) => ({ ...j, devices: (j['devices'] as Array<Record<string, unknown>>).map((d) => ({ ...d, revoked: false })) }))
+      : undefined);
+    await a.revokeDevice(b.deviceId!);
+    expect(r.calls.filter((c) => c === 'PUT /v1/keywraps')).toHaveLength(0);
+    expect(a.unverifiedDevices()).toEqual([]);
+  });
+
   it('does not adopt a key wrap the service made, even for a future epoch', async () => {
     const r = rig();
     const { a, b } = await pair(r);
