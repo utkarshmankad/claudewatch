@@ -9,9 +9,9 @@ current_phase: 3
 current_prompt: '3.4'
 work_item_status: awaiting_ci
 branch: feature/p3-companion-alerts
-commit: null
-pull_request: null
-ci_status: not_run
+commit: c283d42c24ddd960a3fad359357540dfb93e1683
+pull_request: https://github.com/utkarshmankad/claudewatch/pull/65
+ci_status: pending
 gate_status: deferred_to_final_gate
 blocker: null
 last_checkpoint:
@@ -420,9 +420,9 @@ work_items:
     status: awaiting_ci
     planned_branch: feature/p3-companion-alerts
     branch: feature/p3-companion-alerts
-    commit: null
-    pull_request: null
-    ci_status: not_run
+    commit: c283d42c24ddd960a3fad359357540dfb93e1683
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/65
+    ci_status: pending
     gate_status: not_evaluated
     blocker: null
     last_checkpoint:
