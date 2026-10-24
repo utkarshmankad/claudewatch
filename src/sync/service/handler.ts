@@ -11,6 +11,8 @@ import type { PushKind, PushSender } from './push.js';
 
 const MINUTE = 60_000;
 const DAY = 24 * 60 * MINUTE;
+const MAX_AUDIT_EVENTS = 50_000;
+const MAX_AUDIT_KEYS = 10_000;
 
 export interface SyncServiceConfig {
   regions: string[];
@@ -94,8 +96,22 @@ export function createSyncService(options: { store?: MemoryStore; now?: () => nu
   const windows = new Map<string, { start: number; count: number }>();
   const salt = randomId(16); // rotates on restart; rate-limit keys never persist
 
+  // Repeats of one event for one account within a minute are folded into a count, and the log is capped, so traffic that
+  // anyone can send (bad tokens, rate-limited calls) cannot grow it without bound (load test L1/L2d).
+  const auditTail = new Map<string, AuditEvent>();
   const audit = (event: Omit<AuditEvent, 'at'>): void => {
-    store.audit.push({ at: now(), ...event });
+    const at = now();
+    const key = `${event.type}|${event.accountId ?? ''}|${event.deviceId ?? ''}|${event.bytesBucket ?? ''}`;
+    const last = auditTail.get(key);
+    if (last && at - last.at < MINUTE) {
+      last.count = (last.count ?? 1) + (event.count ?? 1);
+      return;
+    }
+    const entry: AuditEvent = { at, ...event };
+    store.audit.push(entry);
+    auditTail.set(key, entry);
+    if (auditTail.size > MAX_AUDIT_KEYS) auditTail.clear();
+    if (store.audit.length > MAX_AUDIT_EVENTS) { store.audit.splice(0, store.audit.length - MAX_AUDIT_EVENTS); auditTail.clear(); }
   };
 
   async function limit(key: string, max: number, windowMs: number, accountId?: string): Promise<void> {
@@ -557,6 +573,7 @@ export function createSyncService(options: { store?: MemoryStore; now?: () => nu
         }
       }
       store.audit = store.audit.filter((e) => t - e.at < config.auditRetentionMs);
+      auditTail.clear(); // entries it points at may have been dropped
       for (const [id, at] of store.deleted) if (t - at >= config.backupExpiryDays * DAY) store.deleted.delete(id);
       for (const [key, w] of windows) if (t - w.start >= 60 * MINUTE) windows.delete(key);
       for (const [key, at] of seenNonces) if (t - at > config.clockWindowMs * 2) seenNonces.delete(key);

@@ -242,3 +242,23 @@ describe('convergence fixes found by the review', () => {
     expect(a.prefs.planLabel).toBe('second');
   });
 });
+
+describe('audit log growth (found by load testing)', () => {
+  it('folds repeated unauthenticated events into one counted entry', async () => {
+    const r = rig();
+    for (let i = 0; i < 500; i += 1) await r.service.fetch(new Request(`${BASE}/v1/devices`, { headers: { authorization: 'Bearer nope' } }));
+    const failed = r.service.store.audit.filter((e) => e.type === 'auth_failed');
+    expect(failed).toHaveLength(1);
+    expect(failed[0]!.count).toBe(500);
+  });
+
+  it('counts are kept per account, and a new minute starts a new entry', async () => {
+    const clock = { t: 1_800_000_000_000 };
+    const service = createSyncService({ now: () => clock.t });
+    const call = () => service.fetch(new Request(`${BASE}/v1/devices`, { headers: { authorization: 'Bearer nope' } }));
+    await call(); await call();
+    clock.t += 61_000;
+    await call();
+    expect(service.store.audit.filter((e) => e.type === 'auth_failed').map((e) => e.count ?? 1)).toEqual([2, 1]);
+  });
+});
