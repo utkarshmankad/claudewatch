@@ -35,6 +35,8 @@ export interface SyncServiceConfig {
   pushDedupeMs: number;
   pushPerDevicePerHour: number;
   notifyPerHour: number;
+  accountsPerHourPerIp: number;
+  sessionsPerMinutePerIp: number;
   sweepAbove: number; // expired rate-limit windows and sessions are dropped once the tables hold more than this many entries
   trustForwardedFor: boolean; // only behind a proxy that overwrites X-Forwarded-For; otherwise a client could pick its own rate-limit bucket
 }
@@ -59,6 +61,8 @@ export const DEFAULT_CONFIG: SyncServiceConfig = {
   pushDedupeMs: 6 * 60 * MINUTE,
   pushPerDevicePerHour: 12,
   notifyPerHour: 30,
+  accountsPerHourPerIp: 10,
+  sessionsPerMinutePerIp: 30,
   sweepAbove: 20_000,
   trustForwardedFor: false,
 };
@@ -232,7 +236,7 @@ export function createSyncService(options: { store?: MemoryStore; now?: () => nu
     const ipKey = request.headers.get('cf-connecting-ip') ?? (config.trustForwardedFor ? request.headers.get('x-forwarded-for') : null) ?? 'unknown';
 
     if (method === 'POST' && path === '/v1/accounts') {
-      await limit(`create:${ipKey}`, 10, 60 * MINUTE);
+      await limit(`create:${ipKey}`, config.accountsPerHourPerIp, 60 * MINUTE);
       const body = await readJson(request);
       const region = str(body['region'], 16);
       if (!config.regions.includes(region)) throw new HttpError(400, 'unknown_region');
@@ -247,7 +251,7 @@ export function createSyncService(options: { store?: MemoryStore; now?: () => nu
     }
 
     if (method === 'POST' && path === '/v1/session') {
-      await limit(`session:${ipKey}`, 30, MINUTE);
+      await limit(`session:${ipKey}`, config.sessionsPerMinutePerIp, MINUTE);
       const body = await readJson(request);
       const accountId = str(body['accountId'], 64);
       const deviceId = str(body['deviceId'], 64);

@@ -21,8 +21,8 @@ const TOTAL = Number(env('SOAK_TOTAL_MINUTES', String(MINUTES)));
 const OFFSET = Number(env('SOAK_OFFSET_MINUTES', '0'));
 const SEED = Number(env('SOAK_SEED', '20261024'));
 const FAULT_EVERY = Number(env('SOAK_FAULT_EVERY_MIN', '12'));
-const PROFILE = env('SOAK_PROFILE', path.join(root, '.soak-profile'));
-const OUT = env('SOAK_OUT', path.join(root, 'soak-out'));
+const PROFILE = path.resolve(env('SOAK_PROFILE', path.join(root, '.soak-profile')));
+const OUT = path.resolve(env('SOAK_OUT', path.join(root, 'soak-out')));
 const SAMPLE_MS = Number(env('SOAK_SAMPLE_SECONDS', '30')) * 1000;
 mkdirSync(OUT, { recursive: true });
 
@@ -111,8 +111,10 @@ async function openProviderTab() {
 
 const providerTabs = () => context.pages().filter((p) => p.url().startsWith('https://chatgpt.com/'));
 
+const within = (promise, ms, what) => Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error(`${what} timed out after ${ms} ms`)), ms))]);
+
 async function readState() {
-  return probe.evaluate(() => new Promise((resolve) => chrome.storage.local.get(['refresh_state_chatgpt'], (v) => resolve(v.refresh_state_chatgpt ?? null))));
+  return within(probe.evaluate(() => new Promise((resolve) => chrome.storage.local.get(['refresh_state_chatgpt'], (v) => resolve(v.refresh_state_chatgpt ?? null)))), 15_000, 'reading refresh state');
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -184,10 +186,12 @@ while (Date.now() - startedAt < MINUTES * 60_000) {
     const successChanged = state && state.lastSuccessAt !== prevSuccess;
     prevAttempt = state?.lastAttemptAt ?? prevAttempt;
     prevSuccess = state?.lastSuccessAt ?? prevSuccess;
-    appendFileSync(sampleFile, JSON.stringify({
+    const row = {
       t: now, minute: Math.round(minute * 10) / 10, fault: active.map((a) => a.kind), state, readError,
       stale: info?.stale ?? null, staleCode: info?.code ?? null, explained: info?.explained ?? null, ageMs: info?.ageMs ?? null, attemptChanged, successChanged,
-    }) + '\n');
+    };
+    appendFileSync(sampleFile, JSON.stringify(row) + '\n');
+    console.log(`sample minute=${row.minute} fault=[${row.fault}] stale=${row.stale} code=${row.staleCode} ageSec=${row.ageMs == null ? 'n/a' : Math.round(row.ageMs / 1000)} trigger=${state?.lastTrigger ?? 'n/a'} failures=${state?.failures ?? 'n/a'}${readError ? ` readError=${readError}` : ''}`);
   }
   await sleep(1000);
 }

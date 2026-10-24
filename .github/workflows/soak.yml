@@ -91,6 +91,7 @@ jobs:
           export SOAK_OFFSET_MINUTES=$(( LEG * SOAK_MINUTES ))
           rm -f .soak-profile/Singleton* 2>/dev/null || true
           xvfb-run -a node scripts/soak/browser-soak.mjs
+          echo "--- files written by this leg"; wc -l soak-out/*.jsonl; du -sh .soak-profile soak-out
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
@@ -119,8 +120,11 @@ jobs:
           pattern: soak-leg-*
           path: legs
       - name: Aggregate
+        shell: bash
         run: |
-          node scripts/soak/report.mjs soak-report.md legs/*/ | tee -a "$GITHUB_STEP_SUMMARY" > /dev/null
+          set -o pipefail
+          ls -R legs | head -30
+          node scripts/soak/report.mjs soak-report.md legs/*/ | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v7
         with:
           name: soak-report
