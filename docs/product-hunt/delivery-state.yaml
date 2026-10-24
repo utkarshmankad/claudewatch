@@ -7,7 +7,7 @@ pilot_status: in_progress
 implementation_authorized: true
 current_phase: 3
 current_prompt: '3.2'
-work_item_status: in_progress
+work_item_status: awaiting_ci
 branch: feature/p3-encrypted-sync
 commit: 1ff5027a580481fc00a7f757a2081a31454009f0
 pull_request: https://github.com/utkarshmankad/claudewatch/pull/58
@@ -374,8 +374,8 @@ work_items:
     status: awaiting_ci
     planned_branch: feature/p3-encrypted-sync
     branch: feature/p3-encrypted-sync
-    commit: null
-    pull_request: null
+    commit: 994a248
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/63
     ci_status: pending
     gate_status: not_evaluated
     blocker: null
