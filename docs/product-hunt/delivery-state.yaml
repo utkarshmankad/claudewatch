@@ -78,7 +78,11 @@ phases:
     pilot_eligible: true
   - id: 5
     title: Usage Wrapped and Plan ROI
-    status: not_started
+    promotion_pr: null
+    promotion_status: not_opened
+    sync_back_pr: null
+    sync_back_status: not_opened
+    status: completed
     gate_status: deferred_to_final_gate
     evidence_files: []
     gate_decision: null
@@ -588,17 +592,17 @@ work_items:
   - prompt: '5.5'
     phase: 5
     title: Validate the acquisition loop
-    status: awaiting_ci
+    status: completed
     planned_branch: feature/p5-growth-experiment
     branch: feature/p5-growth-experiment
     commit: 1985eda7c21f0ff6a167b5cd89efff82fc0f223c
-    pull_request: null
-    ci_status: not_run
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/87
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
     next_action: >-
-      Open the PR into develop and wait for CI. Framework and protocol only (src/wrapped/growthExperiment.ts, docs/GROWTH_EXPERIMENT.md). DEFERRED as gate evidence: the live opt-in beta (needs a consented cohort and deployed endpoints), variant selection and removal of losing variants; no measurement exists and none is claimed. Browser tests could not run locally (Chromium download failed); CI must run them.
+      PR #87 merged into develop (merge commit f28966c). Framework and protocol only: the live opt-in beta, measured results, variant selection and removal of losing variants are deferred Phase 5 gate evidence (needs a consented cohort and deployed endpoints). No measurement exists.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-5.5
