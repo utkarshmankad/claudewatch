@@ -395,7 +395,7 @@ work_items:
   - prompt: '3.3'
     phase: 3
     title: Resolve multi-device identity and conflicts
-    status: in_progress
+    status: awaiting_ci
     planned_branch: feature/p3-device-convergence
     branch: feature/p3-device-convergence
     commit: null
@@ -409,7 +409,8 @@ work_items:
       workspace_branch: feature/p3-device-convergence
       base_sha: c31d30e
       pending_operation: null
-    next_action: Implement 3.3 scope (device identity, deterministic event ids, convergence, device management, tests, metrics), then open PR into develop.
+    next_action: >-
+      Wait for CI and merge. Known limits: no extension UI for device management or freshness (client not bundled into the extension); convergence metrics measured on an in-memory service only; each device renames only itself; baseSeq envelope field requires 3.3 clients on both ends (nothing deployed).
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-3.3

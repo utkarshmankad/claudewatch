@@ -22,6 +22,7 @@ Operation key: `2026-10-10.1/prompt-3.1`. Each line names the prompt that must a
 
 ## Convergence (3.3)
 - Concurrent edits, long offline periods, reset-boundary events, schema upgrade v1->v2 across mixed clients, account switch, revoked device, deletion propagation. Server sequence, not device clocks, decides order (skewed-clock fixtures). Convergence time and failure rate recorded as enum/number metrics only.
+- Implemented in `src/sync/__tests__/convergence.test.ts`; rules and limits in [CONVERGENCE.md](CONVERGENCE.md).
 
 ## Companion and security validation (3.4)
 - Push subscription lifecycle, quiet hours, expiry, revocation, duplicate suppression; payloads contain no usage values.

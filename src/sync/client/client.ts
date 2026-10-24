@@ -5,10 +5,15 @@ import {
   shortAuthString, sign, toB64, unwrapAccountKey, wrapAccountKey,
 } from '../e2ee/crypto.js';
 import type { BackupBlob, DeviceKeys, WrappedKey } from '../e2ee/crypto.js';
-import { validateLedgerRecord, validatePrefs } from '../e2ee/allowlist.js';
+import { validateDeviceEntry, validateLedgerRecord, validatePrefs } from '../e2ee/allowlist.js';
 import type { SyncLedgerRecord, SyncPrefs } from '../e2ee/allowlist.js';
-import { ENVELOPE_VERSION, MAX_ITEMS_PER_ENVELOPE, validateEnvelope } from '../e2ee/envelope.js';
+import { ENVELOPE_VERSION, MAX_ITEMS_PER_ENVELOPE, NewerSchemaError, validateEnvelope } from '../e2ee/envelope.js';
 import type { Envelope } from '../e2ee/envelope.js';
+import { deriveAccountAlias, deriveEventId } from '../convergence/ids.js';
+import { effectiveRecords, mergeRecord } from '../convergence/ledgerMerge.js';
+import type { LedgerConflict } from '../convergence/ledgerMerge.js';
+import { applyPrefWrite, PENDING_SEQ, visiblePrefs } from '../convergence/prefsMerge.js';
+import type { PrefConflict, PrefsState } from '../convergence/prefsMerge.js';
 
 export class SyncDisabledError extends Error {
   constructor() {
@@ -21,13 +26,37 @@ export class SyncUnavailableError extends Error {}
 export class KeyMissingError extends Error {}
 
 export type FailureReason = 'network' | 'server' | 'rate_limited' | 'auth' | 'corrupt' | 'undecryptable' | 'revoked' | 'deleted' | 'storage_cap';
-export type SyncWarning = 'rollback' | 'chain_gap' | 'chain_fork';
+export type SyncWarning = 'rollback' | 'chain_gap' | 'chain_fork' | 'newer_schema';
 
 interface OutboxItem {
   objectId: string;
   kind: Envelope['kind'];
   items: unknown[];
+  baseSeq?: number; // server sequence this device had applied when the change was made
+  queuedAt?: number;
 }
+
+/** What this device knows about a device's user-chosen name, published by that device. */
+export interface DirectoryEntry {
+  devicePseudonym: string;
+  name: string;
+  createdDay: number;
+  lastSeenDay: number;
+  seq: number;
+}
+
+/** Counts and durations only. Never content, ids or names. */
+export interface SyncMetrics {
+  syncAttempts: number;
+  syncFailures: number;
+  uploads: number;
+  lastUploadLatencyMs: number | null; // queued -> accepted by the service
+  lastConvergenceMs: number | null; // previous successful pull -> this one, with nothing left in the queue
+  heldForUpgrade: number;
+}
+
+const DAY_MS = 86_400_000;
+const dayOf = (t: number): number => Math.floor(t / DAY_MS) * DAY_MS;
 
 interface SyncState {
   v: 1;
@@ -50,6 +79,13 @@ interface SyncState {
   prefs: SyncPrefs;
   lastSyncAt: number | null;
   failures: Partial<Record<FailureReason, number>>;
+  // Added by 3.3; absent in states saved by 3.2 and defaulted on load.
+  prefsState?: PrefsState;
+  ledgerConflicts?: LedgerConflict[];
+  directory?: Record<string, DirectoryEntry>;
+  metrics?: SyncMetrics;
+  localChangeAt?: number | null;
+  heldSeqs?: number[];
 }
 
 export interface KeyValueStorage {
@@ -75,11 +111,15 @@ export interface ClientDeps {
   retryDelaysMs?: number[];
 }
 
+interface ServerObject { seq: number; objectId: string; epoch: number; schemaVersion: number; nonce: string; ciphertext: string }
+
 export interface PullResult {
   applied: number;
   duplicates: number;
   corrupt: number;
   undecryptable: number;
+  held: number; // written by a newer client; kept for after an upgrade, not applied
+  conflicts: number; // open conflicts needing the user
   warnings: SyncWarning[];
 }
 
@@ -95,7 +135,18 @@ export class SyncClient {
   /** Load persisted state. With nothing stored the client is local-only and makes no network calls. */
   static async load(deps: ClientDeps): Promise<SyncClient> {
     const raw = await deps.storage.get();
-    return new SyncClient(raw ? (JSON.parse(raw) as SyncState) : null, SyncClient.fill(deps));
+    const state = raw ? (JSON.parse(raw) as SyncState) : null;
+    if (state) SyncClient.upgradeState(state);
+    return new SyncClient(state, SyncClient.fill(deps));
+  }
+
+  /** Fill the fields added after 3.2 so older saved states keep working. */
+  private static upgradeState(state: SyncState): void {
+    state.prefsState ??= { register: {}, conflicts: [] };
+    state.ledgerConflicts ??= [];
+    state.directory ??= {};
+    state.metrics ??= { syncAttempts: 0, syncFailures: 0, uploads: 0, lastUploadLatencyMs: null, lastConvergenceMs: null, heldForUpgrade: 0 };
+    state.localChangeAt ??= null;
   }
 
   private static fill(deps: ClientDeps): Required<ClientDeps> {
@@ -136,12 +187,35 @@ export class SyncClient {
     };
   }
 
+  /** Records the user should see: corrections replace what they supersede, except where corrections compete. */
   get ledger(): SyncLedgerRecord[] {
+    return this.state ? effectiveRecords({ records: this.state.ledger, conflicts: this.state.ledgerConflicts ?? [] }) : [];
+  }
+
+  /** Every record held, including superseded ones. */
+  get allRecords(): SyncLedgerRecord[] {
     return Object.values(this.state?.ledger ?? {});
   }
 
   get prefs(): SyncPrefs {
     return { ...(this.state?.prefs ?? {}) };
+  }
+
+  /** Disagreements that need the user: preference writes that never saw each other, and ledger id/correction clashes. */
+  conflicts(): { prefs: PrefConflict[]; ledger: LedgerConflict[] } {
+    return { prefs: [...(this.state?.prefsState?.conflicts ?? [])], ledger: [...(this.state?.ledgerConflicts ?? [])] };
+  }
+
+  metrics(): SyncMetrics {
+    return { ...(this.state?.metrics ?? { syncAttempts: 0, syncFailures: 0, uploads: 0, lastUploadLatencyMs: null, lastConvergenceMs: null, heldForUpgrade: 0 }) };
+  }
+
+  /** Local freshness (this device's own data) and cloud freshness (last successful exchange) are different things. */
+  freshness(): { localChangeAt: number | null; cloudSyncedAt: number | null; unsyncedChanges: number; state: 'local_only' | 'in_sync' | 'pending_upload' | 'never_synced' } {
+    const s = this.state;
+    if (!s) return { localChangeAt: null, cloudSyncedAt: null, unsyncedChanges: 0, state: 'local_only' };
+    const state = s.outbox.length > 0 ? 'pending_upload' : s.lastSyncAt === null ? 'never_synced' : 'in_sync';
+    return { localChangeAt: s.localChangeAt ?? null, cloudSyncedAt: s.lastSyncAt, unsyncedChanges: s.outbox.length, state };
   }
 
   get deviceId(): string | null {
@@ -172,6 +246,8 @@ export class SyncClient {
       v: 1, baseUrl, region, accountId, deviceId, devicePseudonym: Buffer.from(randomBytes(8)).toString('hex'),
       deviceKeys, keys: { [String(epoch)]: ak }, epoch, seals: {}, outbox: [], deviceSeq: 0, prevHash: '', lastSeq: 0, head: 0,
       chains: {}, ledger: {}, prefs: {}, lastSyncAt: null, failures: {},
+      prefsState: { register: {}, conflicts: [] }, ledgerConflicts: [], directory: {}, localChangeAt: null,
+      metrics: { syncAttempts: 0, syncFailures: 0, uploads: 0, lastUploadLatencyMs: null, lastConvergenceMs: null, heldForUpgrade: 0 },
     };
   }
 
@@ -248,19 +324,73 @@ export class SyncClient {
   /** Validate against the allow-list and queue. Local state updates immediately; upload happens on flush(). */
   async queueLedger(records: Array<Record<string, unknown>>): Promise<void> {
     const s = this.s;
-    const valid = records.map((r) => validateLedgerRecord(r));
-    for (const r of valid) s.ledger[r.id] = r;
-    for (let i = 0; i < valid.length; i += MAX_ITEMS_PER_ENVELOPE) {
-      s.outbox.push({ objectId: randomId(), kind: 'ledger_batch', items: valid.slice(i, i + MAX_ITEMS_PER_ENVELOPE) });
+    const valid: SyncLedgerRecord[] = [];
+    for (const input of records) {
+      // A record without an id gets its content-derived one, so every device names the same event the same way.
+      valid.push(validateLedgerRecord(input['id'] === undefined ? { ...input, id: await deriveEventId(input) } : input));
     }
+    const ledger = { records: s.ledger, conflicts: s.ledgerConflicts ?? (s.ledgerConflicts = []) };
+    const fresh: SyncLedgerRecord[] = [];
+    for (const r of valid) if ((await mergeRecord(ledger, r)) === 'applied') fresh.push(r);
+    const now = this.deps.now();
+    for (let i = 0; i < fresh.length; i += MAX_ITEMS_PER_ENVELOPE) {
+      s.outbox.push({ objectId: randomId(), kind: 'ledger_batch', items: fresh.slice(i, i + MAX_ITEMS_PER_ENVELOPE), baseSeq: s.lastSeq, queuedAt: now });
+    }
+    if (fresh.length > 0) s.localChangeAt = now;
     await this.save();
   }
 
   async setPrefs(prefs: Record<string, unknown>): Promise<void> {
     const s = this.s;
     const valid = validatePrefs(prefs);
-    s.prefs = { ...s.prefs, ...valid };
-    s.outbox.push({ objectId: randomId(), kind: 'prefs', items: [valid] });
+    const reg = s.prefsState ?? (s.prefsState = { register: {}, conflicts: [] });
+    for (const [key, value] of Object.entries(valid)) applyPrefWrite(reg, key, { value, seq: PENDING_SEQ, by: s.deviceId, base: s.lastSeq });
+    s.prefs = visiblePrefs(reg);
+    const now = this.deps.now();
+    s.outbox.push({ objectId: randomId(), kind: 'prefs', items: [valid], baseSeq: s.lastSeq, queuedAt: now });
+    s.localChangeAt = now;
+    await this.save();
+  }
+
+  /** Settle an open preference conflict by choosing a value. The new write has seen both sides, so it closes the conflict everywhere. */
+  async resolvePrefConflict(key: string, choice: 'winner' | 'loser'): Promise<void> {
+    const conflict = (this.s.prefsState?.conflicts ?? []).find((c) => c.key === key);
+    if (!conflict) throw new Error(`no open conflict for "${key}"`);
+    await this.setPrefs({ [key]: (choice === 'winner' ? conflict.winner : conflict.loser).value });
+  }
+
+  // ---- devices ----
+
+  /** Publish this device's own name. Other devices show it as written here; there is no remote rename. */
+  async nameDevice(name: string): Promise<void> {
+    const s = this.s;
+    const now = this.deps.now();
+        const dir = s.directory ?? (s.directory = {});
+    const entry = { devicePseudonym: s.devicePseudonym, name, createdDay: dir[s.deviceId]?.createdDay ?? dayOf(now), lastSeenDay: dayOf(now) };
+    validateDeviceEntry(entry);
+    dir[s.deviceId] = { ...entry, seq: PENDING_SEQ };
+    s.outbox.push({ objectId: randomId(), kind: 'devices', items: [entry], baseSeq: s.lastSeq, queuedAt: now });
+    s.localChangeAt = now;
+    await this.save();
+  }
+
+  /** Alias for a provider account on this device's ledger records. Identical on every device; the raw identifier is not stored. */
+  accountAlias(provider: string, rawAccountId: string): Promise<string> {
+    return deriveAccountAlias(provider, rawAccountId);
+  }
+
+  /** The service's device list joined with the names devices published. Needs the network for the server half. */
+  async inspectDevices(): Promise<Array<{ deviceId: string; name: string | null; enrolledAt: number; lastSeenAt: number; revoked: boolean; current: boolean; lastSeenDay: number | null }>> {
+    const dir = this.s.directory ?? {};
+    return (await this.listDevices()).map((d) => ({ ...d, name: dir[d.deviceId]?.name ?? null, lastSeenDay: dir[d.deviceId]?.lastSeenDay ?? null }));
+  }
+
+  /** Remove a revoked device from the list. Active devices must be revoked first. */
+  async removeDevice(deviceId: string): Promise<void> {
+    const s = this.s;
+    if (deviceId === s.deviceId) throw new Error('this device cannot remove itself; use disable or delete the account');
+    await this.api('DELETE', `/v1/devices/${encodeURIComponent(deviceId)}`);
+    if (s.directory) delete s.directory[deviceId];
     await this.save();
   }
 
@@ -359,6 +489,7 @@ export class SyncClient {
       if (count > MAX_SEALS_PER_EPOCH) throw new Error('key epoch exhausted; rotate the key');
       const envelope = {
         v: ENVELOPE_VERSION, epoch, sender: s.deviceId, deviceSeq: s.deviceSeq + 1, prev_hash: s.prevHash, kind: next.kind, items: next.items,
+        ...(next.baseSeq === undefined ? {} : { baseSeq: next.baseSeq }),
       } as Envelope;
       validateEnvelope(envelope); // never upload something the allow-list would reject
       const sealed = await seal(this.accountKey(epoch), { accountId: s.accountId, objectId: next.objectId, epoch, schemaVersion: ENVELOPE_VERSION }, envelope);
@@ -370,6 +501,9 @@ export class SyncClient {
       s.seals[String(epoch)] = count;
       s.outbox.shift();
       sent += 1;
+      const m = this.metricsRef();
+      m.uploads += 1;
+      if (next.queuedAt !== undefined) m.lastUploadLatencyMs = Math.max(0, this.deps.now() - next.queuedAt);
       await this.save();
     }
     return sent;
@@ -392,16 +526,21 @@ export class SyncClient {
     }
   }
 
+  private metricsRef(): SyncMetrics {
+    const s = this.s;
+    return (s.metrics ??= { syncAttempts: 0, syncFailures: 0, uploads: 0, lastUploadLatencyMs: null, lastConvergenceMs: null, heldForUpgrade: 0 });
+  }
+
   /** Incremental download: decrypt, validate, dedupe, check chains, apply. Bad objects are skipped, never half-applied. */
   async pull(): Promise<PullResult> {
     const s = this.s;
-    const result: PullResult = { applied: 0, duplicates: 0, corrupt: 0, undecryptable: 0, warnings: [] };
+    const result: PullResult = { applied: 0, duplicates: 0, corrupt: 0, undecryptable: 0, held: 0, conflicts: 0, warnings: [] };
     await this.collectKeys();
     for (;;) {
       const res = await this.api('GET', `/v1/objects?after=${s.lastSeq}&limit=100`);
       const page = (await res.json()) as {
         head: number; epoch: number;
-        objects: Array<{ seq: number; objectId: string; epoch: number; schemaVersion: number; nonce: string; ciphertext: string }>;
+        objects: Array<ServerObject>;
       };
       if (page.head < s.head || page.head < s.lastSeq) {
         if (!result.warnings.includes('rollback')) result.warnings.push('rollback');
@@ -413,24 +552,55 @@ export class SyncClient {
       for (const obj of ordered) {
         if (obj.seq <= s.lastSeq) { result.duplicates += 1; continue; }
         s.lastSeq = obj.seq;
-        const keyB64 = s.keys[String(obj.epoch)];
-        if (!keyB64) { result.undecryptable += 1; this.fail('undecryptable'); continue; }
-        let envelope: Envelope;
-        try {
-          const plain = await open<unknown>(fromB64(keyB64), { accountId: s.accountId, objectId: obj.objectId, epoch: obj.epoch, schemaVersion: obj.schemaVersion }, obj);
-          envelope = validateEnvelope(plain);
-        } catch {
-          result.corrupt += 1;
-          this.fail('corrupt');
-          continue;
-        }
-        const hash = await sha256Hex(obj.ciphertext);
-        this.checkChain(envelope, hash, result);
-        result.applied += this.apply(envelope, result);
+        await this.processObject(obj, result);
       }
       if (page.objects.length < 100) break;
     }
     s.lastSyncAt = this.deps.now();
+    result.conflicts = (s.prefsState?.conflicts.length ?? 0) + (s.ledgerConflicts?.length ?? 0);
+    await this.save();
+    return result;
+  }
+
+  private async processObject(obj: ServerObject, result: PullResult): Promise<void> {
+    const s = this.s;
+    const keyB64 = s.keys[String(obj.epoch)];
+    if (!keyB64) { result.undecryptable += 1; this.fail('undecryptable'); return; }
+    let envelope: Envelope;
+    try {
+      const plain = await open<unknown>(fromB64(keyB64), { accountId: s.accountId, objectId: obj.objectId, epoch: obj.epoch, schemaVersion: obj.schemaVersion }, obj);
+      envelope = validateEnvelope(plain);
+    } catch (error) {
+      if (error instanceof NewerSchemaError) {
+        // Written by a newer client: not corrupt. Remember where it is so it can be replayed after an upgrade.
+        result.held += 1;
+        if (!result.warnings.includes('newer_schema')) result.warnings.push('newer_schema');
+        this.metricsRef().heldForUpgrade += 1;
+        (s.heldSeqs ??= []).push(obj.seq);
+        return;
+      }
+      result.corrupt += 1;
+      this.fail('corrupt');
+      return;
+    }
+    const hash = await sha256Hex(obj.ciphertext);
+    this.checkChain(envelope, hash, result);
+    result.applied += await this.apply(envelope, obj.seq, result);
+  }
+
+  /** After upgrading the client, fetch and apply the objects an older version had to hold back. */
+  async replayHeld(): Promise<PullResult> {
+    const s = this.s;
+    const result: PullResult = { applied: 0, duplicates: 0, corrupt: 0, undecryptable: 0, held: 0, conflicts: 0, warnings: [] };
+    const seqs = [...(s.heldSeqs ?? [])];
+    s.heldSeqs = [];
+    for (const seq of seqs) {
+      const res = await this.api('GET', `/v1/objects?after=${seq - 1}&limit=1`);
+      const page = (await res.json()) as { objects: ServerObject[] };
+      const obj = page.objects.find((o) => o.seq === seq);
+      if (obj) await this.processObject(obj, result);
+    }
+    result.conflicts = (s.prefsState?.conflicts.length ?? 0) + (s.ledgerConflicts?.length ?? 0);
     await this.save();
     return result;
   }
@@ -448,24 +618,58 @@ export class SyncClient {
     s.chains[env.sender] = { seq: env.deviceSeq, hash };
   }
 
-  private apply(env: Envelope, result: PullResult): number {
+  private async apply(env: Envelope, seq: number, result: PullResult): Promise<number> {
     const s = this.s;
     let applied = 0;
     if (env.kind === 'ledger_batch') {
+      const ledger = { records: s.ledger, conflicts: s.ledgerConflicts ?? (s.ledgerConflicts = []) };
       for (const record of env.items) {
-        if (s.ledger[record.id]) { result.duplicates += 1; continue; }
-        s.ledger[record.id] = record;
-        applied += 1;
+        const outcome = await mergeRecord(ledger, record);
+        if (outcome === 'applied') applied += 1;
+        else result.duplicates += 1;
       }
     } else if (env.kind === 'prefs') {
-      for (const prefs of env.items) { s.prefs = { ...s.prefs, ...prefs }; applied += 1; }
+      const reg = s.prefsState ?? (s.prefsState = { register: {}, conflicts: [] });
+      // A 3.2 sender carries no baseSeq; treat its writes as sequential rather than inventing conflicts.
+      const base = env.baseSeq ?? seq - 1;
+      for (const prefs of env.items) {
+        for (const [key, value] of Object.entries(prefs)) if (applyPrefWrite(reg, key, { value, seq, by: env.sender, base })) applied += 1;
+      }
+      s.prefs = visiblePrefs(reg);
+    } else {
+      const entry = env.items[0];
+      const dir = s.directory ?? (s.directory = {});
+      const known = dir[env.sender];
+      if (entry && !(known && known.seq !== PENDING_SEQ && known.seq > seq)) {
+        dir[env.sender] = {
+          ...entry, seq,
+          createdDay: Math.min(entry.createdDay, known?.createdDay ?? entry.createdDay),
+          lastSeenDay: Math.max(entry.lastSeenDay, known?.lastSeenDay ?? entry.lastSeenDay),
+        };
+        applied += 1;
+      }
     }
     return applied;
   }
 
+  /** Upload, then catch up. Counts attempts and failures, and times how long a queued change took to land. */
   async sync(): Promise<PullResult> {
-    await this.flush();
-    return this.pull();
+    const oldest = this.s.outbox.reduce<number | null>((min, item) => (item.queuedAt === undefined ? min : min === null ? item.queuedAt : Math.min(min, item.queuedAt)), null);
+    this.metricsRef().syncAttempts += 1;
+    try {
+      await this.flush();
+      const result = await this.pull();
+      const m = this.metricsRef();
+      if (oldest !== null) m.lastConvergenceMs = Math.max(0, this.deps.now() - oldest);
+      await this.save();
+      return result;
+    } catch (error) {
+      if (this.state) {
+        this.metricsRef().syncFailures += 1;
+        await this.save();
+      }
+      throw error;
+    }
   }
 
   // ---- devices, rotation, revocation ----
@@ -551,7 +755,12 @@ export class SyncClient {
   static async restoreBackup(deps: ClientDeps, blob: BackupBlob, passphrase: string): Promise<SyncClient> {
     const state = await decryptBackup<SyncState>(blob, passphrase);
     if (state.v !== 1) throw new Error('unsupported backup contents');
-    const client = new SyncClient({ ...state, outbox: [], lastSeq: 0, head: 0, chains: {}, ledger: {} }, SyncClient.fill(deps));
+    const restored: SyncState = {
+      ...state, outbox: [], lastSeq: 0, head: 0, chains: {}, ledger: {}, ledgerConflicts: [], heldSeqs: [],
+      prefs: {}, prefsState: { register: {}, conflicts: [] }, directory: {},
+    };
+    SyncClient.upgradeState(restored);
+    const client = new SyncClient(restored, SyncClient.fill(deps));
     await client.save();
     return client;
   }

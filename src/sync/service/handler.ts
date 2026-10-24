@@ -284,6 +284,18 @@ export function createSyncService(options: { store?: MemoryStore; now?: () => nu
       });
     }
 
+    const remove = /^\/v1\/devices\/([A-Za-z0-9_-]{1,64})$/.exec(path);
+    if (method === 'DELETE' && remove) {
+      const target = account.devices.get(remove[1] ?? '');
+      if (!target) throw new HttpError(404, 'unknown_device');
+      // Only a revoked device can be removed, and never the caller: removal must not be a way to skip revocation.
+      if (!target.revoked || target.deviceId === device.deviceId) throw new HttpError(409, 'revoke_first');
+      account.devices.delete(target.deviceId);
+      account.keyWraps = account.keyWraps.filter((w) => w.deviceId !== target.deviceId);
+      audit({ type: 'device_removed', accountId: account.accountId, deviceId: target.deviceId });
+      return json(200, { ok: true });
+    }
+
     const revoke = /^\/v1\/devices\/([A-Za-z0-9_-]{1,64})\/revoke$/.exec(path);
     if (method === 'POST' && revoke) {
       const target = account.devices.get(revoke[1] ?? '');
