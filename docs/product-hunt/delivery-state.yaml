@@ -371,23 +371,23 @@ work_items:
   - prompt: '3.2'
     phase: 3
     title: Implement end-to-end encrypted synchronization
-    status: in_progress
+    status: awaiting_ci
     planned_branch: feature/p3-encrypted-sync
     branch: feature/p3-encrypted-sync
     commit: null
     pull_request: null
-    ci_status: not_run
+    ci_status: pending
     gate_status: not_evaluated
     blocker: null
     last_checkpoint:
-      at: '2026-10-23T22:40:00Z'
+      at: '2026-10-24T00:20:00Z'
       action: >-
-        WIP checkpoint 1 pushed: e2ee crypto, allow-list, envelope, client, service handler, dev server, 56 tests, DEPLOYMENT.md
+        Extension opt-in slice added (sync-settings.js, disabled Settings toggle, permissions doc); local checks run; PR opened into develop
       workspace_branch: feature/p3-encrypted-sync
       base_sha: da98520
       pending_operation: null
     next_action: >-
-      Remaining 3.2 scope: wire the sync module into the extension (opt-in UI, optional host permission for the sync origin, key storage in chrome.storage.local, local-only default with a no-fetch test); update docs/PERMISSIONS.md; run npm run check, test:browser, validate:extension, audit; then open the PR into develop. D1/R2 store adapter is an owner deployment step.
+      Wait for CI and merge. Known limits: sync client is not bundled into the extension service worker (no extension build step); SYNC_ORIGIN is null until the owner deploys; D1/R2 store adapter is an owner deployment step.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-3.2

@@ -767,5 +767,14 @@
   },
   "apAlert_generic_title": {
     "message": "Autopilot"
+  },
+  "setCloudLabel": {
+    "message": "Encrypted cross-device sync"
+  },
+  "setCloudUnavailable": {
+    "message": "Not available in this build. Token Watcher stays local-only."
+  },
+  "setCloudHint": {
+    "message": "Opt in to end-to-end encrypted sync. Usage is encrypted on this device first; prompts, responses and cookies are never synced."
   }
 }

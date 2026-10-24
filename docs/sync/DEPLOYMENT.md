@@ -40,7 +40,7 @@ The routine holds no production secrets and does not deploy. Default target: Clo
 2. Region pinning: use D1 location hints/jurisdictions where the free tier offers them. If it cannot pin a region, launch with one region and say so in the UI and privacy text.
 3. Schedule `runRetention()` daily (Cron Trigger).
 4. Set `cf-connecting-ip` handling as the Worker default; do not log request bodies or headers.
-5. Pin the service origin in the extension build and request it as an optional host permission only when the user turns sync on (owner decision 5). **Extension wiring is not done yet.**
+5. Pin the service origin in the extension build and request it as an optional host permission only when the user turns sync on (owner decision 5). Extension side: `claudewatch-extension/sync-settings.js` holds the opt-in policy (local-only default, `SYNC_ORIGIN = null` until deployed, permission denial forces local-only) with tests, and Settings shows a disabled toggle. **Not done:** bundling `src/sync/client` into the extension service worker and calling it; that needs a build step the extension does not have yet, and the origin to be set after deployment.
 6. Backups of the database must expire within 35 days; the deletion receipt states this.
 
 ## Honest limits
