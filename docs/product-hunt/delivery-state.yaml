@@ -87,7 +87,7 @@ phases:
     gate_decision: null
     pilot_eligible: false
     human_gate: true
-    note: Holds the Phase 0-5 exit criteria and evidence deferred by the owner on 2026-10-23. Must pass before Phase 6. See gates/DEFERRED_GATES.md.
+    note: Holds the Phase 0-5 exit criteria and evidence deferred by the owner on 2026-10-23. Must pass before Phase 6. See gates/DEFERRED_GATES.md. Also holds the deferred Prompt 4.4 Radar beta (ADR-0002).
   - id: 6
     title: Product Hunt release
     status: not_started
@@ -495,16 +495,16 @@ work_items:
   - prompt: '4.4'
     phase: 4
     title: Run a controlled Radar beta
-    status: blocked
+    status: deferred_to_phase_6
     planned_branch: feature/p4-radar-beta
     branch: null
     commit: null
     pull_request: null
     ci_status: not_run
-    gate_status: not_evaluated
-    blocker: 'Human gate: 4.4 needs a consented live beta cohort, a deployed ingestion endpoint and feed, signing-key custody, and a privacy review of real stored records. None exist and no measurement may be fabricated. Owner decision needed.'
+    gate_status: deferred_to_phase_6_release_gate
+    blocker: null
     last_checkpoint: null
-    next_action: Await owner decision on beta cohort, endpoint hosting and signing-key custody before starting 4.4. Phase 4 promotion is not opened until 4.4 completes or the owner defers it.
+    next_action: 'Owner decision 2026-10-24 (docs/radar/ADR-0002-radar-beta-release-gate.md): the 4.4 human gate moves to Phase 6 as the final requirement of the release. Not started and not a blocker for Phase 4 promotion. Before release the owner must supply a consented beta cohort, a deployed ingestion endpoint and feed, signing-key custody, and a privacy review of real stored records; no measurement may be fabricated.'
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-4.4
