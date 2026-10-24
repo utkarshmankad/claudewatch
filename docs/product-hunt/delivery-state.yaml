@@ -470,7 +470,7 @@ work_items:
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: Pipeline implemented and validated locally; PR into develop opened with auto-merge. Real-history backtest, privacy and legal review, and the open design questions remain for the final gate.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-4.2
