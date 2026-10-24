@@ -461,16 +461,16 @@ work_items:
   - prompt: '4.2'
     phase: 4
     title: Build aggregate ingestion and anomaly detection
-    status: in_progress
+    status: completed
     planned_branch: feature/p4-radar-pipeline
     branch: feature/p4-radar-pipeline
-    commit: null
-    pull_request: null
-    ci_status: not_run
+    commit: 5f95671dbe36412fc44fae89da58b93e52fc8dac
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/71
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Pipeline implemented and validated locally; PR into develop opened with auto-merge. Real-history backtest, privacy and legal review, and the open design questions remain for the final gate.
+    next_action: None. PR #71 merged into develop (merge commit bd5d2a5). Real-history backtest, privacy and legal review, and the open design questions remain for the final gate.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-4.2
@@ -478,16 +478,16 @@ work_items:
   - prompt: '4.3'
     phase: 4
     title: Create the Radar experience and safe remote fixes
-    status: not_started
+    status: in_progress
     planned_branch: feature/p4-radar-ui-config
-    branch: null
+    branch: feature/p4-radar-ui-config
     commit: null
     pull_request: null
     ci_status: not_run
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: Claimed 2026-10-24; implement Radar view, signed remote parser config, notification controls and diagnostic report per plan 4.3.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-4.3
