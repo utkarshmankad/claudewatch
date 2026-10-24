@@ -21,7 +21,7 @@ last_checkpoint:
   base_sha: 82a4db3
   worktree_path: null
   pending_operation: null
-next_action: Phase 3 promoted (PR #66 merged into main, sync-back PR #68 merged into develop). Prompt 4.1 design merged (PR #70). Prompt 4.2 in progress on feature/p4-radar-pipeline.
+next_action: Phase 3 promoted (PR #66 merged into main, sync-back PR #68 merged into develop). Phase 4 promotion PR #76 merged into main; sync-back PR #78 open, awaiting owner merge. Phase 5 is blocked until #78 merges into develop.
 next_wake_time: null
 release_status: prohibited_during_pilot
 phases:
@@ -68,9 +68,9 @@ phases:
   - id: 4
     title: Community Limit Change Radar
     promotion_pr: https://github.com/utkarshmankad/claudewatch/pull/76
-    promotion_status: open
-    sync_back_pr: null
-    sync_back_status: not_opened
+    promotion_status: merged
+    sync_back_pr: https://github.com/utkarshmankad/claudewatch/pull/78
+    sync_back_status: open
     status: completed
     gate_status: deferred_to_final_gate
     evidence_files: []
