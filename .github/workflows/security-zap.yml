@@ -1,0 +1,71 @@
+name: ZAP API scan
+
+# Runs OWASP ZAP (official container image) against the sync service started locally on the runner, using the OpenAPI
+# description in the security-tests folder. The service is in-memory and test-only; nothing here touches a deployed system.
+on:
+  pull_request:
+    paths:
+      - 'docs/product-hunt/gates/phase-3/security-tests/**'
+      - 'src/sync/**'
+      - '.github/workflows/security-zap.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zap-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  zap:
+    name: ZAP active scan (sync service)
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      ZAP_IMAGE: ghcr.io/zaproxy/zaproxy:2.16.1
+      SYNC_BASE: http://127.0.0.1:8795
+      T: docs/product-hunt/gates/phase-3/security-tests
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Start the sync service (in-memory, raised limits, 60 minute sessions)
+        run: |
+          LOAD_PORT=8795 LOAD_LIMITS=raised LOAD_SESSION_TTL_MIN=60 REPO_ROOT="$PWD" nohup npx tsx "$T/loadServer.ts" > service.log 2>&1 &
+          for i in $(seq 1 30); do curl -fs "$SYNC_BASE/v1/devices" -o /dev/null -w '%{http_code}\n' | grep -q 401 && break; sleep 1; done
+          curl -s -o /dev/null -w 'service answers %{http_code}\n' "$SYNC_BASE/v1/devices"
+      - name: Mint a bearer token for a throw-away account
+        run: |
+          TOKEN="$(REPO_ROOT="$PWD" npx tsx "$T/zap/mint-token.ts")"
+          echo "::add-mask::$TOKEN"
+          mkdir -p zap-out
+          sed "s|__TOKEN__|$TOKEN|" "$T/zap/plan.template.yaml" > zap-out/plan.yaml
+          cp "$T/zap/openapi.yaml" zap-out/openapi.yaml
+          chmod -R a+rwx zap-out
+      - name: Run ZAP
+        run: |
+          docker run --rm --network host -v "$PWD/zap-out:/zap/wrk:rw" "$ZAP_IMAGE" \
+            zap.sh -cmd -autorun /zap/wrk/plan.yaml | tee zap-out/zap.log
+      - name: Summarise
+        if: ${{ !cancelled() }}
+        run: |
+          rm -f zap-out/plan.yaml  # holds the (throw-away) token
+          if [ -f zap-out/zap-report.json ]; then
+            node "$T/zap/summarize.mjs" zap-out/zap-report.json | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo "ZAP produced no report" | tee -a "$GITHUB_STEP_SUMMARY"; exit 1
+          fi
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: zap-report
+          path: |
+            zap-out/zap-report.html
+            zap-out/zap-report.json
+            zap-out/zap.log
+            service.log
+          retention-days: 30

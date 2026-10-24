@@ -6,7 +6,8 @@ import { load } from './common.js';
 const handler = await load<any>('src/sync/service/handler.ts'); // eslint-disable-line @typescript-eslint/no-explicit-any
 const port = Number(process.env['LOAD_PORT'] ?? 8792);
 const raised = process.env['LOAD_LIMITS'] === 'raised';
-const service = handler.createSyncService({ config: raised ? { requestsPerMinute: 1e9, maxAccountBytes: 2 ** 31, notifyPerHour: 1e9, enrollmentsPerHour: 1e9 } : {} });
+const sessionTtlMs = Number(process.env['LOAD_SESSION_TTL_MIN'] ?? 15) * 60_000; // a long scan needs a token that outlives the default 15 minutes
+const service = handler.createSyncService({ config: { sessionTtlMs, ...(raised ? { requestsPerMinute: 1e9, maxAccountBytes: 2 ** 31, notifyPerHour: 1e9, enrollmentsPerHour: 1e9 } : {}) } });
 
 const server = createServer((req, res) => {
   if (req.url === '/__stats') {

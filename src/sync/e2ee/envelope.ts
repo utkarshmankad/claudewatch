@@ -17,6 +17,7 @@ export type Envelope = {
   sender: string; // opaque device id, so receivers can check each device's chain
   deviceSeq: number; // per-device counter inside the ciphertext; the server sequence still orders delivery
   prev_hash: string; // sha256 of this device's previous uploaded ciphertext, '' for the first
+  keys?: { enc: string; sign: string }; // the sender's public keys, so peers can pin them (authenticated by the envelope encryption)
   baseSeq?: number; // highest server sequence the sender had applied; lets receivers tell concurrent writes from sequential ones
 } & EnvelopeItems;
 
@@ -29,7 +30,7 @@ export function validateEnvelope(input: unknown): Envelope {
   if (typeof input !== 'object' || input === null) throw new AllowListError('envelope: must be an object');
   const e = input as Record<string, unknown>;
   if (typeof e['v'] === 'number' && e['v'] > ENVELOPE_VERSION) throw new NewerSchemaError('envelope: written by a newer client');
-  const allowed = ['v', 'epoch', 'sender', 'deviceSeq', 'prev_hash', 'kind', 'items', 'baseSeq'];
+  const allowed = ['v', 'epoch', 'sender', 'deviceSeq', 'prev_hash', 'kind', 'items', 'baseSeq', 'keys'];
   for (const key of Object.keys(e)) if (!allowed.includes(key)) throw new AllowListError(`envelope: unknown key "${key}"`);
   if (e['v'] !== ENVELOPE_VERSION) throw new AllowListError('envelope: unsupported version');
   if (!Number.isInteger(e['epoch']) || (e['epoch'] as number) < 1) throw new AllowListError('envelope.epoch invalid');
@@ -39,9 +40,19 @@ export function validateEnvelope(input: unknown): Envelope {
   const items = e['items'];
   if (!Array.isArray(items) || items.length > MAX_ITEMS_PER_ENVELOPE) throw new AllowListError('envelope.items invalid');
   if (e['baseSeq'] !== undefined && (!Number.isInteger(e['baseSeq']) || (e['baseSeq'] as number) < 0)) throw new AllowListError('envelope.baseSeq invalid');
+  const k = e['keys'];
+  let keys: { enc: string; sign: string } | undefined;
+  if (k !== undefined) {
+    const point = /^[A-Za-z0-9+/]{80,100}={0,2}$/;
+    if (typeof k !== 'object' || k === null || Array.isArray(k) || Object.keys(k).some((x) => x !== 'enc' && x !== 'sign')) throw new AllowListError('envelope.keys invalid');
+    const { enc, sign } = k as Record<string, unknown>;
+    if (typeof enc !== 'string' || typeof sign !== 'string' || !point.test(enc) || !point.test(sign)) throw new AllowListError('envelope.keys invalid');
+    keys = { enc, sign };
+  }
   const base = {
     v: ENVELOPE_VERSION, epoch: e['epoch'] as number, sender: e['sender'], deviceSeq: e['deviceSeq'] as number, prev_hash: e['prev_hash'],
     ...(e['baseSeq'] === undefined ? {} : { baseSeq: e['baseSeq'] as number }),
+    ...(keys ? { keys } : {}),
   } as const;
   switch (e['kind']) {
     case 'ledger_batch':

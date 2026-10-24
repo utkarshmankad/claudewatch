@@ -23,9 +23,9 @@ Phases 1-5: evidence is collected as each phase's prompts land and listed in the
 - Prompts that depend on measured baselines or on an approved design still wait for those inputs.
 - Waiving a gate does not waive tests, CI, coverage thresholds or security controls.
 
-## Phase 3 independent security review (deferred, owner decision 2026-10-23)
+## Phase 3 independent security review (CLOSED by owner decision 2026-10-24)
 
-No independent reviewer is engaged. Phase 3 relies on self-review against a public checklist plus CodeQL and `npm audit`. The sync feature is labelled "not independently audited" and this item stays open for the final gate. An AI-assisted review with fixes was added on 2026-10-24 ([phase-3/security-review.md](phase-3/security-review.md)); it is not independent, and the owner decides whether it closes the item.
+Originally deferred on 2026-10-23: no independent reviewer was engaged, and Phase 3 relied on self-review. On 2026-10-24 the owner accepted the AI-assisted review ([phase-3/security-review.md](phase-3/security-review.md): code review, penetration test, fuzzing, load test, ZAP scan and the fixes they led to) as satisfying this item; see [phase-3/decision.md](phase-3/decision.md). The review is not a third-party audit and the sync feature must not be described as one.
 
 ## Prompt 4.4 Radar beta (moved to the Phase 6 release gate, owner decision 2026-10-24)
 

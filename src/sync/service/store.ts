@@ -25,6 +25,7 @@ export interface KeyWrapRecord {
   deviceId: string;
   epoch: number;
   fromEncPublic: string;
+  signature: string; // by the sender's signing key over the wrap; recipients check it against a key they pinned
   wrapped: { ephemeralPublic: string; nonce: string; ciphertext: string };
 }
 
