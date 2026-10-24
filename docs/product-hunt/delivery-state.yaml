@@ -21,7 +21,7 @@ last_checkpoint:
   base_sha: 82a4db3
   worktree_path: null
   pending_operation: null
-next_action: Phase 3 promoted (PR #66 merged into main, sync-back PR #68 merged into develop). Phase 4 promotion PR #76 merged into main; sync-back PR #81 merged into develop (replaces #78, which was blocked as behind; #80 also superseded). Phase 4 is promoted; Phase 5 is unblocked.
+next_action: Phase 3 promoted (PR #66 merged into main, sync-back PR #68 merged into develop). Phase 4 promotion PR #76 merged into main; sync-back PR #81 merged into develop (replaces #78, which was blocked as behind; #80 also superseded). Phase 4 is promoted; Phase 5 is unblocked. Phase 5 promoted (PR #89 merged into main, sync-back PR #91 merged into develop). Phase 6 stays prohibited.
 next_wake_time: null
 release_status: prohibited_during_pilot
 phases:
@@ -81,7 +81,7 @@ phases:
     promotion_pr: https://github.com/utkarshmankad/claudewatch/pull/89
     promotion_status: merged
     sync_back_pr: https://github.com/utkarshmankad/claudewatch/pull/91
-    sync_back_status: open
+    sync_back_status: merged
     status: completed
     gate_status: deferred_to_final_gate
     evidence_files: []
