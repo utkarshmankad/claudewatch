@@ -2,6 +2,8 @@
 
 Prompt 5.1, operation key `2026-10-10.1/prompt-5.1`. Code: `src/wrapped/definitions.ts` (what each metric means), `src/wrapped/metrics.ts` (pure calculator over the ledger), `src/wrapped/pricing.ts` (versioned pricing catalog). Nothing here writes data or calls a network. The Usage Wrapped report (5.2) and plan recommendations (5.4, see [PLAN_ROI.md](PLAN_ROI.md)) consume it.
 
+The report that presents these metrics, with time zone and filter choices, comparison gating and export, is described in [WRAPPED_REPORT.md](WRAPPED_REPORT.md).
+
 ## Rules
 
 - Every metric has a status: `provider_reported`, `measured`, `estimated` or `unavailable`. Missing input gives `unavailable` with `reasons[]`, never zero.

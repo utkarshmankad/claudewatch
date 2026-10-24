@@ -1,0 +1,1280 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`snapshots: report scenarios > complete week with a complete previous week 1`] = `
+{
+  "comparison": {
+    "allowed": true,
+    "previousWeek": {
+      "end": 1791158400000,
+      "start": 1790553600000,
+    },
+    "rows": [
+      {
+        "current": 35,
+        "delta": 0,
+        "label": "Requests counted locally",
+        "metricId": "provider_mix",
+        "previous": 35,
+        "unit": "requests",
+      },
+      {
+        "current": 7,
+        "delta": 7,
+        "label": "Windows at risk",
+        "metricId": "quota_risk_events",
+        "previous": 0,
+        "unit": "windows",
+      },
+      {
+        "current": 7,
+        "delta": 7,
+        "label": "Windows at 100%",
+        "metricId": "quota_risk_events",
+        "previous": 0,
+        "unit": "windows",
+      },
+      {
+        "current": 40,
+        "delta": -34.62,
+        "label": "Unused quota at reset",
+        "metricId": "unused_quota",
+        "previous": 74.6154,
+        "unit": "percent",
+      },
+    ],
+  },
+  "completeness": {
+    "complete": true,
+    "dayCoverage": 1,
+    "daysWithData": 7,
+    "elapsedDays": 7,
+    "periodDays": 7,
+    "reasons": [],
+  },
+  "lines": [
+    {
+      "kind": "title",
+      "text": "Usage Wrapped, 2026-10-05 to 2026-10-11",
+    },
+    {
+      "kind": "text",
+      "text": "Time zone UTC. Generated on 2026-10-12 on this device. Providers: claude. Accounts: Account 1. Devices: 1.",
+    },
+    {
+      "kind": "h2",
+      "text": "Usage",
+    },
+    {
+      "id": "provider_mix",
+      "kind": "metric",
+      "label": "Provider mix",
+      "status": "measured",
+      "text": "claude 100% (35 requests counted locally)",
+    },
+    {
+      "kind": "h2",
+      "text": "Client attribution",
+    },
+    {
+      "id": "client_mix",
+      "kind": "metric",
+      "label": "Supported-client mix",
+      "status": "measured",
+      "text": "claude_code 100%; 0 requests unattributed",
+    },
+    {
+      "id": "attributable_activity",
+      "kind": "metric",
+      "label": "Attributable activity",
+      "status": "unavailable",
+      "text": "Unavailable: no calibration is configured",
+    },
+    {
+      "kind": "h2",
+      "text": "Quota and interruptions",
+    },
+    {
+      "id": "quota_risk_events",
+      "kind": "metric",
+      "label": "Quota risk events",
+      "status": "provider_reported",
+      "text": "7 window(s) reached 80%, 7 reached 100%",
+    },
+    {
+      "id": "prevented_interruptions",
+      "kind": "metric",
+      "label": "Prevented interruptions",
+      "status": "unavailable",
+      "text": "Unavailable: needs your confirmation",
+    },
+    {
+      "id": "reset_utilization",
+      "kind": "metric",
+      "label": "Reset utilization",
+      "status": "provider_reported",
+      "text": "60% of quota used at reset across 14 window(s)",
+    },
+    {
+      "id": "unused_quota",
+      "kind": "metric",
+      "label": "Unused quota",
+      "status": "provider_reported",
+      "text": "40% of quota left at reset across 14 window(s)",
+    },
+    {
+      "kind": "h2",
+      "text": "Forecast performance",
+    },
+    {
+      "id": "forecast_accuracy",
+      "kind": "metric",
+      "label": "Forecast accuracy",
+      "status": "unavailable",
+      "text": "Unavailable: too few forecast comparisons",
+    },
+    {
+      "kind": "h2",
+      "text": "Plan",
+    },
+    {
+      "id": "subscription_cost",
+      "kind": "metric",
+      "label": "Subscription cost",
+      "status": "unavailable",
+      "text": "Unavailable: needs your plan history and a price catalog",
+    },
+    {
+      "kind": "h2",
+      "text": "Compared with the previous week",
+    },
+    {
+      "kind": "text",
+      "text": "Requests counted locally: 35 now, 35 before (+0 requests).",
+    },
+    {
+      "kind": "text",
+      "text": "Windows at risk: 7 now, 0 before (+7 windows).",
+    },
+    {
+      "kind": "text",
+      "text": "Windows at 100%: 7 now, 0 before (+7 windows).",
+    },
+    {
+      "kind": "text",
+      "text": "Unused quota at reset: 40 now, 74.6154 before (-34.62 percent).",
+    },
+    {
+      "kind": "h2",
+      "text": "Suggested changes",
+    },
+    {
+      "kind": "text",
+      "text": "7 window(s) reached 100%. Check the forecast earlier in those windows to see the margin before a limit. (Estimated, based on quota_risk_events, forecast_accuracy.)",
+    },
+    {
+      "kind": "text",
+      "text": "Add a calibration to see how much quota movement your local activity explains. (Estimated, based on attributable_activity.)",
+    },
+    {
+      "kind": "text",
+      "text": "Enter your plan history and a price to see the prorated plan cost for the week. (Estimated, based on subscription_cost.)",
+    },
+    {
+      "kind": "h2",
+      "text": "Definitions",
+    },
+    {
+      "kind": "text",
+      "text": "Provider mix (provider_mix): Share of locally counted requests per provider in the period. Requests are counted from local logs only. Excludes activity on other devices without a collector and activity that never reached a local log.",
+    },
+    {
+      "kind": "text",
+      "text": "Supported-client mix (client_mix): Share of locally counted requests per supported client (web, Claude Code, Codex, Gemini CLI, desktop, API). Unattributed records are reported separately and never assigned to a client.",
+    },
+    {
+      "kind": "text",
+      "text": "Quota risk events (quota_risk_events): Number of quota windows in the period whose provider-reported usage reached the risk threshold (default 80%), and how many reached 100%. Counts windows, not minutes. A window with no snapshot near its peak can be undercounted.",
+    },
+    {
+      "kind": "text",
+      "text": "Prevented interruptions (prevented_interruptions): Number of times the user confirmed that an alert or Autopilot suggestion let them avoid hitting a limit. Never inferred from alerts or forecasts. Without a confirmation the value is unavailable, not zero. Needs your input.",
+    },
+    {
+      "kind": "text",
+      "text": "Reset utilization (reset_utilization): Mean of the last provider-reported usage percent in each window that reset during the period. A lower bound: the last snapshot before a reset can precede the true final usage.",
+    },
+    {
+      "kind": "text",
+      "text": "Unused quota (unused_quota): Mean of 100 minus reset utilization across windows that reset during the period. An upper bound, for the same reason as reset utilization. It is a share of a window, not tokens or money.",
+    },
+    {
+      "kind": "text",
+      "text": "Forecast accuracy (forecast_accuracy): Mean absolute error, in quota points, of one-hour-ahead forecasts replayed against later snapshots in the period. Shown only with at least 20 comparisons. It describes this account and period, not the model in general.",
+    },
+    {
+      "kind": "text",
+      "text": "Attributable activity (attributable_activity): Share of provider-reported quota movement that local evidence explains, as a range, with the remainder labelled unattributed. Requires a configured calibration. Without one the value is unavailable.",
+    },
+    {
+      "kind": "text",
+      "text": "Subscription cost (subscription_cost): Plan price from the pricing catalog (or a manual override), prorated to the days each plan was active in the period, per currency. The plan history is entered by the user. Currencies are never converted or added together. No savings are derived from tokens. Needs your input.",
+    },
+  ],
+  "newUser": false,
+  "notices": [],
+  "suggestions": [
+    "review_limit_windows",
+    "add_calibration",
+    "add_plan_history",
+  ],
+}
+`;
+
+exports[`snapshots: report scenarios > high unattributed activity 1`] = `
+{
+  "comparison": {
+    "allowed": true,
+    "previousWeek": {
+      "end": 1791158400000,
+      "start": 1790553600000,
+    },
+    "rows": [
+      {
+        "current": 63,
+        "delta": 28,
+        "label": "Requests counted locally",
+        "metricId": "provider_mix",
+        "previous": 35,
+        "unit": "requests",
+      },
+      {
+        "current": 0,
+        "delta": 0,
+        "label": "Windows at risk",
+        "metricId": "quota_risk_events",
+        "previous": 0,
+        "unit": "windows",
+      },
+      {
+        "current": 0,
+        "delta": 0,
+        "label": "Windows at 100%",
+        "metricId": "quota_risk_events",
+        "previous": 0,
+        "unit": "windows",
+      },
+      {
+        "current": 70,
+        "delta": 0.77,
+        "label": "Unused quota at reset",
+        "metricId": "unused_quota",
+        "previous": 69.2308,
+        "unit": "percent",
+      },
+    ],
+  },
+  "completeness": {
+    "complete": true,
+    "dayCoverage": 1,
+    "daysWithData": 7,
+    "elapsedDays": 7,
+    "periodDays": 7,
+    "reasons": [],
+  },
+  "lines": [
+    {
+      "kind": "title",
+      "text": "Usage Wrapped, 2026-10-05 to 2026-10-11",
+    },
+    {
+      "kind": "text",
+      "text": "Time zone UTC. Generated on 2026-10-12 on this device. Providers: claude. Accounts: Account 1. Devices: 1.",
+    },
+    {
+      "kind": "note",
+      "text": "88.9% of counted requests could not be tied to a supported client. Client figures cover the rest only.",
+    },
+    {
+      "kind": "h2",
+      "text": "Usage",
+    },
+    {
+      "id": "provider_mix",
+      "kind": "metric",
+      "label": "Provider mix",
+      "status": "measured",
+      "text": "claude 100% (63 requests counted locally)",
+    },
+    {
+      "kind": "h2",
+      "text": "Client attribution",
+    },
+    {
+      "id": "client_mix",
+      "kind": "metric",
+      "label": "Supported-client mix",
+      "status": "measured",
+      "text": "claude_code 100%; 56 requests unattributed",
+    },
+    {
+      "id": "attributable_activity",
+      "kind": "metric",
+      "label": "Attributable activity",
+      "status": "unavailable",
+      "text": "Unavailable: no calibration is configured",
+    },
+    {
+      "kind": "h2",
+      "text": "Quota and interruptions",
+    },
+    {
+      "id": "quota_risk_events",
+      "kind": "metric",
+      "label": "Quota risk events",
+      "status": "provider_reported",
+      "text": "0 window(s) reached 80%, 0 reached 100%",
+    },
+    {
+      "id": "prevented_interruptions",
+      "kind": "metric",
+      "label": "Prevented interruptions",
+      "status": "unavailable",
+      "text": "Unavailable: needs your confirmation",
+    },
+    {
+      "id": "reset_utilization",
+      "kind": "metric",
+      "label": "Reset utilization",
+      "status": "provider_reported",
+      "text": "30% of quota used at reset across 14 window(s)",
+    },
+    {
+      "id": "unused_quota",
+      "kind": "metric",
+      "label": "Unused quota",
+      "status": "provider_reported",
+      "text": "70% of quota left at reset across 14 window(s)",
+    },
+    {
+      "kind": "h2",
+      "text": "Forecast performance",
+    },
+    {
+      "id": "forecast_accuracy",
+      "kind": "metric",
+      "label": "Forecast accuracy",
+      "status": "unavailable",
+      "text": "Unavailable: too few forecast comparisons",
+    },
+    {
+      "kind": "h2",
+      "text": "Plan",
+    },
+    {
+      "id": "subscription_cost",
+      "kind": "metric",
+      "label": "Subscription cost",
+      "status": "unavailable",
+      "text": "Unavailable: needs your plan history and a price catalog",
+    },
+    {
+      "kind": "h2",
+      "text": "Compared with the previous week",
+    },
+    {
+      "kind": "text",
+      "text": "Requests counted locally: 63 now, 35 before (+28 requests).",
+    },
+    {
+      "kind": "text",
+      "text": "Windows at risk: 0 now, 0 before (+0 windows).",
+    },
+    {
+      "kind": "text",
+      "text": "Windows at 100%: 0 now, 0 before (+0 windows).",
+    },
+    {
+      "kind": "text",
+      "text": "Unused quota at reset: 70 now, 69.2308 before (+0.77 percent).",
+    },
+    {
+      "kind": "h2",
+      "text": "Suggested changes",
+    },
+    {
+      "kind": "text",
+      "text": "Much of your activity is unattributed. Turning on a local collector for the clients you use, or including your other devices, would let this report cover more of it. (Estimated, based on client_mix.)",
+    },
+    {
+      "kind": "text",
+      "text": "Windows often ended with a lot of quota unused. This is an upper bound from one week, not a recommendation to change plan; compare plans with your own prices before deciding. (Estimated, based on unused_quota, reset_utilization.)",
+    },
+    {
+      "kind": "text",
+      "text": "Add a calibration to see how much quota movement your local activity explains. (Estimated, based on attributable_activity.)",
+    },
+    {
+      "kind": "text",
+      "text": "Enter your plan history and a price to see the prorated plan cost for the week. (Estimated, based on subscription_cost.)",
+    },
+    {
+      "kind": "h2",
+      "text": "Definitions",
+    },
+    {
+      "kind": "text",
+      "text": "Provider mix (provider_mix): Share of locally counted requests per provider in the period. Requests are counted from local logs only. Excludes activity on other devices without a collector and activity that never reached a local log.",
+    },
+    {
+      "kind": "text",
+      "text": "Supported-client mix (client_mix): Share of locally counted requests per supported client (web, Claude Code, Codex, Gemini CLI, desktop, API). Unattributed records are reported separately and never assigned to a client.",
+    },
+    {
+      "kind": "text",
+      "text": "Quota risk events (quota_risk_events): Number of quota windows in the period whose provider-reported usage reached the risk threshold (default 80%), and how many reached 100%. Counts windows, not minutes. A window with no snapshot near its peak can be undercounted.",
+    },
+    {
+      "kind": "text",
+      "text": "Prevented interruptions (prevented_interruptions): Number of times the user confirmed that an alert or Autopilot suggestion let them avoid hitting a limit. Never inferred from alerts or forecasts. Without a confirmation the value is unavailable, not zero. Needs your input.",
+    },
+    {
+      "kind": "text",
+      "text": "Reset utilization (reset_utilization): Mean of the last provider-reported usage percent in each window that reset during the period. A lower bound: the last snapshot before a reset can precede the true final usage.",
+    },
+    {
+      "kind": "text",
+      "text": "Unused quota (unused_quota): Mean of 100 minus reset utilization across windows that reset during the period. An upper bound, for the same reason as reset utilization. It is a share of a window, not tokens or money.",
+    },
+    {
+      "kind": "text",
+      "text": "Forecast accuracy (forecast_accuracy): Mean absolute error, in quota points, of one-hour-ahead forecasts replayed against later snapshots in the period. Shown only with at least 20 comparisons. It describes this account and period, not the model in general.",
+    },
+    {
+      "kind": "text",
+      "text": "Attributable activity (attributable_activity): Share of provider-reported quota movement that local evidence explains, as a range, with the remainder labelled unattributed. Requires a configured calibration. Without one the value is unavailable.",
+    },
+    {
+      "kind": "text",
+      "text": "Subscription cost (subscription_cost): Plan price from the pricing catalog (or a manual override), prorated to the days each plan was active in the period, per currency. The plan history is entered by the user. Currencies are never converted or added together. No savings are derived from tokens. Needs your input.",
+    },
+  ],
+  "newUser": false,
+  "notices": [
+    "high_unattributed",
+  ],
+  "suggestions": [
+    "raise_attribution",
+    "possible_spare_capacity",
+    "add_calibration",
+    "add_plan_history",
+  ],
+}
+`;
+
+exports[`snapshots: report scenarios > new user with a single week of data 1`] = `
+{
+  "comparison": {
+    "allowed": false,
+    "reasons": [
+      "no_earlier_data",
+    ],
+  },
+  "completeness": {
+    "complete": true,
+    "dayCoverage": 1,
+    "daysWithData": 7,
+    "elapsedDays": 7,
+    "periodDays": 7,
+    "reasons": [],
+  },
+  "lines": [
+    {
+      "kind": "title",
+      "text": "Usage Wrapped, 2026-10-05 to 2026-10-11",
+    },
+    {
+      "kind": "text",
+      "text": "Time zone UTC. Generated on 2026-10-12 on this device. Providers: claude. Accounts: Account 1. Devices: 1.",
+    },
+    {
+      "kind": "note",
+      "text": "This is your first recorded week, so there is no earlier week to compare with.",
+    },
+    {
+      "kind": "h2",
+      "text": "Usage",
+    },
+    {
+      "id": "provider_mix",
+      "kind": "metric",
+      "label": "Provider mix",
+      "status": "measured",
+      "text": "claude 100% (35 requests counted locally)",
+    },
+    {
+      "kind": "h2",
+      "text": "Client attribution",
+    },
+    {
+      "id": "client_mix",
+      "kind": "metric",
+      "label": "Supported-client mix",
+      "status": "measured",
+      "text": "claude_code 100%; 0 requests unattributed",
+    },
+    {
+      "id": "attributable_activity",
+      "kind": "metric",
+      "label": "Attributable activity",
+      "status": "unavailable",
+      "text": "Unavailable: no calibration is configured",
+    },
+    {
+      "kind": "h2",
+      "text": "Quota and interruptions",
+    },
+    {
+      "id": "quota_risk_events",
+      "kind": "metric",
+      "label": "Quota risk events",
+      "status": "provider_reported",
+      "text": "0 window(s) reached 80%, 0 reached 100%",
+    },
+    {
+      "id": "prevented_interruptions",
+      "kind": "metric",
+      "label": "Prevented interruptions",
+      "status": "unavailable",
+      "text": "Unavailable: needs your confirmation",
+    },
+    {
+      "id": "reset_utilization",
+      "kind": "metric",
+      "label": "Reset utilization",
+      "status": "provider_reported",
+      "text": "30.8% of quota used at reset across 13 window(s)",
+    },
+    {
+      "id": "unused_quota",
+      "kind": "metric",
+      "label": "Unused quota",
+      "status": "provider_reported",
+      "text": "69.2% of quota left at reset across 13 window(s)",
+    },
+    {
+      "kind": "h2",
+      "text": "Forecast performance",
+    },
+    {
+      "id": "forecast_accuracy",
+      "kind": "metric",
+      "label": "Forecast accuracy",
+      "status": "unavailable",
+      "text": "Unavailable: too few forecast comparisons",
+    },
+    {
+      "kind": "h2",
+      "text": "Plan",
+    },
+    {
+      "id": "subscription_cost",
+      "kind": "metric",
+      "label": "Subscription cost",
+      "status": "unavailable",
+      "text": "Unavailable: needs your plan history and a price catalog",
+    },
+    {
+      "kind": "h2",
+      "text": "Compared with the previous week",
+    },
+    {
+      "kind": "text",
+      "text": "No comparison shown: no earlier data. Comparisons need both weeks to be complete.",
+    },
+    {
+      "kind": "h2",
+      "text": "Suggested changes",
+    },
+    {
+      "kind": "text",
+      "text": "Windows often ended with a lot of quota unused. This is an upper bound from one week, not a recommendation to change plan; compare plans with your own prices before deciding. (Estimated, based on unused_quota, reset_utilization.)",
+    },
+    {
+      "kind": "text",
+      "text": "Add a calibration to see how much quota movement your local activity explains. (Estimated, based on attributable_activity.)",
+    },
+    {
+      "kind": "text",
+      "text": "Enter your plan history and a price to see the prorated plan cost for the week. (Estimated, based on subscription_cost.)",
+    },
+    {
+      "kind": "h2",
+      "text": "Definitions",
+    },
+    {
+      "kind": "text",
+      "text": "Provider mix (provider_mix): Share of locally counted requests per provider in the period. Requests are counted from local logs only. Excludes activity on other devices without a collector and activity that never reached a local log.",
+    },
+    {
+      "kind": "text",
+      "text": "Supported-client mix (client_mix): Share of locally counted requests per supported client (web, Claude Code, Codex, Gemini CLI, desktop, API). Unattributed records are reported separately and never assigned to a client.",
+    },
+    {
+      "kind": "text",
+      "text": "Quota risk events (quota_risk_events): Number of quota windows in the period whose provider-reported usage reached the risk threshold (default 80%), and how many reached 100%. Counts windows, not minutes. A window with no snapshot near its peak can be undercounted.",
+    },
+    {
+      "kind": "text",
+      "text": "Prevented interruptions (prevented_interruptions): Number of times the user confirmed that an alert or Autopilot suggestion let them avoid hitting a limit. Never inferred from alerts or forecasts. Without a confirmation the value is unavailable, not zero. Needs your input.",
+    },
+    {
+      "kind": "text",
+      "text": "Reset utilization (reset_utilization): Mean of the last provider-reported usage percent in each window that reset during the period. A lower bound: the last snapshot before a reset can precede the true final usage.",
+    },
+    {
+      "kind": "text",
+      "text": "Unused quota (unused_quota): Mean of 100 minus reset utilization across windows that reset during the period. An upper bound, for the same reason as reset utilization. It is a share of a window, not tokens or money.",
+    },
+    {
+      "kind": "text",
+      "text": "Forecast accuracy (forecast_accuracy): Mean absolute error, in quota points, of one-hour-ahead forecasts replayed against later snapshots in the period. Shown only with at least 20 comparisons. It describes this account and period, not the model in general.",
+    },
+    {
+      "kind": "text",
+      "text": "Attributable activity (attributable_activity): Share of provider-reported quota movement that local evidence explains, as a range, with the remainder labelled unattributed. Requires a configured calibration. Without one the value is unavailable.",
+    },
+    {
+      "kind": "text",
+      "text": "Subscription cost (subscription_cost): Plan price from the pricing catalog (or a manual override), prorated to the days each plan was active in the period, per currency. The plan history is entered by the user. Currencies are never converted or added together. No savings are derived from tokens. Needs your input.",
+    },
+  ],
+  "newUser": true,
+  "notices": [
+    "new_user",
+  ],
+  "suggestions": [
+    "possible_spare_capacity",
+    "add_calibration",
+    "add_plan_history",
+  ],
+}
+`;
+
+exports[`snapshots: report scenarios > partial week that has not finished 1`] = `
+{
+  "comparison": {
+    "allowed": false,
+    "reasons": [
+      "this_week_period_not_finished",
+      "this_week_sparse_data",
+    ],
+  },
+  "completeness": {
+    "complete": false,
+    "dayCoverage": 0.4286,
+    "daysWithData": 3,
+    "elapsedDays": 3.0833,
+    "periodDays": 7,
+    "reasons": [
+      "period_not_finished",
+      "sparse_data",
+    ],
+  },
+  "lines": [
+    {
+      "kind": "title",
+      "text": "Usage Wrapped, 2026-10-05 to 2026-10-11",
+    },
+    {
+      "kind": "text",
+      "text": "Time zone UTC. Generated on 2026-10-08 on this device. Providers: claude. Accounts: Account 1. Devices: 1.",
+    },
+    {
+      "kind": "note",
+      "text": "This week has not finished, so every figure covers only the part that has passed.",
+    },
+    {
+      "kind": "note",
+      "text": "Only 3 of 7 days have data, so figures may understate the week.",
+    },
+    {
+      "kind": "h2",
+      "text": "Usage",
+    },
+    {
+      "id": "provider_mix",
+      "kind": "metric",
+      "label": "Provider mix",
+      "status": "measured",
+      "text": "claude 100% (15 requests counted locally)",
+    },
+    {
+      "kind": "h2",
+      "text": "Client attribution",
+    },
+    {
+      "id": "client_mix",
+      "kind": "metric",
+      "label": "Supported-client mix",
+      "status": "measured",
+      "text": "claude_code 100%; 0 requests unattributed",
+    },
+    {
+      "id": "attributable_activity",
+      "kind": "metric",
+      "label": "Attributable activity",
+      "status": "unavailable",
+      "text": "Unavailable: no calibration is configured",
+    },
+    {
+      "kind": "h2",
+      "text": "Quota and interruptions",
+    },
+    {
+      "id": "quota_risk_events",
+      "kind": "metric",
+      "label": "Quota risk events",
+      "status": "provider_reported",
+      "text": "0 window(s) reached 80%, 0 reached 100%",
+    },
+    {
+      "id": "prevented_interruptions",
+      "kind": "metric",
+      "label": "Prevented interruptions",
+      "status": "unavailable",
+      "text": "Unavailable: needs your confirmation",
+    },
+    {
+      "id": "reset_utilization",
+      "kind": "metric",
+      "label": "Reset utilization",
+      "status": "provider_reported",
+      "text": "30% of quota used at reset across 6 window(s)",
+    },
+    {
+      "id": "unused_quota",
+      "kind": "metric",
+      "label": "Unused quota",
+      "status": "provider_reported",
+      "text": "70% of quota left at reset across 6 window(s)",
+    },
+    {
+      "kind": "h2",
+      "text": "Forecast performance",
+    },
+    {
+      "id": "forecast_accuracy",
+      "kind": "metric",
+      "label": "Forecast accuracy",
+      "status": "unavailable",
+      "text": "Unavailable: too few forecast comparisons",
+    },
+    {
+      "kind": "h2",
+      "text": "Plan",
+    },
+    {
+      "id": "subscription_cost",
+      "kind": "metric",
+      "label": "Subscription cost",
+      "status": "unavailable",
+      "text": "Unavailable: needs your plan history and a price catalog",
+    },
+    {
+      "kind": "h2",
+      "text": "Compared with the previous week",
+    },
+    {
+      "kind": "text",
+      "text": "No comparison shown: this week period not finished; this week sparse data. Comparisons need both weeks to be complete.",
+    },
+    {
+      "kind": "h2",
+      "text": "Suggested changes",
+    },
+    {
+      "kind": "text",
+      "text": "Windows often ended with a lot of quota unused. This is an upper bound from one week, not a recommendation to change plan; compare plans with your own prices before deciding. (Estimated, based on unused_quota, reset_utilization.)",
+    },
+    {
+      "kind": "text",
+      "text": "Add a calibration to see how much quota movement your local activity explains. (Estimated, based on attributable_activity.)",
+    },
+    {
+      "kind": "text",
+      "text": "Enter your plan history and a price to see the prorated plan cost for the week. (Estimated, based on subscription_cost.)",
+    },
+    {
+      "kind": "text",
+      "text": "Several days have no data. Keep collectors running so weekly comparisons can be shown. (Estimated, based on provider_mix.)",
+    },
+    {
+      "kind": "h2",
+      "text": "Definitions",
+    },
+    {
+      "kind": "text",
+      "text": "Provider mix (provider_mix): Share of locally counted requests per provider in the period. Requests are counted from local logs only. Excludes activity on other devices without a collector and activity that never reached a local log.",
+    },
+    {
+      "kind": "text",
+      "text": "Supported-client mix (client_mix): Share of locally counted requests per supported client (web, Claude Code, Codex, Gemini CLI, desktop, API). Unattributed records are reported separately and never assigned to a client.",
+    },
+    {
+      "kind": "text",
+      "text": "Quota risk events (quota_risk_events): Number of quota windows in the period whose provider-reported usage reached the risk threshold (default 80%), and how many reached 100%. Counts windows, not minutes. A window with no snapshot near its peak can be undercounted.",
+    },
+    {
+      "kind": "text",
+      "text": "Prevented interruptions (prevented_interruptions): Number of times the user confirmed that an alert or Autopilot suggestion let them avoid hitting a limit. Never inferred from alerts or forecasts. Without a confirmation the value is unavailable, not zero. Needs your input.",
+    },
+    {
+      "kind": "text",
+      "text": "Reset utilization (reset_utilization): Mean of the last provider-reported usage percent in each window that reset during the period. A lower bound: the last snapshot before a reset can precede the true final usage.",
+    },
+    {
+      "kind": "text",
+      "text": "Unused quota (unused_quota): Mean of 100 minus reset utilization across windows that reset during the period. An upper bound, for the same reason as reset utilization. It is a share of a window, not tokens or money.",
+    },
+    {
+      "kind": "text",
+      "text": "Forecast accuracy (forecast_accuracy): Mean absolute error, in quota points, of one-hour-ahead forecasts replayed against later snapshots in the period. Shown only with at least 20 comparisons. It describes this account and period, not the model in general.",
+    },
+    {
+      "kind": "text",
+      "text": "Attributable activity (attributable_activity): Share of provider-reported quota movement that local evidence explains, as a range, with the remainder labelled unattributed. Requires a configured calibration. Without one the value is unavailable.",
+    },
+    {
+      "kind": "text",
+      "text": "Subscription cost (subscription_cost): Plan price from the pricing catalog (or a manual override), prorated to the days each plan was active in the period, per currency. The plan history is entered by the user. Currencies are never converted or added together. No savings are derived from tokens. Needs your input.",
+    },
+  ],
+  "newUser": false,
+  "notices": [
+    "partial_week",
+    "sparse_data",
+  ],
+  "suggestions": [
+    "possible_spare_capacity",
+    "add_calibration",
+    "add_plan_history",
+    "collect_more_days",
+  ],
+}
+`;
+
+exports[`snapshots: report scenarios > plan change during the week 1`] = `
+{
+  "comparison": {
+    "allowed": true,
+    "previousWeek": {
+      "end": 1791158400000,
+      "start": 1790553600000,
+    },
+    "rows": [
+      {
+        "current": 35,
+        "delta": 0,
+        "label": "Requests counted locally",
+        "metricId": "provider_mix",
+        "previous": 35,
+        "unit": "requests",
+      },
+      {
+        "current": 0,
+        "delta": 0,
+        "label": "Windows at risk",
+        "metricId": "quota_risk_events",
+        "previous": 0,
+        "unit": "windows",
+      },
+      {
+        "current": 0,
+        "delta": 0,
+        "label": "Windows at 100%",
+        "metricId": "quota_risk_events",
+        "previous": 0,
+        "unit": "windows",
+      },
+      {
+        "current": 70,
+        "delta": 0.77,
+        "label": "Unused quota at reset",
+        "metricId": "unused_quota",
+        "previous": 69.2308,
+        "unit": "percent",
+      },
+    ],
+  },
+  "completeness": {
+    "complete": true,
+    "dayCoverage": 1,
+    "daysWithData": 7,
+    "elapsedDays": 7,
+    "periodDays": 7,
+    "reasons": [],
+  },
+  "lines": [
+    {
+      "kind": "title",
+      "text": "Usage Wrapped, 2026-10-05 to 2026-10-11",
+    },
+    {
+      "kind": "text",
+      "text": "Time zone UTC. Generated on 2026-10-12 on this device. Providers: claude. Accounts: Account 1. Devices: 1.",
+    },
+    {
+      "kind": "note",
+      "text": "Your plan changed during this week. Plan cost is split by the days each plan was active.",
+    },
+    {
+      "kind": "h2",
+      "text": "Usage",
+    },
+    {
+      "id": "provider_mix",
+      "kind": "metric",
+      "label": "Provider mix",
+      "status": "measured",
+      "text": "claude 100% (35 requests counted locally)",
+    },
+    {
+      "kind": "h2",
+      "text": "Client attribution",
+    },
+    {
+      "id": "client_mix",
+      "kind": "metric",
+      "label": "Supported-client mix",
+      "status": "measured",
+      "text": "claude_code 100%; 0 requests unattributed",
+    },
+    {
+      "id": "attributable_activity",
+      "kind": "metric",
+      "label": "Attributable activity",
+      "status": "unavailable",
+      "text": "Unavailable: no calibration is configured",
+    },
+    {
+      "kind": "h2",
+      "text": "Quota and interruptions",
+    },
+    {
+      "id": "quota_risk_events",
+      "kind": "metric",
+      "label": "Quota risk events",
+      "status": "provider_reported",
+      "text": "0 window(s) reached 80%, 0 reached 100%",
+    },
+    {
+      "id": "prevented_interruptions",
+      "kind": "metric",
+      "label": "Prevented interruptions",
+      "status": "unavailable",
+      "text": "Unavailable: needs your confirmation",
+    },
+    {
+      "id": "reset_utilization",
+      "kind": "metric",
+      "label": "Reset utilization",
+      "status": "provider_reported",
+      "text": "30% of quota used at reset across 14 window(s)",
+    },
+    {
+      "id": "unused_quota",
+      "kind": "metric",
+      "label": "Unused quota",
+      "status": "provider_reported",
+      "text": "70% of quota left at reset across 14 window(s)",
+    },
+    {
+      "kind": "h2",
+      "text": "Forecast performance",
+    },
+    {
+      "id": "forecast_accuracy",
+      "kind": "metric",
+      "label": "Forecast accuracy",
+      "status": "unavailable",
+      "text": "Unavailable: too few forecast comparisons",
+    },
+    {
+      "kind": "h2",
+      "text": "Plan",
+    },
+    {
+      "id": "subscription_cost",
+      "kind": "metric",
+      "label": "Subscription cost",
+      "status": "estimated",
+      "text": "15.12 USD prorated for the week",
+    },
+    {
+      "kind": "h2",
+      "text": "Compared with the previous week",
+    },
+    {
+      "kind": "text",
+      "text": "Requests counted locally: 35 now, 35 before (+0 requests).",
+    },
+    {
+      "kind": "text",
+      "text": "Windows at risk: 0 now, 0 before (+0 windows).",
+    },
+    {
+      "kind": "text",
+      "text": "Windows at 100%: 0 now, 0 before (+0 windows).",
+    },
+    {
+      "kind": "text",
+      "text": "Unused quota at reset: 70 now, 69.2308 before (+0.77 percent).",
+    },
+    {
+      "kind": "h2",
+      "text": "Suggested changes",
+    },
+    {
+      "kind": "text",
+      "text": "Windows often ended with a lot of quota unused. This is an upper bound from one week, not a recommendation to change plan; compare plans with your own prices before deciding. (Estimated, based on unused_quota, reset_utilization.)",
+    },
+    {
+      "kind": "text",
+      "text": "Add a calibration to see how much quota movement your local activity explains. (Estimated, based on attributable_activity.)",
+    },
+    {
+      "kind": "h2",
+      "text": "Definitions",
+    },
+    {
+      "kind": "text",
+      "text": "Provider mix (provider_mix): Share of locally counted requests per provider in the period. Requests are counted from local logs only. Excludes activity on other devices without a collector and activity that never reached a local log.",
+    },
+    {
+      "kind": "text",
+      "text": "Supported-client mix (client_mix): Share of locally counted requests per supported client (web, Claude Code, Codex, Gemini CLI, desktop, API). Unattributed records are reported separately and never assigned to a client.",
+    },
+    {
+      "kind": "text",
+      "text": "Quota risk events (quota_risk_events): Number of quota windows in the period whose provider-reported usage reached the risk threshold (default 80%), and how many reached 100%. Counts windows, not minutes. A window with no snapshot near its peak can be undercounted.",
+    },
+    {
+      "kind": "text",
+      "text": "Prevented interruptions (prevented_interruptions): Number of times the user confirmed that an alert or Autopilot suggestion let them avoid hitting a limit. Never inferred from alerts or forecasts. Without a confirmation the value is unavailable, not zero. Needs your input.",
+    },
+    {
+      "kind": "text",
+      "text": "Reset utilization (reset_utilization): Mean of the last provider-reported usage percent in each window that reset during the period. A lower bound: the last snapshot before a reset can precede the true final usage.",
+    },
+    {
+      "kind": "text",
+      "text": "Unused quota (unused_quota): Mean of 100 minus reset utilization across windows that reset during the period. An upper bound, for the same reason as reset utilization. It is a share of a window, not tokens or money.",
+    },
+    {
+      "kind": "text",
+      "text": "Forecast accuracy (forecast_accuracy): Mean absolute error, in quota points, of one-hour-ahead forecasts replayed against later snapshots in the period. Shown only with at least 20 comparisons. It describes this account and period, not the model in general.",
+    },
+    {
+      "kind": "text",
+      "text": "Attributable activity (attributable_activity): Share of provider-reported quota movement that local evidence explains, as a range, with the remainder labelled unattributed. Requires a configured calibration. Without one the value is unavailable.",
+    },
+    {
+      "kind": "text",
+      "text": "Subscription cost (subscription_cost): Plan price from the pricing catalog (or a manual override), prorated to the days each plan was active in the period, per currency. The plan history is entered by the user. Currencies are never converted or added together. No savings are derived from tokens. Needs your input.",
+    },
+  ],
+  "newUser": false,
+  "notices": [
+    "plan_change",
+  ],
+  "suggestions": [
+    "possible_spare_capacity",
+    "add_calibration",
+  ],
+}
+`;
+
+exports[`snapshots: report scenarios > week without any activity 1`] = `
+{
+  "comparison": {
+    "allowed": false,
+    "reasons": [
+      "this_week_sparse_data",
+      "no_earlier_data",
+    ],
+  },
+  "completeness": {
+    "complete": false,
+    "dayCoverage": 0,
+    "daysWithData": 0,
+    "elapsedDays": 7,
+    "periodDays": 7,
+    "reasons": [
+      "sparse_data",
+    ],
+  },
+  "lines": [
+    {
+      "kind": "title",
+      "text": "Usage Wrapped, 2026-10-05 to 2026-10-11",
+    },
+    {
+      "kind": "text",
+      "text": "Time zone UTC. Generated on 2026-10-12 on this device. Providers: none. Accounts: none. Devices: 0.",
+    },
+    {
+      "kind": "note",
+      "text": "Only 0 of 7 days have data, so figures may understate the week.",
+    },
+    {
+      "kind": "note",
+      "text": "No data was recorded for this week and selection. Nothing below is zero; it is unavailable.",
+    },
+    {
+      "kind": "h2",
+      "text": "Usage",
+    },
+    {
+      "id": "provider_mix",
+      "kind": "metric",
+      "label": "Provider mix",
+      "status": "unavailable",
+      "text": "Unavailable: no counted local activity",
+    },
+    {
+      "kind": "h2",
+      "text": "Client attribution",
+    },
+    {
+      "id": "client_mix",
+      "kind": "metric",
+      "label": "Supported-client mix",
+      "status": "unavailable",
+      "text": "Unavailable: no activity attributed to a supported client",
+    },
+    {
+      "id": "attributable_activity",
+      "kind": "metric",
+      "label": "Attributable activity",
+      "status": "unavailable",
+      "text": "Unavailable: no calibration is configured",
+    },
+    {
+      "kind": "h2",
+      "text": "Quota and interruptions",
+    },
+    {
+      "id": "quota_risk_events",
+      "kind": "metric",
+      "label": "Quota risk events",
+      "status": "unavailable",
+      "text": "Unavailable: no provider-reported readings",
+    },
+    {
+      "id": "prevented_interruptions",
+      "kind": "metric",
+      "label": "Prevented interruptions",
+      "status": "unavailable",
+      "text": "Unavailable: needs your confirmation",
+    },
+    {
+      "id": "reset_utilization",
+      "kind": "metric",
+      "label": "Reset utilization",
+      "status": "unavailable",
+      "text": "Unavailable: no quota window reset during the week",
+    },
+    {
+      "id": "unused_quota",
+      "kind": "metric",
+      "label": "Unused quota",
+      "status": "unavailable",
+      "text": "Unavailable: no quota window reset during the week",
+    },
+    {
+      "kind": "h2",
+      "text": "Forecast performance",
+    },
+    {
+      "id": "forecast_accuracy",
+      "kind": "metric",
+      "label": "Forecast accuracy",
+      "status": "unavailable",
+      "text": "Unavailable: too few forecast comparisons",
+    },
+    {
+      "kind": "h2",
+      "text": "Plan",
+    },
+    {
+      "id": "subscription_cost",
+      "kind": "metric",
+      "label": "Subscription cost",
+      "status": "unavailable",
+      "text": "Unavailable: needs your plan history and a price catalog",
+    },
+    {
+      "kind": "h2",
+      "text": "Compared with the previous week",
+    },
+    {
+      "kind": "text",
+      "text": "No comparison shown: this week sparse data; no earlier data. Comparisons need both weeks to be complete.",
+    },
+    {
+      "kind": "h2",
+      "text": "Suggested changes",
+    },
+    {
+      "kind": "text",
+      "text": "No suggestions for this week.",
+    },
+    {
+      "kind": "h2",
+      "text": "Definitions",
+    },
+    {
+      "kind": "text",
+      "text": "Provider mix (provider_mix): Share of locally counted requests per provider in the period. Requests are counted from local logs only. Excludes activity on other devices without a collector and activity that never reached a local log.",
+    },
+    {
+      "kind": "text",
+      "text": "Supported-client mix (client_mix): Share of locally counted requests per supported client (web, Claude Code, Codex, Gemini CLI, desktop, API). Unattributed records are reported separately and never assigned to a client.",
+    },
+    {
+      "kind": "text",
+      "text": "Quota risk events (quota_risk_events): Number of quota windows in the period whose provider-reported usage reached the risk threshold (default 80%), and how many reached 100%. Counts windows, not minutes. A window with no snapshot near its peak can be undercounted.",
+    },
+    {
+      "kind": "text",
+      "text": "Prevented interruptions (prevented_interruptions): Number of times the user confirmed that an alert or Autopilot suggestion let them avoid hitting a limit. Never inferred from alerts or forecasts. Without a confirmation the value is unavailable, not zero. Needs your input.",
+    },
+    {
+      "kind": "text",
+      "text": "Reset utilization (reset_utilization): Mean of the last provider-reported usage percent in each window that reset during the period. A lower bound: the last snapshot before a reset can precede the true final usage.",
+    },
+    {
+      "kind": "text",
+      "text": "Unused quota (unused_quota): Mean of 100 minus reset utilization across windows that reset during the period. An upper bound, for the same reason as reset utilization. It is a share of a window, not tokens or money.",
+    },
+    {
+      "kind": "text",
+      "text": "Forecast accuracy (forecast_accuracy): Mean absolute error, in quota points, of one-hour-ahead forecasts replayed against later snapshots in the period. Shown only with at least 20 comparisons. It describes this account and period, not the model in general.",
+    },
+    {
+      "kind": "text",
+      "text": "Attributable activity (attributable_activity): Share of provider-reported quota movement that local evidence explains, as a range, with the remainder labelled unattributed. Requires a configured calibration. Without one the value is unavailable.",
+    },
+    {
+      "kind": "text",
+      "text": "Subscription cost (subscription_cost): Plan price from the pricing catalog (or a manual override), prorated to the days each plan was active in the period, per currency. The plan history is entered by the user. Currencies are never converted or added together. No savings are derived from tokens. Needs your input.",
+    },
+  ],
+  "newUser": true,
+  "notices": [
+    "sparse_data",
+    "no_activity",
+  ],
+  "suggestions": [],
+}
+`;
