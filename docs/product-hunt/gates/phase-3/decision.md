@@ -9,7 +9,7 @@ The owner accepts the AI-assisted security review in [security-review.md](securi
 ## What this decision does and does not change
 
 - It closes one item. It does not pass the Phase 3 exit criteria, which remain `deferred_to_final_gate`, and it does not authorise Phase 6.
-- The review was done by the same agent that works in this repository, with the `security-review` and `code-review` skills and scripted tools. It is not a third-party audit. Public wording must not claim one. The accurate phrase is **"security-reviewed with AI assistance; not audited by a third party"**, and the user-facing label should say so instead of the earlier "not independently audited" only if the owner prefers; the two are both true.
+- The review was done by the same agent that works in this repository, with the `security-review` and `code-review` skills and scripted tools. It is not a third-party audit. Public wording must not claim one. The accurate phrase is **"security-reviewed with AI assistance; not audited by a third party"**.
 - Findings the review raised are listed with their status in [security-review.md](security-review.md). Anything still open there stays open; closing this item does not accept it.
 - The review covers the sync client, the ciphertext service and the companion page in this repository. It does not cover the production hosting, the push transport and its VAPID keys, or the browser extension's sync UI.
 
