@@ -21,7 +21,7 @@ last_checkpoint:
   base_sha: 82a4db3
   worktree_path: null
   pending_operation: null
-next_action: Phase 3 promoted (PR #66 merged into main, sync-back PR #68 merged into develop). Prompt 4.1 in progress on feature/p4-radar-privacy.
+next_action: Phase 3 promoted (PR #66 merged into main, sync-back PR #68 merged into develop). Prompt 4.1 design merged (PR #70). Prompt 4.2 in progress on feature/p4-radar-pipeline.
 next_wake_time: null
 release_status: prohibited_during_pilot
 phases:
@@ -444,16 +444,16 @@ work_items:
   - prompt: '4.1'
     phase: 4
     title: Define anonymous contribution and privacy rules
-    status: awaiting_review
+    status: completed
     planned_branch: feature/p4-radar-privacy
     branch: feature/p4-radar-privacy
-    commit: null
-    pull_request: null
-    ci_status: not_run
+    commit: a2cb30a56bff2dcc13d5ca776d303313eb6b5f0a
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/70
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Design PR opened (human gate, no auto-merge). Owner reviews docs/radar/PRIVACY_AND_ARCHITECTURE.md and answers its open questions; 4.2 starts only after this PR is merged.
+    next_action: None. Design PR #70 merged into develop by the owner (merge commit 18d4770). Open questions 1-5 in docs/radar/PRIVACY_AND_ARCHITECTURE.md remain unanswered; 4.2 builds to the design defaults.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-4.1
@@ -461,16 +461,16 @@ work_items:
   - prompt: '4.2'
     phase: 4
     title: Build aggregate ingestion and anomaly detection
-    status: not_started
+    status: in_progress
     planned_branch: feature/p4-radar-pipeline
-    branch: null
+    branch: feature/p4-radar-pipeline
     commit: null
     pull_request: null
     ci_status: not_run
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: Pipeline implemented and validated locally; PR into develop opened with auto-merge. Real-history backtest, privacy and legal review, and the open design questions remain for the final gate.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-4.2
