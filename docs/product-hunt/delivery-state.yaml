@@ -537,12 +537,12 @@ work_items:
     planned_branch: feature/p5-private-wrapped
     branch: feature/p5-private-wrapped
     commit: 84ac14a0147244d6eff323e0b8847319c48d8cfd
-    pull_request: null
-    ci_status: not_run
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/84
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Pushed to feature/p5-private-wrapped; PR not yet opened. Open the PR into develop, wait for CI on its head, then review.
+    next_action: Auto-merge enabled on PR #84; CI green. Wait for merge.
     next_wake_time: null
     evidence_files:
       - docs/WRAPPED_REPORT.md
@@ -569,16 +569,16 @@ work_items:
   - prompt: '5.4'
     phase: 5
     title: Implement transparent plan recommendations
-    status: awaiting_ci
+    status: completed
     planned_branch: feature/p5-plan-roi
     branch: feature/p5-plan-roi
     commit: 0aff498358599505205cb6b9b655c3cbaf46c9fb
-    pull_request: null
-    ci_status: not_run
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/85
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Branch pushed, no PR opened. Await owner to open the PR into develop and CI on the pushed head.
+    next_action: None. PR #85 merged into develop. No UI/CLI surface yet; Phase 5 gate evidence deferred.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-5.4
