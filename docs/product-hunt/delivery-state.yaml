@@ -444,7 +444,7 @@ work_items:
   - prompt: '4.1'
     phase: 4
     title: Define anonymous contribution and privacy rules
-    status: in_progress
+    status: awaiting_review
     planned_branch: feature/p4-radar-privacy
     branch: feature/p4-radar-privacy
     commit: null
@@ -453,7 +453,7 @@ work_items:
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Write privacy/architecture spec, contribution schema with strict validation, preview, and tests; then open design PR (human gate, no auto-merge).
+    next_action: Design PR opened (human gate, no auto-merge). Owner reviews docs/radar/PRIVACY_AND_ARCHITECTURE.md and answers its open questions; 4.2 starts only after this PR is merged.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-4.1
