@@ -21,7 +21,7 @@ last_checkpoint:
   base_sha: 82a4db3
   worktree_path: null
   pending_operation: null
-next_action: Phase 3 promoted (PR #66 merged into main, sync-back PR #68 merged into develop). Prompt 4.1 design merged (PR #70). Prompt 4.2 in progress on feature/p4-radar-pipeline.
+next_action: Phase 3 promoted (PR #66 merged into main, sync-back PR #68 merged into develop). Phase 4 promotion PR #76 merged into main; sync-back PR #81 merged into develop (replaces #78, which was blocked as behind; #80 also superseded). Phase 4 is promoted; Phase 5 is unblocked.
 next_wake_time: null
 release_status: prohibited_during_pilot
 phases:
@@ -67,7 +67,11 @@ phases:
     pilot_eligible: true
   - id: 4
     title: Community Limit Change Radar
-    status: not_started
+    promotion_pr: https://github.com/utkarshmankad/claudewatch/pull/76
+    promotion_status: merged
+    sync_back_pr: https://github.com/utkarshmankad/claudewatch/pull/81
+    sync_back_status: merged
+    status: completed
     gate_status: deferred_to_final_gate
     evidence_files: []
     gate_decision: null
@@ -512,16 +516,16 @@ work_items:
   - prompt: '5.1'
     phase: 5
     title: Define weekly metrics and plan economics
-    status: not_started
+    status: awaiting_ci
     planned_branch: feature/p5-wrapped-metrics
-    branch: null
-    commit: null
-    pull_request: null
-    ci_status: not_run
+    branch: feature/p5-wrapped-metrics
+    commit: 76e805d
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/83
+    ci_status: pending
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: Wait for CI on the 5.1 PR; auto-merge is enabled. Pricing catalog ships no prices; the pricing source audit remains a deferred Phase 5 gate artifact.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-5.1
