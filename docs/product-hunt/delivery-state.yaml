@@ -502,14 +502,26 @@ work_items:
     pull_request: null
     ci_status: not_run
     gate_status: not_evaluated
-    blocker: 'Human gate: 4.4 needs a consented live beta cohort, a deployed ingestion endpoint and feed, key custody for signed config, and a privacy review of real stored records. None exist; no measurement may be fabricated. Owner decision needed.'
+    blocker: 'Human gate: 4.4 needs a consented live beta cohort, a deployed ingestion endpoint and feed, signing-key custody, and a privacy review of real stored records. None exist and no measurement may be fabricated. Owner decision needed.'
     last_checkpoint: null
     next_action: Await owner decision on beta cohort, endpoint hosting and signing-key custody before starting 4.4. Phase 4 promotion is not opened until 4.4 completes or the owner defers it.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-4.4
     pending_operation: null
- pilot authorization, prior prompt completion, and applicable gates.
+  - prompt: '5.1'
+    phase: 5
+    title: Define weekly metrics and plan economics
+    status: not_started
+    planned_branch: feature/p5-wrapped-metrics
+    branch: null
+    commit: null
+    pull_request: null
+    ci_status: not_run
+    gate_status: not_evaluated
+    blocker: null
+    last_checkpoint: null
+    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-5.1
