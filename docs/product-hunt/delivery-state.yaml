@@ -79,9 +79,9 @@ phases:
   - id: 5
     title: Usage Wrapped and Plan ROI
     promotion_pr: https://github.com/utkarshmankad/claudewatch/pull/89
-    promotion_status: open
-    sync_back_pr: null
-    sync_back_status: not_opened
+    promotion_status: merged
+    sync_back_pr: https://github.com/utkarshmankad/claudewatch/pull/91
+    sync_back_status: open
     status: completed
     gate_status: deferred_to_final_gate
     evidence_files: []
