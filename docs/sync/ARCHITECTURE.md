@@ -53,10 +53,11 @@ Only the fields of ledger schema v1 ([../LEDGER.md](../LEDGER.md)) and the prefe
 ## Enrollment
 
 1. Device A opts in, generates AK and its device key, and creates an account (server issues random account id; proof of device key possession).
-2. Device A shows an enrollment code: a one-time, 10-minute, single-use token plus Device A's ephemeral X25519 public key, presented as a QR code or 8-word code.
-3. Device B scans or types it, generates its device key and an ephemeral X25519 key, and sends its public keys to the service bound to the token.
+2. Device A shows an enrollment code: a one-time, 10-minute, single-use token, Device A's public key and a random confirmation secret, presented as a QR code or typed code. The secret never goes to the service; the code travels out of band.
+3. Device B scans or types it, generates its device key and an ephemeral X25519 key, and sends its public keys to the service bound to the token, with a MAC of those keys under the confirmation secret. Device A refuses keys whose MAC does not verify, so a service cannot swap them (a 6 digit SAS alone can be ground down in about 2^20 key generations).
 4. Both devices display a short authentication string derived from both public keys; the user confirms they match (blocks a server or network MITM).
-5. Device A wraps AK to Device B's ephemeral key and posts the ciphertext; the service deletes the token. Device B stores AK and registers.
+5. Device A wraps AK to Device B's key, binding the wrap to a tag derived from the secret, and posts the ciphertext; the service deletes the token. Device B opens it only if the tag matches, stores AK, registers, and pins Device A's key. Device A pins Device B's key.
+6. Later key rotations are wrapped only to pinned keys (or keys a device published inside the encrypted device list), and a wrap opens only if it was made by a holder of the previous epoch's key. The service-supplied device list is never trusted on its own.
 
 Rate limit: 5 enrollment attempts per account per hour; a token is invalidated after 3 wrong attempts.
 
