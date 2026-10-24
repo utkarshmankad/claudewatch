@@ -70,7 +70,7 @@ phases:
     promotion_pr: https://github.com/utkarshmankad/claudewatch/pull/76
     promotion_status: merged
     sync_back_pr: https://github.com/utkarshmankad/claudewatch/pull/78
-    sync_back_status: open
+    sync_back_status: merged
     status: completed
     gate_status: deferred_to_final_gate
     evidence_files: []
@@ -516,16 +516,16 @@ work_items:
   - prompt: '5.1'
     phase: 5
     title: Define weekly metrics and plan economics
-    status: not_started
+    status: in_progress
     planned_branch: feature/p5-wrapped-metrics
-    branch: null
+    branch: feature/p5-wrapped-metrics
     commit: null
     pull_request: null
     ci_status: not_run
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: Implement 5.1 metrics definitions, pricing catalog and tests; open PR into develop.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-5.1
