@@ -7,11 +7,11 @@ pilot_status: in_progress
 implementation_authorized: true
 current_phase: 3
 current_prompt: '3.3'
-work_item_status: in_progress
+work_item_status: awaiting_ci
 branch: feature/p3-device-convergence
-commit: null
-pull_request: null
-ci_status: not_run
+commit: 805c96266655c1f625198061fec55a4168409f42
+pull_request: https://github.com/utkarshmankad/claudewatch/pull/64
+ci_status: pending
 gate_status: deferred_to_final_gate
 blocker: null
 last_checkpoint:
@@ -398,9 +398,9 @@ work_items:
     status: awaiting_ci
     planned_branch: feature/p3-device-convergence
     branch: feature/p3-device-convergence
-    commit: null
-    pull_request: null
-    ci_status: not_run
+    commit: 805c96266655c1f625198061fec55a4168409f42
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/64
+    ci_status: pending
     gate_status: not_evaluated
     blocker: null
     last_checkpoint:
