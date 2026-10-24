@@ -67,7 +67,11 @@ phases:
     pilot_eligible: true
   - id: 4
     title: Community Limit Change Radar
-    status: not_started
+    promotion_pr: https://github.com/utkarshmankad/claudewatch/pull/76
+    promotion_status: open
+    sync_back_pr: null
+    sync_back_status: not_opened
+    status: completed
     gate_status: deferred_to_final_gate
     evidence_files: []
     gate_decision: null
