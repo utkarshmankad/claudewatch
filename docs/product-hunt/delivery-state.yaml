@@ -21,7 +21,7 @@ last_checkpoint:
   base_sha: 82a4db3
   worktree_path: null
   pending_operation: null
-next_action: Phase 3 promoted (#66 merged into main, sync-back #68 merged into develop). Next eligible prompt is 4.1 (design PR, human gate, no auto-merge).
+next_action: Phase 3 promoted (PR #66 merged into main, sync-back PR #68 merged into develop). Prompt 4.1 in progress on feature/p4-radar-privacy.
 next_wake_time: null
 release_status: prohibited_during_pilot
 phases:
@@ -444,16 +444,16 @@ work_items:
   - prompt: '4.1'
     phase: 4
     title: Define anonymous contribution and privacy rules
-    status: not_started
+    status: awaiting_review
     planned_branch: feature/p4-radar-privacy
-    branch: null
+    branch: feature/p4-radar-privacy
     commit: null
     pull_request: null
     ci_status: not_run
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: Design PR opened (human gate, no auto-merge). Owner reviews docs/radar/PRIVACY_AND_ARCHITECTURE.md and answers its open questions; 4.2 starts only after this PR is merged.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-4.1

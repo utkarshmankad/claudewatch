@@ -30,6 +30,7 @@ export default defineConfig({
         'src/daemon/costCache.ts',
         'src/forecast/**/*.ts',
         'src/recommend/**/*.ts',
+        'src/radar/**/*.ts',
         'src/ledger/**/*.ts',
         'src/store/**/*.ts',
         'src/sync/e2ee/**/*.ts',
