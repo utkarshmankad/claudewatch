@@ -3,6 +3,11 @@
 import { randomId, sha256Hex, verify } from '../e2ee/crypto.js';
 import { MemoryStore } from './store.js';
 import type { AccountRecord, AuditEvent, DeviceRecord, KeyWrapRecord } from './store.js';
+import {
+  DEFAULT_PUSH_HOST_SUFFIXES, PUSH_KINDS, PushValidationError, inQuietHours, pushPayload, pushTtlSeconds,
+  validateKinds, validatePushEndpoint, validatePushKeys, validateQuietHours,
+} from './push.js';
+import type { PushKind, PushSender } from './push.js';
 
 const MINUTE = 60_000;
 const DAY = 24 * 60 * MINUTE;
@@ -22,6 +27,12 @@ export interface SyncServiceConfig {
   auditRetentionMs: number;
   backupExpiryDays: number;
   clockWindowMs: number;
+  pushHostSuffixes: string[];
+  pushSubscriptionTtlMs: number;
+  pushDedupeMs: number;
+  pushPerDevicePerHour: number;
+  notifyPerHour: number;
+  trustForwardedFor: boolean; // only behind a proxy that overwrites X-Forwarded-For; otherwise a client could pick its own rate-limit bucket
 }
 
 export const DEFAULT_CONFIG: SyncServiceConfig = {
@@ -39,6 +50,12 @@ export const DEFAULT_CONFIG: SyncServiceConfig = {
   auditRetentionMs: 30 * DAY,
   backupExpiryDays: 35,
   clockWindowMs: 2 * MINUTE,
+  pushHostSuffixes: DEFAULT_PUSH_HOST_SUFFIXES,
+  pushSubscriptionTtlMs: 30 * DAY,
+  pushDedupeMs: 6 * 60 * MINUTE,
+  pushPerDevicePerHour: 12,
+  notifyPerHour: 30,
+  trustForwardedFor: false,
 };
 
 interface Session {
@@ -56,6 +73,8 @@ class HttpError extends Error {
 export interface SyncService {
   fetch(request: Request): Promise<Response>;
   runRetention(): { objectsPruned: number; accountsDeleted: number; warned: number };
+  /** Live rate-limit windows held in memory (hashed keys only). Exposed so tests and operators can see retention bound it. */
+  rateLimitEntries(): number;
   store: MemoryStore;
 }
 
@@ -66,7 +85,7 @@ function bucket(bytes: number): string {
   return '>=1MiB';
 }
 
-export function createSyncService(options: { store?: MemoryStore; now?: () => number; config?: Partial<SyncServiceConfig> } = {}): SyncService {
+export function createSyncService(options: { store?: MemoryStore; now?: () => number; config?: Partial<SyncServiceConfig>; pushSender?: PushSender } = {}): SyncService {
   const store = options.store ?? new MemoryStore();
   const now = options.now ?? Date.now;
   const config: SyncServiceConfig = { ...DEFAULT_CONFIG, ...options.config };
@@ -102,7 +121,9 @@ export function createSyncService(options: { store?: MemoryStore; now?: () => nu
         'cache-control': 'no-store',
         'x-content-type-options': 'nosniff',
         'referrer-policy': 'no-referrer',
-        'content-security-policy': "default-src 'none'",
+        'content-security-policy': "default-src 'none'; frame-ancestors 'none'",
+        'strict-transport-security': 'max-age=63072000; includeSubDomains',
+        'cross-origin-resource-policy': 'same-origin',
       },
     });
   }
@@ -174,7 +195,7 @@ export function createSyncService(options: { store?: MemoryStore; now?: () => nu
     const url = new URL(request.url);
     const path = url.pathname;
     const method = request.method;
-    const ipKey = request.headers.get('cf-connecting-ip') ?? request.headers.get('x-forwarded-for') ?? 'unknown';
+    const ipKey = request.headers.get('cf-connecting-ip') ?? (config.trustForwardedFor ? request.headers.get('x-forwarded-for') : null) ?? 'unknown';
 
     if (method === 'POST' && path === '/v1/accounts') {
       await limit(`create:${ipKey}`, 10, 60 * MINUTE);
@@ -183,7 +204,7 @@ export function createSyncService(options: { store?: MemoryStore; now?: () => nu
       if (!config.regions.includes(region)) throw new HttpError(400, 'unknown_region');
       const account: AccountRecord = {
         accountId: randomId(), region, createdAt: now(), lastActiveAt: now(), epoch: 1, nextSeq: 1, storageBytes: 0,
-        devices: new Map(), objects: [], objectIds: new Map(), keyWraps: [],
+        devices: new Map(), objects: [], objectIds: new Map(), keyWraps: [], push: new Map(), pushSent: new Map(),
       };
       store.accounts.set(account.accountId, account);
       audit({ type: 'account_created', accountId: account.accountId });
@@ -291,6 +312,7 @@ export function createSyncService(options: { store?: MemoryStore; now?: () => nu
       // Only a revoked device can be removed, and never the caller: removal must not be a way to skip revocation.
       if (!target.revoked || target.deviceId === device.deviceId) throw new HttpError(409, 'revoke_first');
       account.devices.delete(target.deviceId);
+      account.push.delete(target.deviceId);
       account.keyWraps = account.keyWraps.filter((w) => w.deviceId !== target.deviceId);
       audit({ type: 'device_removed', accountId: account.accountId, deviceId: target.deviceId });
       return json(200, { ok: true });
@@ -303,6 +325,7 @@ export function createSyncService(options: { store?: MemoryStore; now?: () => nu
       const body = await readJson(request);
       const newEpoch = int(body['newEpoch'], account.epoch + 1, account.epoch + 1);
       target.revoked = true;
+      account.push.delete(target.deviceId);
       for (const [hash, s] of sessions) if (s.deviceId === target.deviceId) sessions.delete(hash);
       account.epoch = newEpoch;
       audit({ type: 'device_revoked', accountId: account.accountId, deviceId: target.deviceId });
@@ -360,6 +383,100 @@ export function createSyncService(options: { store?: MemoryStore; now?: () => nu
       return json(200, { head: account.nextSeq - 1, epoch: account.epoch, objects });
     }
 
+    if (method === 'PUT' && path === '/v1/push/subscription') {
+      const body = await readJson(request);
+      let sub;
+      try {
+        const keys = validatePushKeys(body['p256dh'], body['auth']);
+        sub = {
+          deviceId: device.deviceId, endpoint: validatePushEndpoint(body['endpoint'], config.pushHostSuffixes), ...keys,
+          createdAt: now(), expiresAt: now() + config.pushSubscriptionTtlMs,
+          quietHours: validateQuietHours(body['quietHours']), kinds: validateKinds(body['kinds']),
+        };
+      } catch (error) {
+        if (error instanceof PushValidationError) throw new HttpError(400, `bad_push_${error.message}`);
+        throw error;
+      }
+      account.push.set(device.deviceId, sub);
+      audit({ type: 'push_subscribed', accountId: account.accountId, deviceId: device.deviceId });
+      return json(200, { expiresAt: sub.expiresAt });
+    }
+
+    if (method === 'GET' && path === '/v1/push/subscription') {
+      const sub = account.push.get(device.deviceId);
+      if (!sub || sub.expiresAt <= now()) return json(200, { active: false });
+      // The endpoint and keys are never echoed back.
+      return json(200, { active: true, expiresAt: sub.expiresAt, quietHours: sub.quietHours, kinds: sub.kinds });
+    }
+
+    if (method === 'POST' && path === '/v1/push/renew') {
+      const sub = account.push.get(device.deviceId);
+      if (!sub || sub.expiresAt <= now()) throw new HttpError(404, 'no_subscription');
+      sub.expiresAt = now() + config.pushSubscriptionTtlMs;
+      return json(200, { expiresAt: sub.expiresAt });
+    }
+
+    if (method === 'DELETE' && path === '/v1/push/subscription') {
+      if (account.push.delete(device.deviceId)) audit({ type: 'push_revoked', accountId: account.accountId, deviceId: device.deviceId });
+      return json(200, { ok: true });
+    }
+
+    if (method === 'POST' && path === '/v1/push/notify') {
+      if (!options.pushSender) throw new HttpError(503, 'push_unavailable');
+      await limit(`notify:${account.accountId}`, config.notifyPerHour, 60 * MINUTE, account.accountId);
+      const body = await readJson(request);
+      const kind = str(body['kind'], 16) as PushKind;
+      if (!PUSH_KINDS.includes(kind)) throw new HttpError(400, 'bad_request');
+      const dedupeKey = str(body['dedupeKey'], 64);
+      if (!/^[0-9a-f]+$/.test(dedupeKey)) throw new HttpError(400, 'bad_request'); // an opaque hash, never readable text
+      const t = now();
+      let sent = 0;
+      let quiet = 0;
+      let duplicate = 0;
+      let failed = 0;
+      for (const sub of [...account.push.values()]) {
+        const target = account.devices.get(sub.deviceId);
+        if (sub.deviceId === device.deviceId) continue; // the sender already knows
+        if (!target || target.revoked || sub.expiresAt <= t) {
+          account.push.delete(sub.deviceId);
+          audit({ type: 'push_expired', accountId: account.accountId, deviceId: sub.deviceId });
+          continue;
+        }
+        if (!sub.kinds.includes(kind)) continue;
+        if (inQuietHours(t, sub.quietHours)) { quiet += 1; continue; }
+        const sentKey = `${sub.deviceId}|${kind}|${dedupeKey}`;
+        const prior = account.pushSent.get(sentKey);
+        if (prior !== undefined && t - prior < config.pushDedupeMs) { duplicate += 1; continue; }
+        const rateKey = `push:${sub.deviceId}`;
+        try {
+          await limit(rateKey, config.pushPerDevicePerHour, 60 * MINUTE, account.accountId);
+        } catch {
+          duplicate += 1; // a flood is treated like a duplicate for the caller; the rate_limited audit event is already written
+          continue;
+        }
+        try {
+          const result = await options.pushSender({
+            endpoint: sub.endpoint, p256dh: sub.p256dh, auth: sub.auth, payload: pushPayload(kind),
+            ttlSeconds: pushTtlSeconds(kind), urgency: kind === 'reset' ? 'low' : 'normal',
+          });
+          if (result.status === 404 || result.status === 410) {
+            account.push.delete(sub.deviceId); // the push service says the subscription is gone
+            audit({ type: 'push_expired', accountId: account.accountId, deviceId: sub.deviceId });
+          } else if (result.status >= 200 && result.status < 300) {
+            account.pushSent.set(sentKey, t);
+            sent += 1;
+          } else {
+            failed += 1;
+          }
+        } catch {
+          failed += 1;
+        }
+      }
+      if (sent > 0) audit({ type: 'push_sent', accountId: account.accountId, count: sent });
+      if (quiet + duplicate > 0) audit({ type: 'push_suppressed', accountId: account.accountId, count: quiet + duplicate });
+      return json(200, { sent, suppressed: { quietHours: quiet, duplicate }, failed });
+    }
+
     if (method === 'GET' && path === '/v1/export') {
       return json(200, {
         accountId: account.accountId, region: account.region, epoch: account.epoch, exportedAt: now(),
@@ -374,6 +491,7 @@ export function createSyncService(options: { store?: MemoryStore; now?: () => nu
         deletedAt: now(),
         objectCount: account.objects.length,
         deviceCount: account.devices.size,
+        pushSubscriptionCount: account.push.size,
         backupsExpireWithinDays: config.backupExpiryDays,
       };
       deleteAccount(account.accountId);
@@ -395,6 +513,7 @@ export function createSyncService(options: { store?: MemoryStore; now?: () => nu
 
   return {
     store,
+    rateLimitEntries: () => windows.size,
     async fetch(request: Request): Promise<Response> {
       try {
         return await route(request);
@@ -419,6 +538,13 @@ export function createSyncService(options: { store?: MemoryStore; now?: () => nu
           audit({ type: 'inactive_warning', accountId: account.accountId });
           warned += 1;
         }
+        for (const [deviceId, sub] of account.push) {
+          if (sub.expiresAt <= t) {
+            account.push.delete(deviceId);
+            audit({ type: 'push_expired', accountId: account.accountId, deviceId });
+          }
+        }
+        for (const [key, at] of account.pushSent) if (t - at >= config.pushDedupeMs) account.pushSent.delete(key);
         const keep = account.objects.filter((o) => t - o.receivedAt < config.retentionMs);
         const dropped = account.objects.length - keep.length;
         if (dropped > 0) {
@@ -430,6 +556,7 @@ export function createSyncService(options: { store?: MemoryStore; now?: () => nu
       }
       store.audit = store.audit.filter((e) => t - e.at < config.auditRetentionMs);
       for (const [id, at] of store.deleted) if (t - at >= config.backupExpiryDays * DAY) store.deleted.delete(id);
+      for (const [key, w] of windows) if (t - w.start >= 60 * MINUTE) windows.delete(key);
       for (const [key, at] of seenNonces) if (t - at > config.clockWindowMs * 2) seenNonces.delete(key);
       for (const [hash, s] of sessions) if (s.expiresAt <= t) sessions.delete(hash);
       return { objectsPruned, accountsDeleted, warned };

@@ -1,0 +1,15 @@
+# Response headers for the static companion host (Cloudflare Pages / Netlify format).
+# The meta CSP in index.html cannot set frame-ancestors; these headers do.
+/*
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; manifest-src 'self'; worker-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Strict-Transport-Security: max-age=63072000; includeSubDomains
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Resource-Policy: same-origin
+/sw.js
+  Cache-Control: no-cache
+  Service-Worker-Allowed: /
+/index.html
+  Cache-Control: no-cache

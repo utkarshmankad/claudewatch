@@ -1,0 +1,11 @@
+{
+  "name": "ClaudeWatch Companion",
+  "short_name": "ClaudeWatch",
+  "description": "Quota-risk and reset alerts from your own ClaudeWatch devices.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1f2933",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
