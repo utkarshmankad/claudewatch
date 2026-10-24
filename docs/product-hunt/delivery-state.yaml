@@ -519,8 +519,8 @@ work_items:
     status: awaiting_ci
     planned_branch: feature/p5-wrapped-metrics
     branch: feature/p5-wrapped-metrics
-    commit: null
-    pull_request: null
+    commit: 76e805d
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/83
     ci_status: pending
     gate_status: not_evaluated
     blocker: null
