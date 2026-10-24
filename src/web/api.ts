@@ -1,4 +1,4 @@
-import type { LedgerFilter, LedgerView, AlertsResponse, AnalyticsResponse, StatusResponse, UsageResponse } from './types.js';
+import type { RadarView, RadarNotifyPrefs, DiagnosticPreview, LedgerFilter, LedgerView, AlertsResponse, AnalyticsResponse, StatusResponse, UsageResponse } from './types.js';
 
 const BASE = '/api';
 
@@ -22,6 +22,14 @@ export const api = {
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
     return res.json() as Promise<{ deleted: number }>;
   },
+  radar: () => get<RadarView>('/radar'),
+  radarPrefs: () => get<RadarNotifyPrefs>('/radar/prefs'),
+  saveRadarPrefs: async (prefs: RadarNotifyPrefs): Promise<RadarNotifyPrefs> => {
+    const res = await fetch(`${BASE}/radar/prefs`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(prefs) });
+    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+    return res.json() as Promise<RadarNotifyPrefs>;
+  },
+  radarDiagnostics: () => get<DiagnosticPreview>('/radar/diagnostics'),
   status: ()                   => get<StatusResponse>('/status'),
   usage:  (days = 30)          => get<UsageResponse>(`/usage?days=${days}`),
   alerts: (limit = 50)         => get<AlertsResponse>(`/alerts?limit=${limit}`),
