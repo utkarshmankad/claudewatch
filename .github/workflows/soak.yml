@@ -13,6 +13,9 @@ on:
       fault_every_minutes:
         description: 'Average minutes between injected faults'
         default: '12'
+      leg_minutes:
+        description: 'Minutes per leg (330 keeps each job under the 6 hour limit; use a small number to test the hand-over between legs)'
+        default: '330'
   pull_request:
     paths:
       - 'scripts/soak/**'
@@ -41,12 +44,14 @@ jobs:
           EVENT: ${{ github.event_name }}
           TOTAL_HOURS: ${{ inputs.total_hours }}
           FAULT_EVERY: ${{ inputs.fault_every_minutes }}
+          LEG_MINUTES: ${{ inputs.leg_minutes }}
         run: |
           if [ "$EVENT" = "workflow_dispatch" ]; then
-            [[ "$TOTAL_HOURS" =~ ^[0-9]+$ && "$FAULT_EVERY" =~ ^[0-9]+$ ]] || { echo "inputs must be whole numbers"; exit 1; }
-            total=$(( TOTAL_HOURS * 60 )); leg=330; every="$FAULT_EVERY"
+            [[ "$TOTAL_HOURS" =~ ^[0-9]+$ && "$FAULT_EVERY" =~ ^[0-9]+$ && "$LEG_MINUTES" =~ ^[0-9]+$ ]] || { echo "inputs must be whole numbers"; exit 1; }
+            [ "$LEG_MINUTES" -ge 5 ] && [ "$LEG_MINUTES" -le 330 ] || { echo "leg_minutes must be 5..330"; exit 1; }
+            total=$(( TOTAL_HOURS * 60 )); leg="$LEG_MINUTES"; every="$FAULT_EVERY"
           else
-            total=20; leg=20; every=3          # pull request: one short leg that proves the harness works in the cloud
+            total=40; leg=40; every=4          # pull request: one short leg that proves the harness works in the cloud
           fi
           n=$(( (total + leg - 1) / leg ))
           legs=$(for i in $(seq 0 $((n - 1))); do printf '{"leg":%d,"prev":%d},' "$i" "$((i - 1))"; done)
@@ -78,20 +83,20 @@ jobs:
         uses: actions/download-artifact@v7
         with:
           name: soak-profile-${{ matrix.leg.prev }}
-          path: .soak-profile
+          path: soak-profile
       - name: Run the leg
         env:
           SOAK_MINUTES: ${{ needs.plan.outputs.leg_minutes }}
           SOAK_TOTAL_MINUTES: ${{ needs.plan.outputs.total_minutes }}
           LEG: ${{ matrix.leg.leg }}
           SOAK_FAULT_EVERY_MIN: ${{ needs.plan.outputs.fault_every }}
-          SOAK_PROFILE: .soak-profile
+          SOAK_PROFILE: soak-profile
           SOAK_OUT: soak-out
         run: |
           export SOAK_OFFSET_MINUTES=$(( LEG * SOAK_MINUTES ))
-          rm -f .soak-profile/Singleton* 2>/dev/null || true
+          rm -f soak-profile/Singleton* 2>/dev/null || true
           xvfb-run -a node scripts/soak/browser-soak.mjs
-          echo "--- files written by this leg"; wc -l soak-out/*.jsonl; du -sh .soak-profile soak-out
+          echo "--- files written by this leg"; wc -l soak-out/*.jsonl; du -sh soak-profile soak-out
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
@@ -102,7 +107,7 @@ jobs:
         if: ${{ !cancelled() }}
         with:
           name: soak-profile-${{ matrix.leg.leg }}
-          path: .soak-profile/
+          path: soak-profile/
           retention-days: 3
 
   report:
@@ -124,7 +129,7 @@ jobs:
         run: |
           set -o pipefail
           ls -R legs | head -30
-          node scripts/soak/report.mjs soak-report.md legs/*/ | tee -a "$GITHUB_STEP_SUMMARY"
+          node scripts/soak/report.mjs soak-report.md legs | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v7
         with:
           name: soak-report

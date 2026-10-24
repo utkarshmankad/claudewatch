@@ -20,7 +20,7 @@ node scripts/soak/report.mjs soak-report.md soak-out
 
 In the cloud, `.github/workflows/soak.yml`:
 
-- **Pull requests** that touch the soak code run one 20-minute leg, so the harness is proven on a hosted runner before it is trusted for a long run.
+- **Pull requests** that touch the soak code run one 40-minute leg, so the harness is proven on a hosted runner before it is trusted for a long run.
 - **Manual run** (`Actions > Browser soak > Run workflow`, or `gh workflow run soak.yml -f total_hours=72`): splits the run into legs of 5.5 hours (the hosted-runner job limit is 6 hours) and runs them one after another. Each leg uploads its browser profile and the next leg reopens it, so every leg boundary is also a real browser restart. A final job aggregates all legs into the `soak-report` artifact and the job summary. A workflow can only be started manually once the file is on the default branch.
 - Cost: 72 hours is about 4,300 runner minutes. That is free on a public repository and counts against the plan's minutes on a private one.
 

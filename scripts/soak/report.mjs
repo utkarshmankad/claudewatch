@@ -3,8 +3,21 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 
-const [outFile, ...dirs] = process.argv.slice(2);
-if (!outFile || dirs.length === 0) { console.error('usage: report.mjs <out.md> <legDir>...'); process.exit(2); }
+import { readdirSync, statSync } from 'node:fs';
+
+const [outFile, ...roots] = process.argv.slice(2);
+if (!outFile || roots.length === 0) { console.error('usage: report.mjs <out.md> <dir>...'); process.exit(2); }
+
+// Every directory under the roots that holds a samples.jsonl is a leg. (A single downloaded artifact lands directly in the
+// target directory; several land in one sub-directory each.)
+function findLegs(dir, out = []) {
+  if (!existsSync(dir) || !statSync(dir).isDirectory()) return out;
+  if (existsSync(path.join(dir, 'samples.jsonl'))) out.push(dir);
+  for (const name of readdirSync(dir)) findLegs(path.join(dir, name), out);
+  return out;
+}
+const dirs = [...new Set(roots.flatMap((r) => findLegs(r)))].sort();
+if (dirs.length === 0) { console.error(`no leg directories (samples.jsonl) under: ${roots.join(', ')}`); process.exit(1); }
 
 const lines = (f) => (existsSync(f) ? readFileSync(f, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : []);
 const samples = dirs.flatMap((d) => lines(path.join(d, 'samples.jsonl'))).sort((a, b) => a.t - b.t);

@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 50
     env:
-      ZAP_IMAGE: ghcr.io/zaproxy/zaproxy:2.16.1
+      ZAP_IMAGE: ghcr.io/zaproxy/zaproxy:stable   # the report records the exact ZAP version used
       SYNC_BASE: http://127.0.0.1:8795
       T: docs/product-hunt/gates/phase-3/security-tests
     steps:
