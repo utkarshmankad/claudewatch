@@ -52,8 +52,24 @@ function stripJpeg(b: Buffer): Buffer | null {
   return null;
 }
 
+/** True when the text, after an optional XML declaration and any comments, opens with an svg element. Linear scan, no backtracking. */
+function startsAsSvg(input: string): boolean {
+  let s = input.trimStart();
+  if (s.startsWith('<?xml')) {
+    const end = s.indexOf('?>');
+    if (end === -1) return false;
+    s = s.slice(end + 2).trimStart();
+  }
+  while (s.startsWith('<!--')) {
+    const end = s.indexOf('-->');
+    if (end === -1) return false;
+    s = s.slice(end + 3).trimStart();
+  }
+  return /^<svg\b/.test(s);
+}
+
 export function stripImageMetadata(input: Buffer | string): StripResult {
-  if (typeof input === 'string') return /^\s*(<\?xml[\s\S]*?\?>\s*)?(<!--[\s\S]*?-->\s*)*<svg\b/.test(input) ? { ok: true, format: 'svg', body: Buffer.from(stripSvgMetadata(input), 'utf8') } : { ok: false, error: 'unsupported_or_corrupt' };
+  if (typeof input === 'string') return startsAsSvg(input) ? { ok: true, format: 'svg', body: Buffer.from(stripSvgMetadata(input), 'utf8') } : { ok: false, error: 'unsupported_or_corrupt' };
   const png = stripPng(input);
   if (png) return { ok: true, format: 'png', body: png };
   const jpg = stripJpeg(input);

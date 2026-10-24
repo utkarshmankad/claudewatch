@@ -233,10 +233,20 @@ export function leaks(svg: string, sensitive: readonly string[], allowed: readon
   return [...bad.map(() => 'sensitive_value'), ...structural];
 }
 
+/** Removes every `open`..`close` span with linear scans; an unterminated span drops the rest. Repeats so removal cannot splice a new `open` together. */
+export function removeDelimited(input: string, open: string, close: string): string {
+  let s = input;
+  for (let i = s.indexOf(open); i !== -1; i = s.indexOf(open)) {
+    const j = s.indexOf(close, i + open.length);
+    s = j === -1 ? s.slice(0, i) : s.slice(0, i) + s.slice(j + close.length);
+  }
+  return s;
+}
+
 /** Removes anything from an SVG that is not drawing content: XML declaration, DOCTYPE, comments, processing instructions, metadata blocks and editor namespaces. */
 export function stripSvgMetadata(svg: string): string {
-  return svg
-    .replace(/<\?[\s\S]*?\?>/g, '').replace(/<!DOCTYPE[\s\S]*?>/gi, '').replace(/<!--[\s\S]*?-->/g, '')
+  return removeDelimited(removeDelimited(svg, '<?', '?>'), '<!--', '-->')
+    .replace(/<!DOCTYPE[\s\S]*?>/gi, '')
     .replace(/<metadata\b[\s\S]*?<\/metadata>/gi, '')
     .replace(/<(rdf|cc|dc|sodipodi|inkscape):[a-z]+\b[\s\S]*?(?:\/>|<\/\1:[a-z]+>)/gi, '')
     .replace(/\s(?:xmlns:(?!xlink)[a-z]+|(?:inkscape|sodipodi|rdf|cc|dc):[a-z-]+)="[^"]*"/gi, '')

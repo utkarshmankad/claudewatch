@@ -373,3 +373,19 @@ describe('instrumentation, referral and links', () => {
     expect(s.purge()).toBe(0);
   });
 });
+
+describe('svg comment stripping', () => {
+  it('leaves no comment opener when removal would splice one together', () => {
+    const out = stripSvgMetadata('<svg><!<!-- x -->-- secret --></svg>');
+    expect(out).not.toContain('<!--');
+  });
+
+  it('drops an unterminated comment and handles many repeated openers', () => {
+    expect(stripSvgMetadata('<svg><!-- never closed')).toBe('<svg>');
+    const hostile = `<!--${'--><!--'.repeat(20000)}`;
+    const started = Date.now();
+    expect(stripImageMetadata(`${hostile}<svg></svg>`).ok).toBe(false);
+    expect(stripSvgMetadata(`<svg>${hostile}</svg>`)).not.toContain('<!--');
+    expect(Date.now() - started).toBeLessThan(2000);
+  });
+});
