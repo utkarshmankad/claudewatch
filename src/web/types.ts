@@ -93,3 +93,6 @@ export interface AnalyticsResponse {
 }
 
 export type { LedgerView, LedgerRow, LedgerFilter, QuotaChange, EvidenceLabel, ViewState } from '../ledger/view.js';
+export type { RadarView, RadarIncidentView, RadarViewState } from '../radar/view.js';
+export type { RadarNotifyPrefs } from '../radar/notify.js';
+export type { DiagnosticPreview } from '../radar/diagnostics.js';

@@ -7,6 +7,7 @@ import { AlertTable } from './components/AlertTable.js';
 import { StatusBar } from './components/StatusBar.js';
 import { AnalyticsPanel } from './components/AnalyticsPanel.js';
 import { LedgerPanel } from './components/LedgerPanel.js';
+import { RadarPanel } from './components/RadarPanel.js';
 
 const POLL_INTERVAL_MS = 30_000;
 const USAGE_DAYS = 30;
@@ -119,6 +120,7 @@ export default function App() {
         <AlertTable alerts={alerts?.alerts ?? []} />
         <AnalyticsPanel analytics={analytics} />
         <LedgerPanel />
+        <RadarPanel />
 
       </main>
     </div>

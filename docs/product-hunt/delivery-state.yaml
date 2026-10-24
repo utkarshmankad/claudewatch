@@ -6,7 +6,7 @@ plan_document: DELIVERY_PLAN.md
 pilot_status: in_progress
 implementation_authorized: true
 current_phase: 3
-current_prompt: '3.4'
+current_prompt: '4.3'
 work_item_status: completed
 branch: feature/p3-companion-alerts
 commit: c283d42c24ddd960a3fad359357540dfb93e1683
@@ -487,7 +487,7 @@ work_items:
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Claimed 2026-10-24; implement Radar view, signed remote parser config, notification controls and diagnostic report per plan 4.3.
+    next_action: Implemented and validated locally; PR into develop opened. Signing service, key custody, config distribution, extension consumption and a live incident feed are not built and need owner decisions. Rollback exercise and notification usefulness remain for 4.4 and the final gate.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-4.3
