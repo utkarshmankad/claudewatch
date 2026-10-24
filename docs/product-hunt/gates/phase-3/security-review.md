@@ -30,6 +30,7 @@ Operation key: `2026-10-10.1/phase-3-security-review`. Review base `da98520` (be
 | `npm run validate:extension` | pass |
 | New regression tests (`src/sync/__tests__/securityReview.test.ts`) | 12 tests; 11 failed on the unfixed code, all pass now |
 | Pentest, fuzz, load (see section below), re-run on the round 2 code | 29/29 checks; 18 properties, 732,100 cases, 0 failing; no errors in any load scenario |
+| Cloud-browser soak (round 2), runs A and B | 99% of samples fresh, 0 unexplained stale, recoveries within 2 minutes; see the soak section |
 | OWASP ZAP active scan in CI (round 2) | ZAP 2.17.0, about 8,300 requests; 2 informational alerts, no Low, Medium or High |
 | `npm run smoke` | **not run here**: this sandbox lacks `libsecret-1.so.0` (keytar fails to load). CI is the check of record. |
 | CodeQL | runs on the PR; its result is on the PR, not asserted here |
@@ -170,9 +171,29 @@ Single Node process, in-memory store, the load generator on the same machine (it
 
 Not tested: production hosting (Workers/D1), multi-instance behaviour (limits are per process), real networks, a realistic user population, and anything beyond 60 seconds.
 
+## Soak test in a cloud browser (round 2)
+
+The Phase 6.1 release candidate needs a 72 hour soak. [scripts/soak/](../../../../scripts/soak/README.md) runs the real extension in a real Chromium on GitHub-hosted runners (`.github/workflows/soak.yml`), against a fixture provider with seeded, injected faults: network offline, rate limiting, signed-out session, provider tab closed, changed response format, extension service worker stopped, and full browser restarts. Every 30 seconds it reads the extension's stored refresh state (without triggering a refresh) and records whether the reading is fresh, stale with a reason, or stale with none. A long run is chained in legs of up to 5.5 hours (the hosted-runner limit is 6); each leg reopens the previous leg's browser profile, so a leg boundary is also a browser restart.
+
+**Why GitHub-hosted runners:** no new account or secret, already part of this repository's CI, loads an unpacked extension. Browser-as-a-service products (BrowserStack, LambdaTest, Sauce Labs, Browserbase) cap sessions at hours, need accounts and secrets, and are built to drive pages rather than keep an installed extension's service worker alive.
+
+**What it proves and what it does not.** It proves the extension's scheduling, recovery and persistence paths in a real browser over real elapsed time. It does not use real providers, so it is not the Phase 0 beta-cohort measurement (real signed-in accounts cannot be put on a CI runner and should not be). Only the ChatGPT collector path is exercised.
+
+| Run | Shape | Faults injected | Fresh (all / no fault) | Longest stale | Unexplained stale | Slowest recovery |
+| --- | --- | --- | --- | --- | --- | --- |
+| A: PR check, run 6 | 1 leg, 39.6 min, 80 samples, 21 provider requests | tab closed x2, browser restart x1 | 98.8% / 97.8% | 0.5 min | 0 | 0.1 min after a fault; 0 min after the restart |
+| B: manual run, 3 legs x 20 min | 64.9 min, 120 samples, 3 browser starts, 40 provider requests | tab closed x4, browser restart x1 | 99.2% / 98.5% | 0.5 min | 0 | 2 min after a fault; 0 min after the restart |
+| C: manual run, 3 legs x 60 min, a fault every ~4 minutes, all seven fault kinds | Started 22:45 UTC; result not yet in this report | | | | | |
+
+Run B proves the hand-over: legs 1 and 2 restored the previous leg's profile and carried on, and the aggregate job joined all three. The one stale sample in each run is the very first one, at install: the first refresh runs before the provider tab exists and is recorded as `auth_expired` (not `provider_tab_missing`), then recovers on the tab's first navigation. Cosmetic, noted for the extension owner.
+
+Harness bugs found by the first cloud runs and fixed: the browser profile directory was hidden and so not uploaded; a single downloaded artifact lands directly in the target directory while several land in sub-directories (the report job now finds legs either way); the report step hid failures behind a pipe; sampling had no timeout. A local sandbox run also showed `stats_read` refreshes about once a minute while a provider page is open, which is how the real extension behaves with a page open.
+
+**The 72 hour run was not started.** It costs about 4,300 runner minutes (free on a public repository, billable on a private one) and runs for three days. To run it, open Actions, choose "Browser soak", Run workflow, with `total_hours` 72, or `gh workflow run soak.yml -f total_hours=72` (it can be started from any branch that contains the workflow; the multi-leg runs above were started from this PR's branch). The result is the `soak-report` artifact and the job summary. Pass criteria to apply: no unexplained stale interval above 15 minutes and recovery within 10 minutes of a restart or network restoration.
+
 ## Not covered
 
-External review, a manual or tool-driven penetration test of a deployed service (OWASP ZAP and Burp were not run), coverage-guided fuzzing, load and soak tests on the production stack, the push transport, the production service and storage, hosting account security, the browser extension's sync UI, and real-device companion behaviour. Timing side channels in the client were not examined.
+External review, a manual penetration test or a Burp run of a deployed service, coverage-guided fuzzing, load and soak tests on the production stack, the 72 hour soak (harness proven, run not started), the Phase 0 real-provider soak, the push transport, the production service and storage, hosting account security, the browser extension's sync UI, and real-device companion behaviour. Timing side channels in the client were not examined.
 
 ## For the owner
 
