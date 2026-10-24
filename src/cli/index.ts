@@ -6,7 +6,7 @@ import { Command } from 'commander';
 import { VERSION } from '../version.js';
 import Database from 'better-sqlite3';
 import keytar from 'keytar';
-import { input } from '@inquirer/prompts';
+import { input, confirm } from '@inquirer/prompts';
 import { installDaemon, uninstallDaemon } from './commands/install.js';
 import { configExists, loadConfig, saveConfigFile, getConfigFilePath } from '../config/manager.js';
 import { runSetupWizard } from '../config/index.js';
@@ -15,7 +15,8 @@ import { startDaemonProcess, stopDaemonProcess, writeDaemonPid, clearDaemonPid }
 import { runStatus } from './status.js';
 import { dryScan, ledgerPath, settingsPath } from '../collectors/service.js';
 import { loadSettings, saveSettings } from '../collectors/config.js';
-import { deleteBySource } from '../collectors/ledgerFile.js';
+import { deleteBySource, readLedgerFile } from '../collectors/ledgerFile.js';
+import { runWrapped, writeFileIo } from './commands/wrapped.js';
 import { COLLECTOR_IDS, type CollectorId } from '../collectors/types.js';
 import type { Period } from '../config/schema.js';
 import { PERIODS, KEYTAR_SERVICE, API_KEY_ACCOUNT, SESSION_COOKIE_ACCOUNT } from '../config/schema.js';
@@ -565,6 +566,32 @@ collectors
   .action(() => {
     const n = deleteBySource(ledgerPath(), COLLECTOR_IDS);
     console.log(`✓ ${n} collector record(s) deleted from the local ledger`);
+  });
+
+// ---------------------------------------------------------------------------
+// wrapped — private weekly Usage Wrapped report (local; export only after a privacy preview)
+// ---------------------------------------------------------------------------
+
+const csv = (v: string | undefined) => (v ? v.split(',').filter(Boolean) : undefined);
+program
+  .command('wrapped')
+  .description('Show your private weekly Usage Wrapped report; optionally export it after a privacy preview')
+  .option('--week <YYYY-MM-DD>', 'any day inside the wanted week (default: last finished week)')
+  .option('--tz <zone>', 'IANA time zone, e.g. Europe/Berlin (default UTC)')
+  .option('--accounts <list>', 'comma-separated account aliases (default: all)')
+  .option('--providers <list>', 'comma-separated providers: claude, chatgpt, gemini (default: all)')
+  .option('--devices <list>', 'comma-separated device pseudonyms (default: all)')
+  .option('--account-names', 'include account aliases in the report instead of generic labels')
+  .option('--format <fmt>', 'html, svg or pdf', 'html')
+  .option('--out <file>', 'write the export to this file after the privacy preview')
+  .option('--confirm <token>', 'preview token from an earlier run; skips the interactive question')
+  .action(async (o: { week?: string; tz?: string; accounts?: string; providers?: string; devices?: string; accountNames?: boolean; format: string; out?: string; confirm?: string }) => {
+    const accounts = csv(o.accounts), providers = csv(o.providers), devices = csv(o.devices);
+    const code = await runWrapped({
+      ...(o.week ? { week: o.week } : {}), ...(o.tz ? { timeZone: o.tz } : {}), ...(accounts ? { accounts } : {}), ...(providers ? { providers } : {}), ...(devices ? { devices } : {}),
+      includeAccountNames: o.accountNames === true, format: o.format, ...(o.out ? { out: o.out } : {}), ...(o.confirm ? { confirm: o.confirm } : {}),
+    }, { records: readLedgerFile(ledgerPath()), now: Date.now(), log: s => console.log(s), ask: q => confirm({ message: q, default: false }), write: writeFileIo });
+    if (code !== 0) process.exit(code);
   });
 
 program.parseAsync(process.argv).catch(exit1);
