@@ -11,6 +11,7 @@ const DEFAULTS = {
   thresholds:    [80, 90, 95],
   inPageGauges: true,
   coreSyncEnabled: false,
+  cloudSyncEnabled: false,
   analyticsUserId: '',
   analyticsTeamId: '',
 };
@@ -40,9 +41,20 @@ function applyToForm(settings) {
   id('t-95').checked = settings.thresholds.includes(95);
   id('in-page-gauges').checked = !!settings.inPageGauges;
   id('core-sync-enabled').checked = !!settings.coreSyncEnabled;
+  syncCloudToggle(settings);
   id('analytics-user-id').value = settings.analyticsUserId ?? '';
   id('analytics-team-id').value = settings.analyticsTeamId ?? '';
   syncThresholdsCard();
+}
+
+/** Cloud sync stays disabled (and off) until the build pins a service origin. */
+function syncCloudToggle(settings) {
+  const S = window.TokenWatcherSyncSettings;
+  const box = id('cloud-sync-enabled');
+  const available = !!S && S.isAvailable();
+  box.disabled = !available;
+  box.checked = available && !!settings.cloudSyncEnabled;
+  if (available) id('cloud-sync-hint').textContent = t('setCloudHint', undefined, 'Opt in to end-to-end encrypted sync.');
 }
 
 /** Read current form state into a settings object */
@@ -53,6 +65,7 @@ function collectFromForm() {
     thresholds,
     inPageGauges: id('in-page-gauges').checked,
     coreSyncEnabled: id('core-sync-enabled').checked,
+    cloudSyncEnabled: id('cloud-sync-enabled').checked,
     analyticsUserId: id('analytics-user-id').value.trim(),
     analyticsTeamId: id('analytics-team-id').value.trim(),
   };
@@ -93,6 +106,16 @@ async function save(settings) {
   } else {
     await chrome.permissions.remove({ origins: ['http://localhost:7734/*'] });
   }
+  const S = window.TokenWatcherSyncSettings;
+  const pattern = S && S.permissionPattern();
+  if (pattern) {
+    const granted = settings.cloudSyncEnabled ? await chrome.permissions.request({ origins: [pattern] }) : false;
+    if (!settings.cloudSyncEnabled) await chrome.permissions.remove({ origins: [pattern] });
+    settings.cloudSyncEnabled = S.resolveOptIn(settings.cloudSyncEnabled, granted).cloudSyncEnabled;
+  } else {
+    settings.cloudSyncEnabled = false;
+  }
+  id('cloud-sync-enabled').checked = settings.cloudSyncEnabled;
   await syncSet(settings);
 
   // Flash the confirmation

@@ -22,3 +22,7 @@ Phases 1-5: evidence is collected as each phase's prompts land and listed in the
 - Later phases build on Phase 0 measurement and reliability assumptions that are unverified. Defects found at the final gate may force rework in Phases 1-5.
 - Prompts that depend on measured baselines or on an approved design still wait for those inputs.
 - Waiving a gate does not waive tests, CI, coverage thresholds or security controls.
+
+## Phase 3 independent security review (deferred, owner decision 2026-10-23)
+
+No independent reviewer is engaged. Phase 3 relies on self-review against a public checklist plus CodeQL and `npm audit`. The sync feature is labelled "not independently audited" and this item stays open for the final gate.

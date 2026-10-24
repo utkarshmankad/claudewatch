@@ -12,6 +12,9 @@ Operation key: 2026-10-10.1/prompt-0.4
 | `idle` | Pause polling while the machine is idle | `permAlarms*` |
 | Host access to claude.ai, chatgpt.com, chat.openai.com, gemini.google.com | Content scripts and usage requests | `permHosts*` |
 | Optional host `http://localhost:7734/*` | Opt-in sync to local Token Watcher Core; requested at runtime from Settings | `permLocalhost*` |
+| Optional host: pinned sync origin | Opt-in end-to-end encrypted sync (prompt 3.2). Requested at runtime from Settings only when the user turns sync on; no wildcard. **Not declared yet**: `SYNC_ORIGIN` in `sync-settings.js` is `null` until the owner deploys the service, so the toggle is disabled and the extension stays local-only. | `setCloudLabel`, `setCloudHint` |
+
+Sync device keys must be kept in `chrome.storage.local`, never `chrome.storage.sync`. When `SYNC_ORIGIN` is set, add the same origin to `optional_host_permissions` in `manifest.json`.
 
 ## Optional providers (ChatGPT, Gemini)
 

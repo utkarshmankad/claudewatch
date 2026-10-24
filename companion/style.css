@@ -1,0 +1,10 @@
+:root { color-scheme: light dark; --bg: #fff; --fg: #1f2933; --muted: #52606d; --high: #b42318; --watch: #9a6700; }
+@media (prefers-color-scheme: dark) { :root { --bg: #121417; --fg: #e4e7eb; --muted: #9aa5b1; --high: #ff8a80; --watch: #ffd166; } }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; }
+main { max-width: 40rem; margin: 0 auto; padding: 1rem; }
+li { margin: 0.5rem 0; }
+.risk-high { color: var(--high); font-weight: 600; }
+.risk-watch { color: var(--watch); }
+.sync-stale, .sync-never { color: var(--muted); }
+button { min-height: 44px; padding: 0 1rem; font: inherit; }
+button:focus-visible { outline: 3px solid currentColor; outline-offset: 2px; }
