@@ -533,18 +533,20 @@ work_items:
   - prompt: '5.2'
     phase: 5
     title: Build the private Usage Wrapped report
-    status: in_progress
+    status: awaiting_ci
     planned_branch: feature/p5-private-wrapped
     branch: feature/p5-private-wrapped
-    commit: null
+    commit: 84ac14a0147244d6eff323e0b8847319c48d8cfd
     pull_request: null
     ci_status: not_run
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Claimed by the hourly routine 2026-10-24; implementation in progress.
+    next_action: Pushed to feature/p5-private-wrapped; PR not yet opened. Open the PR into develop, wait for CI on its head, then review.
     next_wake_time: null
-    evidence_files: []
+    evidence_files:
+      - docs/WRAPPED_REPORT.md
+      - src/wrapped/__tests__/__snapshots__/report.test.ts.snap
     operation_key: 2026-10-10.1/prompt-5.2
     pending_operation: null
   - prompt: '5.3'
