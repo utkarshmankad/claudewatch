@@ -7,7 +7,7 @@ pilot_status: in_progress
 implementation_authorized: true
 current_phase: 3
 current_prompt: '3.4'
-work_item_status: in_progress
+work_item_status: awaiting_ci
 branch: feature/p3-companion-alerts
 commit: null
 pull_request: null
@@ -15,14 +15,13 @@ ci_status: not_run
 gate_status: deferred_to_final_gate
 blocker: null
 last_checkpoint:
-  at: '2026-10-23T16:00:00Z'
-  action: >-
-    Reconciled 3.1 (PR #58) and the Phase 1 and 2 promotions and sync-back (PR #60) as merged
-  workspace_branch: feature/p3-sync-design
-  base_sha: adb85dc
+  at: '2026-10-24T02:30:00Z'
+  action: Implementation validated locally; PR for 3.4 opened into develop
+  workspace_branch: feature/p3-companion-alerts
+  base_sha: 82a4db3
   worktree_path: null
   pending_operation: null
-next_action: Implement 3.4 on feature/p3-companion-alerts.
+next_action: Owner reviews and merges the 3.4 PR (no auto-merge; it records accepted security risks).
 next_wake_time: null
 release_status: prohibited_during_pilot
 phases:
@@ -418,7 +417,7 @@ work_items:
   - prompt: '3.4'
     phase: 3
     title: Deliver companion alerts and security validation
-    status: in_progress
+    status: awaiting_ci
     planned_branch: feature/p3-companion-alerts
     branch: feature/p3-companion-alerts
     commit: null
@@ -427,12 +426,13 @@ work_items:
     gate_status: not_evaluated
     blocker: null
     last_checkpoint:
-      at: '2026-10-24T02:00:00Z'
-      action: Claimed prompt 3.4 from develop 82a4db3; 3.3 (PR #64) reconciled as merged
+      at: '2026-10-24T02:30:00Z'
+      action: Implementation validated locally (lint, typecheck, 859 unit tests, coverage, browser tests, npm audit); PR opened into develop
       workspace_branch: feature/p3-companion-alerts
       base_sha: 82a4db3
       pending_operation: null
-    next_action: Implement 3.4 on feature/p3-companion-alerts (companion PWA, push lifecycle, security review).
+    next_action: >-
+      Owner reviews and merges (no auto-merge: records accepted security risks R1-R7). Phase 3 is then complete; promotion PR follows. Known limits: no push transport (owner supplies Web Push sender and VAPID keys); companion page not wired to the sync client (no browser bundle); no real push delivery tested; self-review only, independent review deferred to the final gate.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-3.4

@@ -1,4 +1,6 @@
 // In-memory storage for the sync service. Production maps the same shapes onto D1/R2 (docs/sync/DEPLOYMENT.md).
+import type { PushSubscriptionRecord } from './push.js';
+
 export interface DeviceRecord {
   deviceId: string;
   signPublic: string;
@@ -46,12 +48,15 @@ export interface AccountRecord {
   objects: ObjectRecord[];
   objectIds: Map<string, number>; // objectId -> seq, makes uploads idempotent
   keyWraps: KeyWrapRecord[];
+  push: Map<string, PushSubscriptionRecord>; // deviceId -> subscription (one per device)
+  pushSent: Map<string, number>; // `${deviceId}|${kind}|${dedupeKey}` -> send time, for duplicate suppression
 }
 
 export interface AuditEvent {
   type:
     | 'account_created' | 'device_enrolled' | 'device_revoked' | 'device_removed' | 'objects_written' | 'account_deleted'
-    | 'auth_failed' | 'rate_limited' | 'epoch_rotated' | 'retention_pruned' | 'inactive_warning';
+    | 'auth_failed' | 'rate_limited' | 'epoch_rotated' | 'retention_pruned' | 'inactive_warning'
+    | 'push_subscribed' | 'push_revoked' | 'push_expired' | 'push_sent' | 'push_suppressed';
   at: number;
   accountId?: string;
   deviceId?: string;

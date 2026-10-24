@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; manifest-src 'self'; worker-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#1f2933">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+  <title>ClaudeWatch Companion</title>
+</head>
+<body>
+  <main>
+    <h1>ClaudeWatch</h1>
+    <div id="view" aria-live="polite"></div>
+    <section aria-labelledby="h-push">
+      <h2 id="h-push">Alerts on this device</h2>
+      <p id="push-status" role="status">Checking notification support.</p>
+      <button id="push-enable" type="button" hidden>Turn on alerts</button>
+      <button id="push-disable" type="button" hidden>Turn off alerts</button>
+    </section>
+  </main>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

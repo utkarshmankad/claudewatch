@@ -25,7 +25,7 @@ Only the fields of ledger schema v1 ([../LEDGER.md](../LEDGER.md)) and the prefe
 | Opaque account id (random 128-bit, server-issued) | Routing, rate limits, deletion |
 | Opaque device id (random), enrollment time, revoked flag | Revocation, session binding |
 | Object id (random), sequence number, schema version, ciphertext length bucket, server receive time | Incremental download, rollback detection |
-| Push endpoint and push keys (3.4 only, opt-in) | Delivery. Payload is generic; the client fetches content after wake. |
+| Push endpoint, push keys, alert kinds, optional quiet hours with UTC offset (3.4, opt-in) | Delivery and suppression while clients sleep. Payload is generic; the client fetches content after wake. See [COMPANION.md](COMPANION.md). |
 
 **Prohibited, enforced by an allow-list validator before encryption and by a CI test:** prompts, responses, conversation titles, cookies, session or provider tokens, API keys, full URLs (host-only is not synced either), raw account identifiers or emails, IP addresses stored with records, and any free-text field not listed above.
 

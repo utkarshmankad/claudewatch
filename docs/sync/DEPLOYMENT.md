@@ -48,3 +48,7 @@ The routine holds no production secrets and does not deploy. Default target: Clo
 - Not independently audited; the deferred review is recorded in `gates/DEFERRED_GATES.md`.
 - Metadata (timing, size buckets, object counts) is visible to the operator.
 - A compromised device can read everything it holds.
+
+## Companion push (prompt 3.4)
+
+See [COMPANION.md](COMPANION.md). The service takes a `pushSender`; ship one that implements Web Push with VAPID and payload encryption and does not follow redirects. Set `trustForwardedFor` only behind a proxy that overwrites `X-Forwarded-For` (Cloudflare Workers already provides `cf-connecting-ip`). Host `dist/companion-site` (from `npm run build && npm run build:companion`) with the headers in `companion/_headers`.

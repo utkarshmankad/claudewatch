@@ -14,6 +14,7 @@ import { effectiveRecords, mergeRecord } from '../convergence/ledgerMerge.js';
 import type { LedgerConflict } from '../convergence/ledgerMerge.js';
 import { applyPrefWrite, PENDING_SEQ, visiblePrefs } from '../convergence/prefsMerge.js';
 import type { PrefConflict, PrefsState } from '../convergence/prefsMerge.js';
+import type { PushKind } from '../service/push.js';
 
 export class SyncDisabledError extends Error {
   constructor() {
@@ -678,6 +679,39 @@ export class SyncClient {
     const res = await this.api('GET', '/v1/devices');
     const { devices } = (await res.json()) as { devices: Array<{ deviceId: string; enrolledAt: number; lastSeenAt: number; revoked: boolean }> };
     return devices.map((d) => ({ ...d, current: d.deviceId === this.s.deviceId }));
+  }
+
+  // ---- companion push (prompt 3.4) ----
+
+  /** Register this device's browser push subscription. The service accepts only hosted push-service endpoints. */
+  async registerPush(
+    subscription: { endpoint: string; keys: { p256dh: string; auth: string } },
+    options: { quietHours?: { startMinute: number; endMinute: number; utcOffsetMinutes: number }; kinds?: PushKind[] } = {},
+  ): Promise<{ expiresAt: number }> {
+    const res = await this.api('PUT', '/v1/push/subscription', {
+      endpoint: subscription.endpoint, p256dh: subscription.keys.p256dh, auth: subscription.keys.auth,
+      ...(options.quietHours ? { quietHours: options.quietHours } : {}), ...(options.kinds ? { kinds: options.kinds } : {}),
+    });
+    return (await res.json()) as { expiresAt: number };
+  }
+
+  async pushStatus(): Promise<{ active: boolean; expiresAt?: number }> {
+    return (await (await this.api('GET', '/v1/push/subscription')).json()) as { active: boolean; expiresAt?: number };
+  }
+
+  /** Extend the subscription before it expires (30 days by default). */
+  async renewPush(): Promise<{ expiresAt: number }> {
+    return (await (await this.api('POST', '/v1/push/renew')).json()) as { expiresAt: number };
+  }
+
+  async revokePush(): Promise<void> {
+    await this.api('DELETE', '/v1/push/subscription');
+  }
+
+  /** Ask the service to wake this account's other devices. The request carries a kind and an opaque key, never usage values. */
+  async notifyOthers(alert: { kind: PushKind; dedupeKey: string }): Promise<{ sent: number; suppressed: { quietHours: number; duplicate: number }; failed: number }> {
+    const res = await this.api('POST', '/v1/push/notify', alert);
+    return (await res.json()) as { sent: number; suppressed: { quietHours: number; duplicate: number }; failed: number };
   }
 
   private async distribute(epoch: number, ak: Uint8Array, exceptDeviceId?: string): Promise<void> {
