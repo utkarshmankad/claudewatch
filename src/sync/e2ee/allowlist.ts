@@ -168,12 +168,17 @@ export interface DeviceEntry {
   name: string;
   createdDay: number; // epoch ms rounded down to a UTC day
   lastSeenDay: number;
+  /** The device's own key-agreement public key, published inside the encrypted envelope so peers can pin it (the service cannot forge it). */
+  encPublic?: string;
 }
 
 export function validateDeviceEntry(input: unknown, path = 'device'): DeviceEntry {
   if (!isObject(input)) return fail(path, 'must be an object');
-  exactKeys(input, ['devicePseudonym', 'name', 'createdDay', 'lastSeenDay'], path);
+  exactKeys(input, ['devicePseudonym', 'name', 'createdDay', 'lastSeenDay', 'encPublic'], path);
+  const encPublic = input['encPublic'];
+  if (encPublic !== undefined && (typeof encPublic !== 'string' || !/^[A-Za-z0-9+/]{80,100}={0,2}$/.test(encPublic))) return fail(`${path}.encPublic`, 'must be a base64 P-256 point');
   return {
+    ...(encPublic === undefined ? {} : { encPublic }),
     devicePseudonym: checkHex(input['devicePseudonym'], `${path}.devicePseudonym`, 8, 64),
     name: checkLabel(input['name'], `${path}.name`, 40),
     createdDay: checkNumber(input['createdDay'], `${path}.createdDay`, 0, MAX_MS, true),

@@ -247,7 +247,7 @@ export function createSyncService(options: { store?: MemoryStore; now?: () => nu
         await limit(`join-wrong:${ipKey}`, config.joinAttemptsPerHour, 60 * MINUTE);
         throw new HttpError(404, 'invalid_token');
       }
-      enrollment.joined = { signPublic: str(body['signPublic'], 256), encPublic: str(body['encPublic'], 256) };
+      enrollment.joined = { signPublic: str(body['signPublic'], 256), encPublic: str(body['encPublic'], 256), confirm: str(body['confirm'], 128) };
       return json(200, { accountId: enrollment.accountId });
     }
 
@@ -290,9 +290,11 @@ export function createSyncService(options: { store?: MemoryStore; now?: () => nu
       if (!enrollment || enrollment.accountId !== account.accountId || enrollment.expiresAt <= now() || !enrollment.joined || enrollment.approved) {
         throw new HttpError(404, 'invalid_token');
       }
-      const newDevice = addDevice(account, enrollment.joined.signPublic, enrollment.joined.encPublic);
+      // Validate everything before registering the device, so a malformed request cannot leave an orphan active device behind.
       const wrapped = wrapShape(body['wrapped']);
-      enrollment.approved = { deviceId: newDevice.deviceId, epoch: account.epoch, fromEncPublic: device.encPublic, wrapped };
+      const epoch = int(body['epoch'], 1, account.epoch);
+      const newDevice = addDevice(account, enrollment.joined.signPublic, enrollment.joined.encPublic);
+      enrollment.approved = { deviceId: newDevice.deviceId, epoch, fromEncPublic: device.encPublic, wrapped };
       return json(200, { deviceId: newDevice.deviceId });
     }
 
@@ -559,6 +561,7 @@ export function createSyncService(options: { store?: MemoryStore; now?: () => nu
       for (const [key, w] of windows) if (t - w.start >= 60 * MINUTE) windows.delete(key);
       for (const [key, at] of seenNonces) if (t - at > config.clockWindowMs * 2) seenNonces.delete(key);
       for (const [hash, s] of sessions) if (s.expiresAt <= t) sessions.delete(hash);
+      for (const [hash, e] of store.enrollments) if (e.expiresAt <= t) store.enrollments.delete(hash);
       return { objectsPruned, accountsDeleted, warned };
     },
   };

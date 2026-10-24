@@ -4,6 +4,8 @@ Operation key: `2026-10-10.1/prompt-3.4`. Review date: 2026-10-24. Scope: `src/s
 
 **This is a self-review, not an independent audit.** Owner decision 4 (2026-10-23) replaced the independent review with a public checklist plus CodeQL and `npm audit`; the independent review stays a deferred item in [gates/DEFERRED_GATES.md](../product-hunt/gates/DEFERRED_GATES.md) and is not claimed here. Releases must say "not independently audited". No penetration test was run. The review read the code and ran the automated checks below; it cannot find what it did not think to look for.
 
+**Update 2026-10-24:** a second, broader review of the merged Phase 3 code (an active-service threat model) found and fixed enrollment and key-distribution flaws this review missed. See [gates/phase-3/security-review.md](../product-hunt/gates/phase-3/security-review.md). Still not independently audited.
+
 ## Method
 
 - Walked the threat table in [ARCHITECTURE.md](ARCHITECTURE.md) against the implementation, area by area (table below).

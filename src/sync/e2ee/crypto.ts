@@ -185,6 +185,17 @@ export async function shortAuthString(pubA: string, pubB: string): Promise<strin
   return String(digest.readUInt32BE(0) % 1_000_000).padStart(6, '0');
 }
 
+/**
+ * Key confirmation for enrollment. `secret` travels only in the code shown on the approving device, never through the
+ * service, so a service that swaps the joining device's public keys cannot produce a matching tag. A 6 digit SAS alone
+ * can be ground down by generating key pairs until the digits collide (about 2^20 attempts).
+ */
+export async function enrollmentTag(secret: string, purpose: string, ...parts: string[]): Promise<string> {
+  const key = await subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const mac = await subtle.sign('HMAC', key, enc.encode([`claudewatch-sync/v1/enroll/${purpose}`, ...parts].join('|')));
+  return Buffer.from(mac).toString('hex');
+}
+
 // ---- encrypted backup file (the owner-required recovery path; no recovery phrase) ----
 
 export interface BackupBlob {

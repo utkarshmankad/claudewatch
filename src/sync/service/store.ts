@@ -32,7 +32,7 @@ export interface EnrollmentRecord {
   tokenHash: string;
   accountId: string;
   expiresAt: number;
-  joined?: { signPublic: string; encPublic: string };
+  joined?: { signPublic: string; encPublic: string; confirm: string };
   approved?: { deviceId: string; epoch: number; fromEncPublic: string; wrapped: KeyWrapRecord['wrapped'] };
 }
 
