@@ -16,6 +16,7 @@
     "check:runtime": "node scripts/check-runtime-compat.mjs",
     "dev": "tsx watch src/cli/index.ts",
     "daemon": "tsx src/daemon/index.ts",
+    "sync:dev": "tsx src/sync/service/devServer.ts",
     "web": "vite src/web",
     "lint": "eslint \"src/**/*.ts\" \"src/**/*.tsx\"",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.browser.json",

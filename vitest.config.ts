@@ -32,6 +32,9 @@ export default defineConfig({
         'src/recommend/**/*.ts',
         'src/ledger/**/*.ts',
         'src/store/**/*.ts',
+        'src/sync/e2ee/**/*.ts',
+        'src/sync/client/**/*.ts',
+        'src/sync/service/handler.ts',
         'src/version.ts',
       ],
       exclude: [

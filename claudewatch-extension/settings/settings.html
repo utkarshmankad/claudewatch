@@ -98,6 +98,10 @@
             <span class="toggle-text"><span class="toggle-label" data-i18n="setCoreLabel">Share usage with local Token Watcher Core</span><span class="toggle-hint" data-i18n="setCoreHint">Opt in to sending metadata-only events to localhost:7734. Prompts and responses are never sent.</span></span>
             <span class="switch"><input type="checkbox" id="core-sync-enabled" /><span class="switch-track"></span></span>
           </label>
+          <label class="toggle-row spaced" for="cloud-sync-enabled">
+            <span class="toggle-text"><span class="toggle-label" data-i18n="setCloudLabel">Encrypted cross-device sync</span><span class="toggle-hint" id="cloud-sync-hint" data-i18n="setCloudUnavailable">Not available in this build. Token Watcher stays local-only.</span></span>
+            <span class="switch"><input type="checkbox" id="cloud-sync-enabled" disabled /><span class="switch-track"></span></span>
+          </label>
           <div class="identity-grid">
             <label>User label<input type="text" id="analytics-user-id" maxlength="128" placeholder="Optional pseudonymous user ID" data-i18n-attr="placeholder:setUserIdPh" /></label>
             <label>Team label<input type="text" id="analytics-team-id" maxlength="128" placeholder="Optional team ID" data-i18n-attr="placeholder:setTeamIdPh" /></label>
@@ -245,6 +249,7 @@
   </div>
   <script src="../i18n.js"></script>
   <script src="../analytics.js"></script>
+  <script src="../sync-settings.js"></script>
   <script src="../activity-collector.js"></script>
   <script src="activity-settings.js"></script>
   <script src="analytics-debug.js"></script>
