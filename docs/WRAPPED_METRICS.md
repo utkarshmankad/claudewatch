@@ -1,6 +1,6 @@
 # Weekly and monthly metrics and plan economics
 
-Prompt 5.1, operation key `2026-10-10.1/prompt-5.1`. Code: `src/wrapped/definitions.ts` (what each metric means), `src/wrapped/metrics.ts` (pure calculator over the ledger), `src/wrapped/pricing.ts` (versioned pricing catalog). Nothing here writes data or calls a network. The Usage Wrapped report (5.2) and plan recommendations (5.4) consume it.
+Prompt 5.1, operation key `2026-10-10.1/prompt-5.1`. Code: `src/wrapped/definitions.ts` (what each metric means), `src/wrapped/metrics.ts` (pure calculator over the ledger), `src/wrapped/pricing.ts` (versioned pricing catalog). Nothing here writes data or calls a network. The Usage Wrapped report (5.2) and plan recommendations (5.4, see [PLAN_ROI.md](PLAN_ROI.md)) consume it.
 
 ## Rules
 
