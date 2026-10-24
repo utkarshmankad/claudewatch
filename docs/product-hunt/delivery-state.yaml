@@ -478,16 +478,16 @@ work_items:
   - prompt: '4.3'
     phase: 4
     title: Create the Radar experience and safe remote fixes
-    status: in_progress
+    status: completed
     planned_branch: feature/p4-radar-ui-config
     branch: feature/p4-radar-ui-config
-    commit: null
-    pull_request: null
-    ci_status: not_run
+    commit: 28a47503a87da2a45f1b994776c7d50fe2631b67
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/72
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Implemented and validated locally; PR into develop opened. Signing service, key custody, config distribution, extension consumption and a live incident feed are not built and need owner decisions. Rollback exercise and notification usefulness remain for 4.4 and the final gate.
+    next_action: None. PR #72 merged into develop (squash). Signing service, key custody, config distribution, extension consumption and a live incident feed are not built and need owner decisions.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-4.3
@@ -495,33 +495,21 @@ work_items:
   - prompt: '4.4'
     phase: 4
     title: Run a controlled Radar beta
-    status: not_started
+    status: blocked
     planned_branch: feature/p4-radar-beta
     branch: null
     commit: null
     pull_request: null
     ci_status: not_run
     gate_status: not_evaluated
-    blocker: null
+    blocker: 'Human gate: 4.4 needs a consented live beta cohort, a deployed ingestion endpoint and feed, key custody for signed config, and a privacy review of real stored records. None exist; no measurement may be fabricated. Owner decision needed.'
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: Await owner decision on beta cohort, endpoint hosting and signing-key custody before starting 4.4. Phase 4 promotion is not opened until 4.4 completes or the owner defers it.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-4.4
     pending_operation: null
-  - prompt: '5.1'
-    phase: 5
-    title: Define weekly metrics and plan economics
-    status: not_started
-    planned_branch: feature/p5-wrapped-metrics
-    branch: null
-    commit: null
-    pull_request: null
-    ci_status: not_run
-    gate_status: not_evaluated
-    blocker: null
-    last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+ pilot authorization, prior prompt completion, and applicable gates.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-5.1
