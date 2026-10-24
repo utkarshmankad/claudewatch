@@ -17,6 +17,7 @@ import { dryScan, ledgerPath, settingsPath } from '../collectors/service.js';
 import { loadSettings, saveSettings } from '../collectors/config.js';
 import { deleteBySource, readLedgerFile } from '../collectors/ledgerFile.js';
 import { runWrapped, writeFileIo } from './commands/wrapped.js';
+import { runShareCard, writeCardFile } from './commands/shareCard.js';
 import { COLLECTOR_IDS, type CollectorId } from '../collectors/types.js';
 import type { Period } from '../config/schema.js';
 import { PERIODS, KEYTAR_SERVICE, API_KEY_ACCOUNT, SESSION_COOKIE_ACCOUNT } from '../config/schema.js';
@@ -591,6 +592,29 @@ program
       ...(o.week ? { week: o.week } : {}), ...(o.tz ? { timeZone: o.tz } : {}), ...(accounts ? { accounts } : {}), ...(providers ? { providers } : {}), ...(devices ? { devices } : {}),
       includeAccountNames: o.accountNames === true, format: o.format, ...(o.out ? { out: o.out } : {}), ...(o.confirm ? { confirm: o.confirm } : {}),
     }, { records: readLedgerFile(ledgerPath()), now: Date.now(), log: s => console.log(s), ask: q => confirm({ message: q, default: false }), write: writeFileIo });
+    if (code !== 0) process.exit(code);
+  });
+
+program
+  .command('share-card')
+  .description('Build an opt-in, privacy-safe share card; export only after a preview with per-field toggles')
+  .requiredOption('--template <id>', 'provider_mix, quota_streak, interruption_prevention or usage_patterns')
+  .option('--week <YYYY-MM-DD>', 'any day inside the wanted week (default: last finished week)')
+  .option('--tz <zone>', 'IANA time zone (default UTC)')
+  .option('--providers <list>', 'comma-separated providers (default: all)')
+  .option('--hide <ids>', 'comma-separated field ids to switch off')
+  .option('--show <ids>', 'comma-separated field ids to switch on (including off-by-default fields)')
+  .option('--referral-code <code>', 'adds an optional, off-by-default referral code field')
+  .option('--prevented <n>', 'number of interruptions you confirm were avoided this week', (v: string) => Number.parseInt(v, 10))
+  .option('--out <file>', 'write the SVG image to this file after the privacy preview')
+  .option('--confirm <token>', 'preview token from an earlier run; skips the interactive question')
+  .action(async (o: { template: string; week?: string; tz?: string; providers?: string; hide?: string; show?: string; referralCode?: string; prevented?: number; out?: string; confirm?: string }) => {
+    const providers = csv(o.providers), hide = csv(o.hide), show = csv(o.show);
+    const code = await runShareCard({
+      template: o.template, ...(o.week ? { week: o.week } : {}), ...(o.tz ? { timeZone: o.tz } : {}), ...(providers ? { providers } : {}), ...(hide ? { hide } : {}), ...(show ? { show } : {}),
+      ...(o.referralCode ? { referralCode: o.referralCode } : {}), ...(o.prevented !== undefined && Number.isInteger(o.prevented) && o.prevented >= 0 ? { prevented: o.prevented } : {}),
+      ...(o.out ? { out: o.out } : {}), ...(o.confirm ? { confirm: o.confirm } : {}),
+    }, { records: readLedgerFile(ledgerPath()), now: Date.now(), log: s => console.log(s), ask: q => confirm({ message: q, default: false }), write: writeCardFile });
     if (code !== 0) process.exit(code);
   });
 

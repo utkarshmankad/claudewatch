@@ -2,7 +2,7 @@
 
 Prompt 5.2, operation key `2026-10-10.1/prompt-5.2`. Code: `src/wrapped/report.ts` (report model), `src/wrapped/render.ts` (HTML, SVG, PDF, privacy preview, gated export, log lines), `src/daemon/wrappedRoutes.ts` (local API), `src/cli/commands/wrapped.ts` (`claudewatch wrapped`), `src/web/components/WrappedPanel.tsx` (dashboard panel). Metric meanings are in [WRAPPED_METRICS.md](WRAPPED_METRICS.md) (5.1).
 
-The report is built on this device from the local ledger. Nothing is uploaded, no public URL is created, and sharing cards are a separate step (5.3).
+The report is built on this device from the local ledger. Nothing is uploaded, no public URL is created, and sharing cards are a separate, opt-in step (5.3, see [SHARE_CARDS.md](SHARE_CARDS.md)).
 
 ## What it shows
 

@@ -14,6 +14,7 @@ import { syncUsageEvent } from '../sync/cloudSync.js';
 import { getCollectorHealth, ledgerPath } from '../collectors/service.js';
 import { registerLedgerRoutes } from './ledgerRoutes.js';
 import { registerWrappedRoutes } from './wrappedRoutes.js';
+import { registerShareRoutes } from './shareRoutes.js';
 import { registerRadarRoutes } from './radarRoutes.js';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -119,6 +120,7 @@ export function startWebServer(config: Config): Server {
 
   registerLedgerRoutes(app, ledgerPath);
   registerWrappedRoutes(app, ledgerPath);
+  registerShareRoutes(app, ledgerPath);
   registerRadarRoutes(app, { prefsPath: () => join(homedir(), '.claudewatch', 'radar-prefs.json') });
 
   // ---------------------------------------------------------------------------
