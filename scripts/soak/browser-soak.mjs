@@ -37,16 +37,30 @@ function mulberry32(seed) {
 }
 
 // The fault plan for the whole run, in minutes from its start. Same seed, same plan, whichever leg reads it.
+// Kinds are dealt from a shuffled deck, so every kind is injected before any repeats (a short run still covers them all).
 export function buildPlan(total, every, seed) {
   const random = mulberry32(seed);
   const kinds = [
     ['offline', 5, 12], ['rate_limited', 6, 12], ['session_expired', 8, 15], ['tab_missing', 5, 12], ['schema_changed', 8, 12],
     ['worker_stopped', 0, 0], ['browser_restart', 0, 0],
   ];
+  let deck = [];
+  const next = () => {
+    if (deck.length === 0) {
+      deck = [...kinds];
+      for (let i = deck.length - 1; i > 0; i -= 1) { const j = Math.floor(random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
+    }
+    return deck.pop();
+  };
   const plan = [];
-  for (let at = 5 + Math.floor(random() * every); at < total - Math.min(15, Math.floor(total / 3)); at += Math.max(8, Math.floor(every * (0.6 + random() * 0.8)))) {
-    const [kind, min, max] = kinds[Math.floor(random() * kinds.length)];
-    plan.push({ kind, start: at, end: at + (max ? min + Math.floor(random() * (max - min)) : 0) });
+  let prevEnd = 0;
+  for (let at = 3 + Math.floor(random() * every); at < total - Math.min(15, Math.floor(total / 4)); at += Math.max(3, Math.floor(every * (0.6 + random() * 0.8)))) {
+    const [kind, min, max] = next();
+    const start = Math.max(at, prevEnd + 1); // faults do not overlap, so each recovery is measured on its own
+    const end = start + (max ? min + Math.floor(random() * (max - min)) : 0);
+    plan.push({ kind, start, end });
+    prevEnd = end;
+    at = Math.max(at, end);
   }
   return plan;
 }
