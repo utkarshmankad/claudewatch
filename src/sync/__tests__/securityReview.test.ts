@@ -1,7 +1,7 @@
 // Regression tests for the Phase 3 security review (docs/product-hunt/gates/phase-3/security-review.md).
 // Each test plays a service that is not honest, which the threat model (T1) says the clients must withstand.
 import { describe, expect, it } from 'vitest';
-import { MemoryStorage, SyncClient } from '../client/client.js';
+import { MemoryStorage, SyncClient, SyncUnavailableError } from '../client/client.js';
 import type { Transport } from '../client/client.js';
 import { generateDeviceKeys, wrapAccountKey, randomBytes } from '../e2ee/crypto.js';
 import { createSyncService } from '../service/handler.js';
@@ -170,6 +170,37 @@ describe('key distribution against a dishonest service', () => {
     expect(b.status().epoch).toBe(1);
     expect(b.status().failures.undecryptable).toBeGreaterThan(0);
     void a;
+  });
+});
+
+describe('malformed replies from the service (found by fuzzing)', () => {
+  it('a key-wrap list that is not an array is a failed sync, not a crash', async () => {
+    const r = rig();
+    const { b } = await pair(r);
+    r.hooks.after = (path, _m, _b, res) => (path === '/v1/keywraps' ? replace(res, () => ({ wraps: 5 })) : undefined);
+    await expect(b.pull()).rejects.toBeInstanceOf(SyncUnavailableError);
+  });
+
+  it('objects with a non-integer sequence are counted as corrupt and do not poison the cursor', async () => {
+    const r = rig();
+    const { a, b } = await pair(r);
+    await a.queueLedger([record(1)]);
+    await a.flush();
+    let poison = true;
+    r.hooks.after = (path, _m, _b, res) => (poison && path === '/v1/objects' && res.status === 200
+      ? replace(res, (j) => ({ ...j, objects: [{ seq: 1e300, objectId: 'x', epoch: 1, schemaVersion: 1, nonce: 'n', ciphertext: 'c' }, { seq: 'x' }, null, 7] }))
+      : undefined);
+    const first = await b.pull();
+    expect(first.corrupt).toBe(2);
+    poison = false;
+    expect((await b.pull()).applied).toBe(1);
+  });
+
+  it('a non-object reply body is a failed call', async () => {
+    const r = rig();
+    const { b } = await pair(r);
+    r.hooks.after = (path) => (path === '/v1/devices' ? new Response('[1,2,3]', { status: 200 }) : undefined);
+    await expect(b.listDevices()).rejects.toBeInstanceOf(SyncUnavailableError);
   });
 });
 

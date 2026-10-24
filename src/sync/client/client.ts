@@ -176,6 +176,21 @@ export class SyncClient {
     return this.state;
   }
 
+  /** A reply body must be a JSON object. Anything else is a misbehaving service, reported as an ordinary failure rather than a crash. */
+  private static async reply(res: Response): Promise<Record<string, unknown>> {
+    let body: unknown;
+    try { body = await res.json(); } catch { throw new SyncUnavailableError('bad_response'); }
+    if (typeof body !== 'object' || body === null || Array.isArray(body)) throw new SyncUnavailableError('bad_response');
+    return body as Record<string, unknown>;
+  }
+
+  /** The array members of a reply that are plain objects; a missing or non-array field is a bad response. */
+  private static list(body: Record<string, unknown>, field: string): Array<Record<string, any>> {
+    const value = body[field];
+    if (!Array.isArray(value)) throw new SyncUnavailableError('bad_response');
+    return value.filter((v): v is Record<string, any> => typeof v === 'object' && v !== null && !Array.isArray(v));
+  }
+
   private async save(): Promise<void> {
     if (this.state) await this.deps.storage.set(JSON.stringify(this.state));
   }
@@ -240,7 +255,8 @@ export class SyncClient {
     const res = await SyncClient.rawPost(full, `${baseUrl}/v1/accounts`, {
       region: options.region, signPublic: deviceKeys.signPublic, encPublic: deviceKeys.encPublic,
     });
-    const data = (await res.json()) as { accountId: string; deviceId: string; epoch: number };
+    const data = (await SyncClient.reply(res)) as { accountId: string; deviceId: string; epoch: number };
+    if (typeof data.accountId !== 'string' || typeof data.deviceId !== 'string' || !Number.isInteger(data.epoch)) throw new SyncUnavailableError('bad_response');
     const client = new SyncClient(
       SyncClient.freshState(baseUrl, options.region, data.accountId, data.deviceId, deviceKeys, data.epoch, toB64(generateAccountKey())),
       full,
@@ -277,7 +293,8 @@ export class SyncClient {
    */
   async createEnrollmentCode(): Promise<{ code: string; expiresAt: number }> {
     const res = await this.api('POST', '/v1/enrollments', {});
-    const { token, expiresAt } = (await res.json()) as { token: string; expiresAt: number };
+    const { token, expiresAt } = (await SyncClient.reply(res)) as { token: string; expiresAt: number };
+    if (typeof token !== 'string' || typeof expiresAt !== 'number') throw new SyncUnavailableError('bad_response');
     return { code: `${token}.${Buffer.from(this.s.deviceKeys.encPublic).toString('base64url')}.${randomId(16)}`, expiresAt };
   }
 
@@ -291,8 +308,9 @@ export class SyncClient {
   private async fetchJoin(code: string): Promise<{ signPublic: string; encPublic: string } | null> {
     const { token, secret } = SyncClient.parseCode(code);
     const res = await this.api('POST', '/v1/enrollments/pending', { token });
-    const { joined } = (await res.json()) as { joined: { signPublic: string; encPublic: string; confirm: string } | null };
+    const { joined } = (await SyncClient.reply(res)) as { joined: { signPublic: string; encPublic: string; confirm: string } | null };
     if (!joined) return null;
+    if (typeof joined !== 'object' || typeof joined.signPublic !== 'string' || typeof joined.encPublic !== 'string' || typeof joined.confirm !== 'string') throw new SyncUnavailableError('bad_response');
     if (joined.confirm !== (await enrollmentTag(secret, 'join', joined.signPublic, joined.encPublic))) {
       throw new Error('joining device failed key confirmation; enrollment aborted');
     }
@@ -341,11 +359,12 @@ export class SyncClient {
       token, signPublic: deviceKeys.signPublic, encPublic: deviceKeys.encPublic,
       confirm: await enrollmentTag(secret, 'join', deviceKeys.signPublic, deviceKeys.encPublic),
     });
-    const { accountId } = (await res.json()) as { accountId: string };
+    const { accountId } = (await SyncClient.reply(res)) as { accountId: string };
+    if (typeof accountId !== 'string') throw new SyncUnavailableError('bad_response');
     const sas = await shortAuthString(fromEncPublic, deviceKeys.encPublic);
     const finish = async (): Promise<SyncClient> => {
       const status = await SyncClient.rawPost(full, `${baseUrl}/v1/enrollments/status`, { token });
-      const data = (await status.json()) as {
+      const data = (await SyncClient.reply(status)) as {
         status: string; deviceId?: string; epoch?: number; fromEncPublic?: string; wrapped?: WrappedKey;
       };
       if (data.status !== 'approved' || !data.deviceId || !data.epoch || !data.wrapped) throw new SyncUnavailableError('enrollment not approved yet');
@@ -455,7 +474,8 @@ export class SyncClient {
       body: JSON.stringify({ accountId: s.accountId, deviceId: s.deviceId, timestamp, nonce, signature }),
     });
     await this.raiseForStatus(res);
-    const data = (await res.json()) as { token: string; expiresAt: number };
+    const data = (await SyncClient.reply(res)) as { token: string; expiresAt: number };
+    if (typeof data.token !== 'string' || data.token === '' || typeof data.expiresAt !== 'number') throw new SyncUnavailableError('bad_response');
     this.session = data;
     return data.token;
   }
@@ -560,7 +580,7 @@ export class SyncClient {
   private async collectKeys(): Promise<void> {
     const s = this.s;
     const res = await this.api('GET', '/v1/keywraps');
-    const { wraps } = (await res.json()) as { wraps: Array<{ epoch: number; wrapped: WrappedKey }> };
+    const wraps = SyncClient.list(await SyncClient.reply(res), 'wraps') as Array<{ epoch: number; wrapped: WrappedKey }>;
     for (const w of [...wraps].sort((a, b) => a.epoch - b.epoch)) {
       if (!Number.isInteger(w.epoch) || w.epoch < 1 || s.keys[String(w.epoch)]) continue;
       const previous = s.keys[String(w.epoch - 1)];
@@ -588,10 +608,9 @@ export class SyncClient {
     await this.retryKeyless(result);
     for (;;) {
       const res = await this.api('GET', `/v1/objects?after=${s.lastSeq}&limit=100`);
-      const page = (await res.json()) as {
-        head: number; epoch: number;
-        objects: Array<ServerObject>;
-      };
+      const body = await SyncClient.reply(res);
+      const page = { head: body['head'] as number, epoch: body['epoch'] as number, objects: SyncClient.list(body, 'objects') as unknown as ServerObject[] };
+      if (!Number.isInteger(page.head) || page.head < 0 || !Number.isInteger(page.epoch)) throw new SyncUnavailableError('bad_response');
       if (page.head < s.head || page.head < s.lastSeq) {
         if (!result.warnings.includes('rollback')) result.warnings.push('rollback');
         break; // keep local state; do not trust a shorter log
@@ -600,6 +619,8 @@ export class SyncClient {
       if (page.epoch > s.epoch && s.keys[String(page.epoch)]) s.epoch = page.epoch;
       const ordered = [...page.objects].sort((a, b) => a.seq - b.seq);
       for (const obj of ordered) {
+        // A sequence that is not a positive integer would poison the cursor and hide every later object.
+        if (!Number.isSafeInteger(obj.seq) || obj.seq < 1) { result.corrupt += 1; this.fail('corrupt'); continue; }
         if (obj.seq <= s.lastSeq) { result.duplicates += 1; continue; }
         s.lastSeq = obj.seq;
         await this.processObject(obj, result);
@@ -654,7 +675,7 @@ export class SyncClient {
     for (const entry of waiting) {
       if (!s.keys[String(entry.epoch)]) { still.push(entry); continue; }
       const res = await this.api('GET', `/v1/objects?after=${entry.seq - 1}&limit=1`);
-      const page = (await res.json()) as { objects: ServerObject[] };
+      const page = { objects: SyncClient.list(await SyncClient.reply(res), 'objects') as unknown as ServerObject[] };
       const obj = page.objects.find((o) => o.seq === entry.seq);
       if (obj) await this.processObject(obj, result);
     }
@@ -668,7 +689,7 @@ export class SyncClient {
     s.heldSeqs = [];
     for (const seq of seqs) {
       const res = await this.api('GET', `/v1/objects?after=${seq - 1}&limit=1`);
-      const page = (await res.json()) as { objects: ServerObject[] };
+      const page = { objects: SyncClient.list(await SyncClient.reply(res), 'objects') as unknown as ServerObject[] };
       const obj = page.objects.find((o) => o.seq === seq);
       if (obj) await this.processObject(obj, result);
     }
@@ -750,7 +771,7 @@ export class SyncClient {
 
   async listDevices(): Promise<Array<{ deviceId: string; enrolledAt: number; lastSeenAt: number; revoked: boolean; current: boolean }>> {
     const res = await this.api('GET', '/v1/devices');
-    const { devices } = (await res.json()) as { devices: Array<{ deviceId: string; enrolledAt: number; lastSeenAt: number; revoked: boolean }> };
+    const devices = SyncClient.list(await SyncClient.reply(res), 'devices') as Array<{ deviceId: string; enrolledAt: number; lastSeenAt: number; revoked: boolean }>;
     return devices.map((d) => ({ ...d, current: d.deviceId === this.s.deviceId }));
   }
 
@@ -797,7 +818,7 @@ export class SyncClient {
     const previous = s.keys[String(epoch - 1)];
     if (!previous) throw new KeyMissingError(`no key for epoch ${epoch - 1}`);
     const res = await this.api('GET', '/v1/devices');
-    const { devices } = (await res.json()) as { devices: Array<{ deviceId: string; encPublic: string; revoked: boolean }> };
+    const devices = SyncClient.list(await SyncClient.reply(res), 'devices') as Array<{ deviceId: string; encPublic: string; revoked: boolean }>;
     const trusted = new Set(s.trustedKeys ?? [s.deviceKeys.encPublic]);
     this.skippedKeyRecipients = [];
     for (const d of devices) {
@@ -828,8 +849,8 @@ export class SyncClient {
     const epoch = s.epoch + 1;
     const ak = generateAccountKey();
     // Remember the revoked device's key so a service that later lists it as active cannot get the new key sent to it.
-    const listed = (await (await this.api('GET', '/v1/devices')).json()) as { devices: Array<{ deviceId: string; encPublic: string }> };
-    const revokedKey = listed.devices.find((d) => d.deviceId === deviceId)?.encPublic;
+    const listed = SyncClient.list(await SyncClient.reply(await this.api('GET', '/v1/devices')), 'devices') as Array<{ deviceId: string; encPublic: string }>;
+    const revokedKey = listed.find((d) => d.deviceId === deviceId)?.encPublic;
     if (revokedKey) {
       (s.revokedKeys ??= []).push(revokedKey);
       s.trustedKeys = (s.trustedKeys ?? []).filter((k) => k !== revokedKey);
