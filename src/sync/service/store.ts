@@ -50,7 +50,7 @@ export interface AccountRecord {
 
 export interface AuditEvent {
   type:
-    | 'account_created' | 'device_enrolled' | 'device_revoked' | 'objects_written' | 'account_deleted'
+    | 'account_created' | 'device_enrolled' | 'device_revoked' | 'device_removed' | 'objects_written' | 'account_deleted'
     | 'auth_failed' | 'rate_limited' | 'epoch_rotated' | 'retention_pruned' | 'inactive_warning';
   at: number;
   accountId?: string;
