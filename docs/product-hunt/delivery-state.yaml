@@ -569,16 +569,16 @@ work_items:
   - prompt: '5.4'
     phase: 5
     title: Implement transparent plan recommendations
-    status: not_started
+    status: awaiting_ci
     planned_branch: feature/p5-plan-roi
-    branch: null
-    commit: null
+    branch: feature/p5-plan-roi
+    commit: 0aff498358599505205cb6b9b655c3cbaf46c9fb
     pull_request: null
     ci_status: not_run
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: Branch pushed, no PR opened. Await owner to open the PR into develop and CI on the pushed head.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-5.4
