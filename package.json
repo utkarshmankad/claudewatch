@@ -30,7 +30,7 @@
     "preview:web": "vite preview --config src/web/vite.config.ts --host 127.0.0.1 --port 4173 --strictPort"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.131.0",
+    "@anthropic-ai/sdk": "^0.135.0",
     "@inquirer/prompts": "^8.7.2",
     "better-sqlite3": "^9.6.0",
     "commander": "^12.1.0",
