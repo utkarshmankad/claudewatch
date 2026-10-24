@@ -6,8 +6,8 @@ plan_document: DELIVERY_PLAN.md
 pilot_status: in_progress
 implementation_authorized: true
 current_phase: 3
-current_prompt: '4.3'
-work_item_status: completed
+current_prompt: '4.4'
+work_item_status: blocked
 branch: feature/p3-companion-alerts
 commit: c283d42c24ddd960a3fad359357540dfb93e1683
 pull_request: https://github.com/utkarshmankad/claudewatch/pull/65
@@ -21,7 +21,7 @@ last_checkpoint:
   base_sha: 82a4db3
   worktree_path: null
   pending_operation: null
-next_action: Phase 3 promoted (PR #66 merged into main, sync-back PR #68 merged into develop). Prompt 4.1 design merged (PR #70). Prompt 4.2 in progress on feature/p4-radar-pipeline.
+next_action: Prompts 4.1-4.3 merged into develop (PRs #70-#72). Prompt 4.4 blocked on owner decision (beta cohort and production infrastructure). Phase 4 promotion not opened.
 next_wake_time: null
 release_status: prohibited_during_pilot
 phases:
@@ -478,16 +478,16 @@ work_items:
   - prompt: '4.3'
     phase: 4
     title: Create the Radar experience and safe remote fixes
-    status: in_progress
+    status: completed
     planned_branch: feature/p4-radar-ui-config
     branch: feature/p4-radar-ui-config
-    commit: null
-    pull_request: null
-    ci_status: not_run
+    commit: 28a47503a87da2a45f1b994776c7d50fe2631b67
+    pull_request: https://github.com/utkarshmankad/claudewatch/pull/72
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Implemented and validated locally; PR into develop opened. Signing service, key custody, config distribution, extension consumption and a live incident feed are not built and need owner decisions. Rollback exercise and notification usefulness remain for 4.4 and the final gate.
+    next_action: None. PR #72 merged into develop (merge commit b29a873). Signing service, key custody, config distribution, extension consumption and a live incident feed are not built and need owner decisions. Rollback exercise and notification usefulness remain for 4.4 and the final gate.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-4.3
@@ -495,16 +495,16 @@ work_items:
   - prompt: '4.4'
     phase: 4
     title: Run a controlled Radar beta
-    status: not_started
+    status: blocked
     planned_branch: feature/p4-radar-beta
     branch: null
     commit: null
     pull_request: null
     ci_status: not_run
     gate_status: not_evaluated
-    blocker: null
+    blocker: Needs a real consented beta cohort and production ingestion, signing and notification infrastructure, plus a privacy review of production records and logs. None exist; this is a human gate. Phase 4 promotion is also blocked until 4.4 is resolved or the owner defers it.
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: Owner decision needed - provide beta cohort and infrastructure, or defer 4.4 evidence to the final gate / mark it out of pilot scope. No work started.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-4.4
