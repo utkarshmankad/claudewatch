@@ -436,7 +436,7 @@ work_items:
       base_sha: 82a4db3
       pending_operation: null
     next_action: >-
-      None. PR #65 merged into develop by the owner (merge commit eca3430). Phase 3 promotion PR #66 is open for the owner. Known limits: no push transport (owner supplies Web Push sender and VAPID keys); companion page not wired to the sync client (no browser bundle); no real push delivery tested; self-review only, independent review deferred to the final gate.
+      None. PR #65 merged into develop by the owner (merge commit eca3430). Phase 3 promotion PR #66 merged into main; sync-back #68 merged into develop. Known limits: no push transport (owner supplies Web Push sender and VAPID keys); companion page not wired to the sync client (no browser bundle); no real push delivery tested; self-review only, independent review deferred to the final gate.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-3.4
