@@ -533,7 +533,7 @@ work_items:
   - prompt: '5.2'
     phase: 5
     title: Build the private Usage Wrapped report
-    status: awaiting_ci
+    status: completed
     planned_branch: feature/p5-private-wrapped
     branch: feature/p5-private-wrapped
     commit: 84ac14a0147244d6eff323e0b8847319c48d8cfd
@@ -542,7 +542,7 @@ work_items:
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Auto-merge enabled on PR #84; CI green. Wait for merge.
+    next_action: None. PR #84 merged into develop.
     next_wake_time: null
     evidence_files:
       - docs/WRAPPED_REPORT.md
@@ -552,16 +552,16 @@ work_items:
   - prompt: '5.3'
     phase: 5
     title: Create privacy-safe share cards
-    status: not_started
+    status: in_progress
     planned_branch: feature/p5-share-cards
-    branch: null
+    branch: feature/p5-share-cards
     commit: null
     pull_request: null
     ci_status: not_run
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: Claimed by the hourly routine 2026-10-24; implementation in progress.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-5.3
