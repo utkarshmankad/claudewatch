@@ -79,6 +79,19 @@ export function weekBounds(ts: number, tz: string): { start: number; end: number
 }
 const dayLabel = (ts: number, tz: string) => { const p = parts(ts, tz); return `${p.year}-${String(p.month).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`; };
 
+/** Start of each local calendar day in [start, end). */
+export function localDayStarts(start: number, end: number, tz: string): number[] {
+  const out: number[] = [];
+  for (let cur = start; cur < end; ) {
+    out.push(cur);
+    const p = parts(cur, tz);
+    const next = localMidnight(p.year, p.month - 1, p.day + 1, tz);
+    if (next <= cur) break;
+    cur = next;
+  }
+  return out;
+}
+
 export function resolveWeek(o: { now: number; timeZone: string; week?: string }): { ok: true; start: number; end: number } | { ok: false; error: string } {
   if (o.week === undefined) { const cur = weekBounds(o.now, o.timeZone); return { ok: true, ...weekBounds(cur.start - 1, o.timeZone) }; }
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(o.week);
@@ -102,7 +115,7 @@ export function listChoices(records: LedgerRecord[], o: { now: number; timeZone?
   return { accounts: uniq(records.map(r => r.accountAlias)), providers: uniq(records.map(r => r.provider)), devices: uniq(records.map(r => r.devicePseudonym)), timeZone, week: { start: w.start, end: w.end } };
 }
 
-function select(records: LedgerRecord[], o: ReportOptions): LedgerRecord[] {
+export function select(records: LedgerRecord[], o: ReportOptions): LedgerRecord[] {
   const has = (xs: string[] | undefined, v: string) => !xs?.length || xs.includes(v);
   return records.filter(r => has(o.accounts, r.accountAlias) && has(o.providers, r.provider) && has(o.devices, r.devicePseudonym));
 }
