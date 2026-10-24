@@ -185,10 +185,10 @@ export class SyncClient {
   }
 
   /** The array members of a reply that are plain objects; a missing or non-array field is a bad response. */
-  private static list(body: Record<string, unknown>, field: string): Array<Record<string, any>> {
+  private static list(body: Record<string, unknown>, field: string): Array<Record<string, unknown>> {
     const value = body[field];
     if (!Array.isArray(value)) throw new SyncUnavailableError('bad_response');
-    return value.filter((v): v is Record<string, any> => typeof v === 'object' && v !== null && !Array.isArray(v));
+    return value.filter((v): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v));
   }
 
   private async save(): Promise<void> {

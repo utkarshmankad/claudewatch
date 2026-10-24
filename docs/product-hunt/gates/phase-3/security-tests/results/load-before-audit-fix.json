@@ -1,0 +1,217 @@
+{
+  "machine": {
+    "cpus": 4,
+    "model": "Intel(R) Xeon(R) Processor",
+    "memGB": 16,
+    "node": "v22.22.0"
+  },
+  "durationPerScenarioSeconds": 15,
+  "runs": [
+    {
+      "scenario": "L1 shipped limits: 1 device, GET /v1/objects, 50 connections",
+      "connections": 50,
+      "seconds": 15,
+      "rps": 9139,
+      "p50ms": 5,
+      "p99ms": 11,
+      "maxMs": 110,
+      "total": 137085,
+      "non2xx": 137025,
+      "statuses": {
+        "200": 60,
+        "429": 137025
+      },
+      "errors": 0,
+      "timeouts": 0,
+      "note": "expected: about 60 requests accepted per minute for the device, the rest 429"
+    },
+    {
+      "scenario": "L2a read: GET /v1/objects?limit=100 (500 stored objects, 5 accounts), 50 connections",
+      "connections": 50,
+      "seconds": 15,
+      "rps": 1640,
+      "p50ms": 28,
+      "p99ms": 50,
+      "maxMs": 415,
+      "total": 24601,
+      "non2xx": 0,
+      "statuses": {
+        "200": 24601
+      },
+      "errors": 0,
+      "timeouts": 0
+    },
+    {
+      "scenario": "L2b write: PUT /v1/objects, unique ids, 1 KiB ciphertext, 20 accounts, 50 connections",
+      "connections": 50,
+      "seconds": 15,
+      "rps": 8154,
+      "p50ms": 5,
+      "p99ms": 11,
+      "maxMs": 20,
+      "total": 122310,
+      "non2xx": 0,
+      "statuses": {
+        "201": 122310
+      },
+      "errors": 0,
+      "timeouts": 0
+    },
+    {
+      "scenario": "L2c session: POST /v1/session with valid ECDSA signature (distinct client IPs), 20 connections",
+      "connections": 20,
+      "seconds": 15,
+      "rps": 6264,
+      "p50ms": 2,
+      "p99ms": 9,
+      "maxMs": 71,
+      "total": 93958,
+      "non2xx": 53958,
+      "statuses": {
+        "200": 40000,
+        "401": 53958
+      },
+      "errors": 0,
+      "timeouts": 0,
+      "note": "40000 pre-signed requests; a nonce is single use so later requests count as replays once the pool wraps"
+    },
+    {
+      "scenario": "L2d reject path: unauthenticated GET /v1/devices, 50 connections",
+      "connections": 50,
+      "seconds": 15,
+      "rps": 12583,
+      "p50ms": 3,
+      "p99ms": 6,
+      "maxMs": 18,
+      "total": 188724,
+      "non2xx": 188724,
+      "statuses": {
+        "401": 188724
+      },
+      "errors": 0,
+      "timeouts": 0
+    },
+    {
+      "scenario": "L3 soak: mixed (2 read : 1 write : 1 list), 25 connections, 60s",
+      "connections": 25,
+      "seconds": 60,
+      "rps": 2743,
+      "p50ms": 8,
+      "p99ms": 16,
+      "maxMs": 122,
+      "total": 164520,
+      "non2xx": 0,
+      "statuses": {
+        "200": 123392,
+        "201": 41128
+      },
+      "errors": 0,
+      "timeouts": 0
+    }
+  ],
+  "memory": [
+    {
+      "phase": 1,
+      "rssMB": 130,
+      "heapUsedMB": 38,
+      "rateLimitEntries": 3,
+      "accounts": 1,
+      "auditEvents": 137077
+    },
+    {
+      "phase": 2,
+      "rssMB": 187,
+      "heapUsedMB": 45,
+      "rateLimitEntries": 45,
+      "accounts": 20,
+      "auditEvents": 2540
+    },
+    {
+      "phase": 3,
+      "rssMB": 378,
+      "heapUsedMB": 232,
+      "rateLimitEntries": 60,
+      "accounts": 20,
+      "auditEvents": 124900
+    },
+    {
+      "phase": 4,
+      "rssMB": 420,
+      "heapUsedMB": 269,
+      "rateLimitEntries": 94038,
+      "accounts": 20,
+      "auditEvents": 178878
+    },
+    {
+      "phase": 5,
+      "rssMB": 426,
+      "heapUsedMB": 279,
+      "rateLimitEntries": 94038,
+      "accounts": 20,
+      "auditEvents": 367652
+    },
+    {
+      "phase": 6,
+      "t": 0,
+      "rssMB": 186,
+      "heapUsedMB": 47,
+      "rateLimitEntries": 60,
+      "accounts": 20,
+      "auditEvents": 7037
+    },
+    {
+      "phase": 6,
+      "t": 10,
+      "rssMB": 181,
+      "heapUsedMB": 37,
+      "rateLimitEntries": 60,
+      "accounts": 20,
+      "auditEvents": 14353
+    },
+    {
+      "phase": 6,
+      "t": 20,
+      "rssMB": 208,
+      "heapUsedMB": 64,
+      "rateLimitEntries": 60,
+      "accounts": 20,
+      "auditEvents": 21219
+    },
+    {
+      "phase": 6,
+      "t": 30,
+      "rssMB": 215,
+      "heapUsedMB": 66,
+      "rateLimitEntries": 60,
+      "accounts": 20,
+      "auditEvents": 27883
+    },
+    {
+      "phase": 6,
+      "t": 40,
+      "rssMB": 258,
+      "heapUsedMB": 111,
+      "rateLimitEntries": 60,
+      "accounts": 20,
+      "auditEvents": 34840
+    },
+    {
+      "phase": 6,
+      "t": 50,
+      "rssMB": 256,
+      "heapUsedMB": 108,
+      "rateLimitEntries": 60,
+      "accounts": 20,
+      "auditEvents": 41369
+    },
+    {
+      "phase": 6,
+      "t": 60,
+      "rssMB": 257,
+      "heapUsedMB": 110,
+      "rateLimitEntries": 60,
+      "accounts": 20,
+      "auditEvents": 41374
+    }
+  ]
+}
