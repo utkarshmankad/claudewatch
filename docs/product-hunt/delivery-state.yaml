@@ -516,16 +516,16 @@ work_items:
   - prompt: '5.1'
     phase: 5
     title: Define weekly metrics and plan economics
-    status: awaiting_ci
+    status: completed
     planned_branch: feature/p5-wrapped-metrics
     branch: feature/p5-wrapped-metrics
     commit: 76e805d
     pull_request: https://github.com/utkarshmankad/claudewatch/pull/83
-    ci_status: pending
+    ci_status: passed
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Wait for CI on the 5.1 PR; auto-merge is enabled. Pricing catalog ships no prices; the pricing source audit remains a deferred Phase 5 gate artifact.
+    next_action: None. PR #83 merged into develop (merge commit 4dc87a2). Pricing catalog ships no prices; the pricing source audit remains a deferred Phase 5 gate artifact.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-5.1
@@ -533,16 +533,16 @@ work_items:
   - prompt: '5.2'
     phase: 5
     title: Build the private Usage Wrapped report
-    status: not_started
+    status: in_progress
     planned_branch: feature/p5-private-wrapped
-    branch: null
+    branch: feature/p5-private-wrapped
     commit: null
     pull_request: null
     ci_status: not_run
     gate_status: not_evaluated
     blocker: null
     last_checkpoint: null
-    next_action: Await pilot authorization, prior prompt completion, and applicable gates.
+    next_action: Claimed by the hourly routine 2026-10-24; implementation in progress.
     next_wake_time: null
     evidence_files: []
     operation_key: 2026-10-10.1/prompt-5.2
