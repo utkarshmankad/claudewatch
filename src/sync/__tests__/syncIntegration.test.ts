@@ -10,7 +10,7 @@ function record(n: number, overrides: Record<string, unknown> = {}): Record<stri
   return {
     kind: 'provider_snapshot', provider: 'claude', accountAlias: 'work', devicePseudonym: 'a1b2c3d4e5f60718', observedAt: 1_700_000_000_000 + n,
     source: 'web', confidence: 'high', measurementMethod: 'provider_reported', measures: { quotaPercentUsed: n % 100 },
-    id: `abcdef0123456789${String(n).padStart(8, '0')}`, ...overrides,
+    ...overrides,
   };
 }
 
@@ -96,7 +96,9 @@ describe('two-device sync', () => {
     await expect(SyncClient.startJoin(r.deps(), { baseUrl: BASE, code, region: 'eu' })).rejects.toBeInstanceOf(SyncUnavailableError);
     await a.approveJoin(code, join.sas);
     await join.finish();
-    await expect(join.finish()).rejects.toBeInstanceOf(SyncUnavailableError); // single use
+    // Finishing again is allowed (a lost response must not strand the device), but the code still enrolls only this one device.
+    await expect(join.finish()).resolves.toBeDefined();
+    await expect(SyncClient.startJoin(r.deps(), { baseUrl: BASE, code, region: 'eu' })).rejects.toBeInstanceOf(SyncUnavailableError);
   });
 
   it('expires enrollment codes after 10 minutes', async () => {

@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { MemoryStorage, SyncClient, SyncUnavailableError } from '../client/client.js';
 import type { Transport } from '../client/client.js';
-import { generateDeviceKeys, wrapAccountKey, randomBytes } from '../e2ee/crypto.js';
+import { enrollmentTag, generateDeviceKeys, randomBytes, sign, wrapAccountKey } from '../e2ee/crypto.js';
 import { createSyncService } from '../service/handler.js';
 
 const BASE = 'https://sync.test';
@@ -12,7 +12,7 @@ function record(n: number): Record<string, unknown> {
   return {
     kind: 'provider_snapshot', provider: 'claude', accountAlias: 'work', devicePseudonym: 'a1b2c3d4e5f60718', observedAt: 1_700_000_000_000 + n,
     source: 'web', confidence: 'high', measurementMethod: 'provider_reported', measures: { quotaPercentUsed: n % 100 },
-    id: `abcdef0123456789${String(n).padStart(8, '0')}`,
+
   };
 }
 
@@ -32,7 +32,7 @@ function rig() {
     return (await hooks.after?.(path, init.method, body, res.clone())) ?? res;
   };
   const deps = () => ({ storage: new MemoryStorage(), transport, now: () => clock.t, sleep: async () => undefined });
-  return { service, hooks, calls, deps };
+  return { service, hooks, calls, deps, clock };
 }
 
 async function pair(r: ReturnType<typeof rig>) {
@@ -137,6 +137,8 @@ describe('key distribution against a dishonest service', () => {
     await a.approveJoin(code, join.sas);
     const c = await join.finish();
     await c.nameDevice('Tablet');
+    await b.queueLedger([record(7)]); // a device is known to its peers once it has uploaded anything
+    await b.sync();
     await c.sync();
     await b.sync();
     await b.rotateKey();
@@ -260,5 +262,145 @@ describe('audit log growth (found by load testing)', () => {
     clock.t += 61_000;
     await call();
     expect(service.store.audit.filter((e) => e.type === 'auth_failed').map((e) => e.count ?? 1)).toEqual([2, 1]);
+  });
+});
+
+describe('open findings from the first review, now closed', () => {
+  it('CR-7: a device enrolled after a rotation can read history from before it joined', async () => {
+    const r = rig();
+    const { a } = await pair(r);
+    await a.queueLedger([record(1)]);
+    await a.flush();
+    await a.rotateKey();
+    await a.queueLedger([record(2)]);
+    await a.flush();
+    const { code } = await a.createEnrollmentCode();
+    const join = await SyncClient.startJoin(r.deps(), { baseUrl: BASE, code, region: 'eu' });
+    await a.approveJoin(code, join.sas);
+    const c = await join.finish();
+    const res = await c.pull();
+    expect(res.undecryptable).toBe(0);
+    expect(c.ledger).toHaveLength(2);
+  });
+
+  it('CR-3: a lost enrollment-status response does not strand the new device', async () => {
+    const r = rig();
+    const a = await SyncClient.enable(r.deps(), { baseUrl: BASE, region: 'eu' });
+    const { code } = await a.createEnrollmentCode();
+    const join = await SyncClient.startJoin(r.deps(), { baseUrl: BASE, code, region: 'eu' });
+    await a.approveJoin(code, join.sas);
+    let lose = true;
+    r.hooks.after = (path) => (lose && path === '/v1/enrollments/status' ? new Response('', { status: 502 }) : undefined);
+    await expect(join.finish()).rejects.toThrow();
+    lose = false;
+    await expect(join.finish()).resolves.toBeDefined();
+  });
+
+  it('CR-5: a retried upload resends the same bytes, so the hash chain does not fork', async () => {
+    const r = rig();
+    const { a, b } = await pair(r);
+    await a.queueLedger([record(1)]);
+    await a.flush();
+    await a.queueLedger([record(2)]);
+    let lost = 4; // the service stores the first attempt; every reply is lost until the client gives up
+    r.hooks.after = async (path, method, _b, res) => {
+      if (lost > 0 && method === 'PUT' && path === '/v1/objects') { lost -= 1; await res.text(); return new Response('', { status: 503 }); }
+      return undefined;
+    };
+    await expect(a.flush()).rejects.toBeInstanceOf(SyncUnavailableError);
+    await a.flush(); // retried later: must resend the stored bytes, not seal again
+    await a.queueLedger([record(3)]);
+    await a.flush();
+    const res = await b.pull();
+    expect(res.warnings).not.toContain('chain_fork');
+    expect(b.ledger).toHaveLength(3);
+  });
+
+  it('CR-4: a rotation interrupted after the epoch bump is finished by the next call', async () => {
+    const r = rig();
+    const { a, b } = await pair(r);
+    let fail = true;
+    r.hooks.after = (path, method, _b, res) => (fail && path === '/v1/devices' && method === 'GET' && r.calls.filter((c) => c === 'POST /v1/epoch').length > 0
+      ? new Response('', { status: 503 }) : (void res, undefined));
+    await expect(a.rotateKey()).rejects.toBeInstanceOf(SyncUnavailableError);
+    fail = false;
+    await a.queueLedger([record(5)]);
+    await a.sync(); // resumes the rotation: hands the key to b, then uploads under the new epoch
+    const res = await b.pull();
+    expect(res.undecryptable).toBe(0);
+    expect(b.status().epoch).toBe(2);
+    expect(b.ledger).toHaveLength(1);
+  });
+
+  it('CR-8: a record whose id is not derived from its content is rejected from a peer', async () => {
+    const r = rig();
+    const { a, b } = await pair(r);
+    await a.queueLedger([{ ...record(1), id: 'abcdef0123456789abcdef0123456789' }]);
+    await a.flush();
+    const res = await b.pull();
+    expect(res.corrupt).toBe(1);
+    expect(b.ledger).toHaveLength(0);
+  });
+
+  it('R8: a revoked device that still holds the old key cannot forge the next epoch\'s wrap, even with a service that serves it', async () => {
+    const r = rig();
+    const { a, b } = await pair(r);
+    const { code } = await a.createEnrollmentCode();
+    const join = await SyncClient.startJoin(r.deps(), { baseUrl: BASE, code, region: 'eu' });
+    await a.approveJoin(code, join.sas);
+    const c = await join.finish();
+    await c.queueLedger([record(1)]);
+    await b.queueLedger([record(2)]);
+    await c.sync(); await b.sync(); await a.sync();
+    await a.revokeDevice(c.deviceId!);
+    // The service drops a's wrap for b and serves one made by c, who holds epoch 1's key and so can compute a valid tag.
+    const account = [...r.service.store.accounts.values()][0]!;
+    const accountId = [...r.service.store.accounts.keys()][0]!;
+    const cState = (c as any).state; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const bDevice = account.devices.get(b.deviceId!)!;
+    const tag = await enrollmentTag(cState.keys['1'], 'rotation', accountId, b.deviceId!, '2');
+    const newKey = randomBytes(32);
+    const forged = await wrapAccountKey(newKey, bDevice.encPublic, `keywrap|${accountId}|${b.deviceId}|2|${tag}`);
+    const signature = await sign(cState.deviceKeys.signPrivateJwk, `keywrap|${accountId}|${b.deviceId}|2|${forged.ephemeralPublic}|${forged.nonce}|${forged.ciphertext}`);
+    account.keyWraps = account.keyWraps.filter((w) => w.deviceId !== b.deviceId);
+    account.keyWraps.push({ deviceId: b.deviceId!, epoch: 2, fromEncPublic: cState.deviceKeys.encPublic, signature, wrapped: forged });
+    await b.pull();
+    expect(b.status().epoch).toBe(1); // c was unpinned by the revocation entry in the log, so its signed wrap is refused
+    expect(b.status().failures.undecryptable).toBeGreaterThan(0);
+  });
+
+  it('R9: a revocation reaches peers through the encrypted log, not the service', async () => {
+    const r = rig();
+    const { a, b } = await pair(r);
+    const { code } = await a.createEnrollmentCode();
+    const join = await SyncClient.startJoin(r.deps(), { baseUrl: BASE, code, region: 'eu' });
+    await a.approveJoin(code, join.sas);
+    const c = await join.finish();
+    await c.queueLedger([record(9)]);
+    await b.queueLedger([record(8)]);
+    await c.sync(); await b.sync(); await a.sync(); // everyone has uploaded, so everyone is pinned
+    expect((b as any).state.trustedKeys).toContain((c as any).state.deviceKeys.encPublic); // eslint-disable-line @typescript-eslint/no-explicit-any
+    await a.revokeDevice(c.deviceId!);
+    // The service lies and says c was never revoked.
+    r.hooks.after = (path, method, _b, res) => (path === '/v1/devices' && method === 'GET'
+      ? replace(res, (j) => ({ ...j, devices: (j['devices'] as Array<Record<string, unknown>>).map((d) => ({ ...d, revoked: false })) }))
+      : undefined);
+    await b.sync(); // b hears about the revocation from a's published entry
+    await b.rotateKey();
+    expect((b as any).state.trustedKeys).not.toContain((c as any).state.deviceKeys.encPublic); // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(r.calls.filter((x) => x === 'PUT /v1/keywraps').length).toBeGreaterThan(0);
+    const wrapsForC = [...r.service.store.accounts.values()][0]!.keyWraps.filter((w) => w.deviceId === c.deviceId && w.epoch === 3);
+    expect(wrapsForC).toHaveLength(0);
+  });
+
+  it('LT-2: expired rate-limit windows are dropped as the table grows, not only at the hourly clean-up', async () => {
+    const clock = { t: 1_800_000_000_000 };
+    const service = createSyncService({ now: () => clock.t, config: { sweepAbove: 300 } });
+    const hit = (i: number) => service.fetch(new Request(`${BASE}/v1/enrollments/join`, { method: 'POST', headers: { 'cf-connecting-ip': `10.${i >> 16}.${(i >> 8) & 255}.${i & 255}`, 'content-type': 'application/json' }, body: JSON.stringify({ token: 'x', signPublic: 'a', encPublic: 'b', confirm: 'c' }) }));
+    for (let i = 0; i < 500; i += 1) await hit(i);
+    expect(service.rateLimitEntries()).toBeGreaterThan(400); // nothing has expired yet, so nothing may be dropped
+    clock.t += 2 * 60 * 60 * 1000; // two hours later every window has expired
+    for (let i = 0; i < 20; i += 1) await hit(100_000 + i);
+    expect(service.rateLimitEntries()).toBeLessThan(100);
   });
 });

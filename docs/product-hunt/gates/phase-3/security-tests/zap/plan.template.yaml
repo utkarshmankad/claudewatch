@@ -1,0 +1,45 @@
+# OWASP ZAP Automation Framework plan. __TOKEN__ is replaced with a bearer token minted for a throw-away account on the local service.
+env:
+  contexts:
+    - name: sync
+      urls: ["http://127.0.0.1:8795"]
+      includePaths: ["http://127.0.0.1:8795/v1/.*"]
+  parameters:
+    failOnError: true
+    failOnWarning: false
+    progressToStdout: true
+jobs:
+  - type: replacer
+    parameters:
+      deleteAllRules: true
+    rules:
+      - description: bearer token for authenticated routes
+        matchType: req_header
+        matchString: Authorization
+        initiators: []
+        replacementString: "Bearer __TOKEN__"
+  - type: openapi
+    parameters:
+      apiFile: /zap/wrk/openapi.yaml
+      targetUrl: http://127.0.0.1:8795
+      context: sync
+  - type: passiveScan-wait
+    parameters:
+      maxDuration: 5
+  - type: activeScan
+    parameters:
+      context: sync
+      maxScanDurationInMins: 25
+      maxRuleDurationInMins: 3
+  - type: report
+    parameters:
+      template: traditional-json
+      reportDir: /zap/wrk
+      reportFile: zap-report
+      reportTitle: Token Watcher sync service
+  - type: report
+    parameters:
+      template: traditional-html
+      reportDir: /zap/wrk
+      reportFile: zap-report
+      reportTitle: Token Watcher sync service
