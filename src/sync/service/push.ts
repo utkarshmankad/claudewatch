@@ -46,12 +46,14 @@ export const DEFAULT_PUSH_HOSTS: readonly string[] = [
 /** @deprecated kept for older imports; the list is now exact hosts plus one wildcard. */
 export const DEFAULT_PUSH_HOST_SUFFIXES = DEFAULT_PUSH_HOSTS;
 
-const LABEL = '[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?';
+const LABEL = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 export function hostAllowed(host: string, hosts: readonly string[]): boolean {
   return hosts.some((h) => {
     if (!h.startsWith('*.')) return host === h;
-    const base = h.slice(2).replace(/[.]/g, '\\.');
-    return new RegExp(`^(?:${LABEL}\\.)+${base}$`).test(host);
+    const base = h.slice(1); // ".example.com"
+    if (!host.endsWith(base)) return false;
+    const labels = host.slice(0, host.length - base.length).split('.');
+    return labels.every((l) => LABEL.test(l));
   });
 }
 
