@@ -2,9 +2,12 @@
 // Data is lost on restart by design. Never expose this to a network.
 import { createServer } from 'node:http';
 import { createSyncService } from './handler.js';
+import { createWebPushSender, vapidFromEnv } from './webpush.js';
 
 const port = Number(process.env['SYNC_DEV_PORT'] ?? 8787);
-const service = createSyncService();
+// Push delivery is on only when the owner supplies VAPID_PRIVATE_JWK and VAPID_SUBJECT in the environment.
+const vapid = vapidFromEnv();
+const service = createSyncService(vapid ? { pushSender: createWebPushSender({ keys: vapid }) } : {});
 
 const server = createServer((req, res) => {
   const chunks: Buffer[] = [];

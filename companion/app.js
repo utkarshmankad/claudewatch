@@ -2,6 +2,7 @@
 // The view model is produced by the sync client (src/sync/client) and stored in IndexedDB. Bundling that client into
 // this page is not done yet (docs/sync/COMPANION.md), so an empty store shows the "Not connected" state.
 import { renderView } from './render.js';
+import { forgetThisDevice } from './forget.js';
 
 const ALLOWED = new Set(['section', 'h2', 'p', 'ul', 'li', 'span', 'div']);
 const ALLOWED_ATTRS = new Set(['class', 'role', 'id', 'aria-labelledby']);
@@ -23,8 +24,8 @@ function readStore(key) {
     req.onerror = () => resolve(null);
     req.onsuccess = () => {
       const get = req.result.transaction('state').objectStore('state').get(key);
-      get.onsuccess = () => resolve(get.result === undefined ? null : get.result);
-      get.onerror = () => resolve(null);
+      get.onsuccess = () => { req.result.close(); resolve(get.result === undefined ? null : get.result); };
+      get.onerror = () => { req.result.close(); resolve(null); };
     };
   });
 }
@@ -37,8 +38,8 @@ function writeStore(key, value) {
     req.onsuccess = () => {
       const tx = req.result.transaction('state', 'readwrite');
       value === null ? tx.objectStore('state').delete(key) : tx.objectStore('state').put(value, key);
-      tx.oncomplete = () => resolve(true);
-      tx.onerror = () => resolve(false);
+      tx.oncomplete = () => { req.result.close(); resolve(true); };
+      tx.onerror = () => { req.result.close(); resolve(false); };
     };
   });
 }
@@ -86,10 +87,31 @@ async function disable() {
   return pushState();
 }
 
+// Two steps: "Forget this device" only asks; "Erase now" erases. The sync client cannot be told after the data is gone,
+// so the user is also told to remove the device from the list on a trusted device.
+function forgetPrompt(asking) {
+  document.getElementById('forget-ask').hidden = asking;
+  document.getElementById('forget-confirm').hidden = !asking;
+  document.getElementById('forget-cancel').hidden = !asking;
+  document.getElementById('forget-status').textContent = asking ? 'This erases the stored view, the alert subscription and the offline files on this device.' : '';
+}
+
+async function forget() {
+  const r = await forgetThisDevice({ indexedDB, caches: 'caches' in window ? caches : null, serviceWorker: 'serviceWorker' in navigator ? navigator.serviceWorker : null, dbName: 'claudewatch-companion' });
+  forgetPrompt(false);
+  document.getElementById('forget-status').textContent = r.database && r.caches && r.worker && r.push
+    ? 'This device was forgotten. Remove it from the device list on a trusted device too.'
+    : 'Some data could not be removed. Clear site data in the browser settings.';
+  document.getElementById('view').replaceChildren(...renderView(null).map(build));
+}
+
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').then(pushState, () => undefined);
   navigator.serviceWorker.addEventListener('message', (e) => { if (e.data && e.data.type === 'resubscribe') pushState(); });
 }
 document.getElementById('push-enable').addEventListener('click', enable);
 document.getElementById('push-disable').addEventListener('click', disable);
+document.getElementById('forget-ask').addEventListener('click', () => forgetPrompt(true));
+document.getElementById('forget-cancel').addEventListener('click', () => forgetPrompt(false));
+document.getElementById('forget-confirm').addEventListener('click', forget);
 show();

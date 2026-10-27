@@ -221,6 +221,45 @@ describe('service worker', () => {
   });
 });
 
+describe('forget this device (R3)', () => {
+  type Env = Record<string, unknown>;
+  async function run(over: Record<string, unknown> = {}) {
+    const { forgetThisDevice } = await import('../../../companion/forget.js');
+    const log: string[] = [];
+    const env = {
+      dbName: 'claudewatch-companion',
+      indexedDB: { deleteDatabase: (n: string) => { const r: Record<string, unknown> = {}; log.push(`db:${n}`); setTimeout(() => (r['onsuccess'] as () => void)(), 0); return r; } },
+      caches: { keys: async () => ['a', 'b'], delete: async (k: string) => { log.push(`cache:${k}`); return true; } },
+      serviceWorker: {
+        getRegistration: async () => ({ pushManager: { getSubscription: async () => ({ unsubscribe: async () => { log.push('unsub'); return true; } }) } }),
+        getRegistrations: async () => [{ unregister: async () => { log.push('unreg'); return true; } }],
+      },
+      ...over,
+    };
+    return { result: await forgetThisDevice(env as unknown as Env), log };
+  }
+
+  it('unsubscribes push, deletes the database, clears caches and unregisters the worker', async () => {
+    const { result, log } = await run();
+    expect(result).toEqual({ push: true, database: true, caches: true, worker: true });
+    expect(log).toEqual(['unsub', 'db:claudewatch-companion', 'cache:a', 'cache:b', 'unreg']);
+  });
+
+  it('keeps going and reports which step failed', async () => {
+    const { result, log } = await run({ caches: { keys: async () => { throw new Error('x'); }, delete: async () => true } });
+    expect(result).toEqual({ push: true, database: true, caches: false, worker: true });
+    expect(log).toContain('unreg');
+  });
+
+  it('is wired into the page, the shell cache and the confirm step', () => {
+    const read = (f: string) => readFileSync(join(process.cwd(), 'companion', f), 'utf8');
+    expect(read('sw.js')).toContain("'./forget.js'");
+    expect(read('app.js')).toContain("from './forget.js'");
+    for (const id of ['forget-ask', 'forget-confirm', 'forget-cancel']) expect(read('index.html')).toContain(`id="${id}"`);
+    expect(read('index.html')).toMatch(/id="forget-confirm" type="button" hidden/);
+  });
+});
+
 describe('static shell', () => {
   const read = (f: string) => readFileSync(join(process.cwd(), 'companion', f), 'utf8');
 

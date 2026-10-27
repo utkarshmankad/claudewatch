@@ -81,15 +81,28 @@ Severity: High/Critical = remote compromise of data or authority, or a bypass of
 
 Each has a regression test in `securityReview.test.ts` that fails on the code before the fix.
 
+### Round 3: remaining risks (added 2026-10-27)
+
+- **R12:** `/v1/epoch` and revoke now require a SHA-256 commitment to the new account key and the service stores it as `epochCommit`. Two devices rotating to the same epoch no longer both succeed silently: the second sees a different commitment, drops its rotation and adopts the winner's key. A device accepts a key wrap for an epoch only if the key matches the stored commitment. A lost reply to a successful epoch bump is recognised by its own commitment and is not treated as a loss.
+- **R10:** a device that has not uploaded yet is now pinned by every peer. The approver puts the joiner's public keys in the `vouch` field of its next envelope (at most 8 key pairs, validated like `keys`), and peers pin them.
+- **R6:** push hosts are exact (`fcm.googleapis.com`, `updates.push.services.mozilla.com`, `web.push.apple.com`); `*.notify.windows.com` is the only wildcard and needs at least one label in front. `pushHosts` is configurable.
+- **R3:** the companion has a two-step "Forget this device" button (`companion/forget.js`). It unsubscribes push, deletes the IndexedDB database, clears the caches and unregisters the service worker, and says plainly which step failed. The page no longer leaves database handles open.
+- **R4:** `src/sync/service/webpush.ts` sends Web Push: RFC 8291 `aes128gcm` encryption (the RFC's appendix A message is reproduced byte for byte in a test) and RFC 8292 VAPID with ES256. It checks the host again at send time, refuses redirects, times out after 10 seconds and refuses an endpoint with credentials or a non-https scheme. The VAPID private key comes from `VAPID_PRIVATE_JWK` and `VAPID_SUBJECT` in the environment; `generateVapidKeys()` makes a pair. The repo holds no key. The code is unreviewed against a real push service: **send one real push through each service before enabling it in production.**
+
+Rerun after round 3 (2026-10-27, same seed and sizes): pentest 29 of 29 checks pass (the revoke call in AZ-5 now sends the required `commit`), fuzzing 18 of 18 properties pass with no failure (F4a now expects exact hosts), load test rerun (`results/load.json`). Lint, build and all 1,140 unit tests pass.
+
 ## Residual risks and limits (not fixed; the owner closed the review item but has not individually accepted these)
 
 | ID | Risk |
 | --- | --- |
-| R8 | **Closed in round 2**, with this remainder: pins are added by any holder of the account key (a device's keys are pinned from its first upload). A compromised enrolled device (threat T7, out of scope) can pin a key of its own and receive later keys. |
+| R8 | **Closed in round 2**, with this remainder: pins are added by any holder of the account key. A compromised enrolled device (threat T7, out of scope) can pin a key of its own and receive later keys. This stays. |
 | R9 | **Closed in round 2** for devices that pull the revocation before a rotation reaches them. A device that has been offline learns of the revocation on its next pull, which is processed before key wraps. |
-| R10 | **Narrowed in round 2**: a device that has never uploaded anything is not pinned by peers other than its approver, so a rotation by another peer skips it (`unverifiedDevices()` lists it) until it uploads. |
-| R12 | Two devices rotating at the same moment to the same epoch number can produce two different keys for that epoch; the loser detects only a *higher* server epoch. Needs a server-side compare-and-set on the key, not done. |
-| R11 | Earlier accepted risks R1-R7 in [docs/sync/SECURITY_REVIEW.md](../../../sync/SECURITY_REVIEW.md) still stand, including R4 (push transport and VAPID custody are outside this repo) and R7 (the in-memory store is not the production store). |
+| R10 | **Closed in round 3** (vouching). A joiner that is not yet vouched for by any device that has uploaded still waits for its approver's next upload. |
+| R12 | **Closed in round 3** (epoch commitments). The service must be honest about the commitment only to the extent of availability: a malicious service can refuse to store a commitment but cannot make a device accept a key that does not match it. |
+| R3, R4, R6 | **Closed in round 3**, see above. R4 needs the owner's VAPID key and one real send per push service. |
+| R1, R2, R5 | Still accepted as in [docs/sync/SECURITY_REVIEW.md](../../../sync/SECURITY_REVIEW.md); they are properties of the design (a device key can notify, the service sees quiet hours, a push endpoint is a capability URL). |
+| R7 | **Open, needs an owner decision.** The service store and sessions are in memory per process; a production deployment needs a durable store (for example D1) and shared rate-limit state. Not faked here. |
+| Extension | The extension's rate-limit backoff (a 13.1 minute recovery seen once in the cloud soak) is the extension owner's call. |
 
 ## Penetration test, fuzzing and load test (added 2026-10-24)
 

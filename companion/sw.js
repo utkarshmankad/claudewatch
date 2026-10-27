@@ -2,7 +2,7 @@
 // A push carries only {v, k}: a schema version and an alert kind. It never contains usage values, so the text
 // shown below is fixed per kind and the page shows the real numbers once the user opens it.
 const CACHE = 'claudewatch-companion-shell-v1';
-const SHELL = ['./', './index.html', './app.js', './render.js', './style.css', './manifest.webmanifest'];
+const SHELL = ['./', './index.html', './app.js', './forget.js', './render.js', './style.css', './manifest.webmanifest'];
 const TEXT = {
   quota_risk: { title: 'ClaudeWatch: quota risk', body: 'A quota may run out before it resets. Open ClaudeWatch for details.' },
   reset: { title: 'ClaudeWatch: quota reset', body: 'A quota window has reset. Open ClaudeWatch for details.' },
