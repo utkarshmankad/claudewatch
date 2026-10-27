@@ -80,6 +80,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Restore the previous leg's browser profile
         if: ${{ matrix.leg.leg > 0 }}
+        continue-on-error: true   # if the previous leg failed there is no profile; this leg starts a fresh one and logs it
         uses: actions/download-artifact@v7
         with:
           name: soak-profile-${{ matrix.leg.prev }}
@@ -93,7 +94,11 @@ jobs:
           SOAK_PROFILE: soak-profile
           SOAK_OUT: soak-out
         run: |
+          # SOAK_MINUTES arrives as the standard leg length; the last leg only runs what is left of the total.
           export SOAK_OFFSET_MINUTES=$(( LEG * SOAK_MINUTES ))
+          REMAIN=$(( SOAK_TOTAL_MINUTES - SOAK_OFFSET_MINUTES ))
+          if [ "$REMAIN" -lt "$SOAK_MINUTES" ]; then export SOAK_MINUTES="$REMAIN"; fi
+          echo "leg $LEG: offset $SOAK_OFFSET_MINUTES min, running $SOAK_MINUTES min of $SOAK_TOTAL_MINUTES"
           rm -f soak-profile/Singleton* 2>/dev/null || true
           xvfb-run -a node scripts/soak/browser-soak.mjs
           echo "--- files written by this leg"; wc -l soak-out/*.jsonl; du -sh soak-profile soak-out

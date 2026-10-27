@@ -7,129 +7,129 @@
   "outcomes": [
     {
       "id": "F1",
-      "target": "HTTP handler (21 routes, authenticated and not, 20k requests): never 500, always JSON, never leaks stack text (status mix {\"200\":34354,\"201\":6385,\"400\":61328,\"401\":53993,\"404\":23827,\"409\":2235,\"429\":17878}; caller still authenticated afterwards: true)",
+      "target": "HTTP handler (21 routes, authenticated and not, 20k requests): never 500, always JSON, never leaks stack text (status mix {\"200\":34354,\"201\":6385,\"400\":61368,\"401\":53993,\"404\":23922,\"409\":2100,\"429\":17878}; caller still authenticated afterwards: true)",
       "runs": 200000,
       "ok": true,
-      "seconds": 48.421
+      "seconds": 39.919
     },
     {
       "id": "F2a",
       "target": "validateLedgerRecord: arbitrary and mutated records only ever return or throw AllowListError",
       "runs": 20000,
       "ok": true,
-      "seconds": 0.35
+      "seconds": 0.312
     },
     {
       "id": "F2b",
       "target": "validatePrefs / validateDeviceEntry: same",
       "runs": 20000,
       "ok": true,
-      "seconds": 0.5
+      "seconds": 0.364
     },
     {
       "id": "F2c",
       "target": "validateEnvelope: arbitrary envelopes only return or throw AllowListError; accepted records have no extra keys",
       "runs": 20000,
       "ok": true,
-      "seconds": 0.4
+      "seconds": 0.355
     },
     {
       "id": "F2d",
       "target": "checkLabel never accepts URLs, e-mail, credentials, IPv4 or control characters",
       "runs": 100000,
       "ok": true,
-      "seconds": 0.33
+      "seconds": 0.302
     },
     {
       "id": "F3a",
       "target": "seal/open round trip for arbitrary JSON values",
       "runs": 20000,
       "ok": true,
-      "seconds": 6.436
+      "seconds": 5.646
     },
     {
       "id": "F3b",
       "target": "any mutated ciphertext/nonce, or different AAD binding or key, fails to open",
       "runs": 20000,
       "ok": true,
-      "seconds": 6.122
+      "seconds": 5.562
     },
     {
       "id": "F3c",
       "target": "unpad never reads out of bounds on arbitrary bytes (throws or returns a slice)",
       "runs": 60000,
       "ok": true,
-      "seconds": 0.274
+      "seconds": 0.271
     },
     {
       "id": "F3d",
       "target": "verify() returns false (never throws) for arbitrary key/message/signature",
       "runs": 20000,
       "ok": true,
-      "seconds": 0.399
+      "seconds": 0.383
     },
     {
       "id": "F3e",
       "target": "decryptBackup rejects arbitrary blobs without hanging",
       "runs": 300,
       "ok": true,
-      "seconds": 0.176
+      "seconds": 0.172
     },
     {
       "id": "F3f",
       "target": "wrapAccountKey/unwrapAccountKey round trip; any other binding or key fails",
       "runs": 300,
       "ok": true,
-      "seconds": 0.741
+      "seconds": 0.692
     },
     {
       "id": "F3g",
       "target": "enrollmentTag: different secret or inputs give different tags",
       "runs": 20000,
       "ok": true,
-      "seconds": 2.342
+      "seconds": 2.038
     },
     {
       "id": "F4a",
       "target": "validatePushEndpoint: anything accepted is https, no credentials/port, and its parsed host is an allowed push host or subdomain",
       "runs": 100000,
       "ok": true,
-      "seconds": 1.184
+      "seconds": 1.17
     },
     {
       "id": "F4b",
       "target": "validatePushKeys / QuietHours / Kinds only throw PushValidationError; inQuietHours total over all numbers",
       "runs": 40000,
       "ok": true,
-      "seconds": 1.633
+      "seconds": 1.588
     },
     {
       "id": "F5",
       "target": "SyncClient.sync()/pull() against arbitrary server replies: no TypeError/RangeError, state stays loadable and JSON-serialisable",
       "runs": 10000,
       "ok": true,
-      "seconds": 31.584
+      "seconds": 25.721
     },
     {
       "id": "F6",
       "target": "ledger merge: applying the same records in any order (and twice) gives the same effective ledger",
       "runs": 1500,
       "ok": true,
-      "seconds": 0.069
+      "seconds": 0.056
     },
     {
       "id": "F7a",
       "target": "renderView: arbitrary view contents produce only allowed tags/attributes and string text (no markup passes through)",
       "runs": 20000,
       "ok": true,
-      "seconds": 1.649
+      "seconds": 0.929
     },
     {
       "id": "F7b",
       "target": "service worker push handler: any payload (JSON, __proto__, garbage) shows only one of the two fixed notifications",
       "runs": 60000,
       "ok": true,
-      "seconds": 0.625
+      "seconds": 0.527
     }
   ]
 }

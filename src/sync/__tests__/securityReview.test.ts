@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { MemoryStorage, SyncClient, SyncUnavailableError } from '../client/client.js';
 import type { Transport } from '../client/client.js';
 import { enrollmentTag, generateDeviceKeys, randomBytes, sign, wrapAccountKey } from '../e2ee/crypto.js';
+import { validateEnvelope } from '../e2ee/envelope.js';
 import { createSyncService } from '../service/handler.js';
 
 const BASE = 'https://sync.test';
@@ -402,5 +403,73 @@ describe('open findings from the first review, now closed', () => {
     clock.t += 2 * 60 * 60 * 1000; // two hours later every window has expired
     for (let i = 0; i < 20; i += 1) await hit(100_000 + i);
     expect(service.rateLimitEntries()).toBeLessThan(100);
+  });
+});
+
+describe('round 3: remaining risks', () => {
+  it('R12: two devices rotating at once end up with the same key; the loser is told and drops its attempt', async () => {
+    const r = rig();
+    const { a, b } = await pair(r);
+    const results = await Promise.allSettled([a.rotateKey(), b.rotateKey()]);
+    const won = results.filter((x) => x.status === 'fulfilled');
+    const lost = results.filter((x): x is PromiseRejectedResult => x.status === 'rejected');
+    expect(won).toHaveLength(1);
+    expect(lost).toHaveLength(1);
+    expect(String(lost[0]!.reason)).toMatch(/superseded/);
+    await a.sync(); await b.sync();
+    const key = (c: unknown) => (c as any).state.keys['2']; // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(key(a)).toBeDefined();
+    expect(key(a)).toBe(key(b));
+    expect((b as any).state.pendingRotation).toBeUndefined(); // eslint-disable-line @typescript-eslint/no-explicit-any
+    // and they can still write to each other under the shared epoch
+    await a.queueLedger([record(31)]); await a.flush();
+    expect((await b.pull()).applied).toBe(1);
+  });
+
+  it('R12: a lost reply to our own epoch bump is recognised by its commitment, not mistaken for a rival', async () => {
+    const r = rig();
+    const { a, b } = await pair(r);
+    let lost = 4; // the bump lands but every reply is lost, so the retry sees "already bumped"
+    r.hooks.after = async (path, method, _b, res) => {
+      if (lost > 0 && method === 'POST' && path === '/v1/epoch') { lost -= 1; await res.text(); return new Response('', { status: 503 }); }
+      return undefined;
+    };
+    await expect(a.rotateKey()).rejects.toBeInstanceOf(SyncUnavailableError);
+    await a.sync(); // resumes: the server's commitment is ours, so this finishes the hand-out
+    expect((await b.pull()).undecryptable).toBe(0);
+    expect(b.status().epoch).toBe(2);
+  });
+
+  it('R12: the service refuses an epoch bump without a well-formed commitment', async () => {
+    const r = rig();
+    const { a } = await pair(r);
+    const sessionBody = (a as any).session; // eslint-disable-line @typescript-eslint/no-explicit-any
+    void sessionBody;
+    r.hooks.before = (path, _m, body) => (path === '/v1/epoch' ? { ...body, commit: 'nothex' } : undefined);
+    await expect(a.rotateKey()).rejects.toBeInstanceOf(SyncUnavailableError);
+    expect((a as any).state.pendingRotation).toBeDefined(); // eslint-disable-line @typescript-eslint/no-explicit-any
+  });
+
+  it('R10: a device approved by one peer is pinned by the others before it has uploaded anything', async () => {
+    const r = rig();
+    const { a, b } = await pair(r);
+    const { code } = await a.createEnrollmentCode();
+    const join = await SyncClient.startJoin(r.deps(), { baseUrl: BASE, code, region: 'eu' });
+    await a.approveJoin(code, join.sas);
+    const c = await join.finish(); // c never uploads anything
+    await a.queueLedger([record(41)]);
+    await a.flush(); // a's next upload carries the vouch for c
+    await b.pull();
+    const cKey = (c as any).state.deviceKeys.encPublic; // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect((b as any).state.trustedKeys).toContain(cKey); // eslint-disable-line @typescript-eslint/no-explicit-any
+    await b.rotateKey();
+    expect(b.unverifiedDevices()).toEqual([]);
+    expect((await c.pull()).undecryptable).toBe(0);
+    expect(c.status().epoch).toBe(2);
+  });
+
+  it('R10: a vouch must be well formed', () => {
+    expect(() => validateEnvelope({ v: 1, epoch: 1, sender: 'x', deviceSeq: 1, prev_hash: '', kind: 'prefs', items: [], vouch: [{ enc: 'no', sign: 'no' }] })).toThrow();
+    expect(() => validateEnvelope({ v: 1, epoch: 1, sender: 'x', deviceSeq: 1, prev_hash: '', kind: 'prefs', items: [], vouch: [] })).toThrow();
   });
 });

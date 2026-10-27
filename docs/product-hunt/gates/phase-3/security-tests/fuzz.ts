@@ -148,14 +148,14 @@ const jsonish = fc.oneof(fc.string(), fc.integer(), fc.double({ noNaN: false }),
 // ---- F4: push validators ----
 {
   const only = (fn: () => unknown): boolean => { try { fn(); return true; } catch (e) { return e instanceof push.PushValidationError; } };
-  const hosts = ['fcm.googleapis.com', 'updates.push.services.mozilla.com', 'web.push.apple.com', 'notify.windows.com'];
+  const hosts = ['fcm.googleapis.com', 'updates.push.services.mozilla.com', 'web.push.apple.com', '*.notify.windows.com'];
   const hostile = fc.tuple(fc.constantFrom('https', 'http', 'ftp', ''), fc.constantFrom(...hosts, 'localhost', '127.0.0.1', '[::1]', '0x7f.1', '2130706433', 'evil.test'), fc.constantFrom('', '.evil.test', 'x', '@evil.test', '%2eevil.test', ':8443', '\\@evil.test', '。evil。test', '.'), fc.string({ maxLength: 12 }), fc.constantFrom('', 'user:pw@', 'a@', 'x:y@'))
     .map(([scheme, host, suffix, path, userinfo]: string[]) => `${scheme}://${userinfo}${host}${suffix}/${path}`);
   await prop('F4a', 'validatePushEndpoint: anything accepted is https, no credentials/port, and its parsed host is an allowed push host or subdomain', RUNS * 5, fc.property(fc.oneof(fc.string(), hostile, fc.webUrl()), (u: string) => {
     let out: string; try { out = push.validatePushEndpoint(u); } catch (e) { return e instanceof push.PushValidationError; }
     const url = new URL(out);
     const h = url.hostname;
-    return url.protocol === 'https:' && url.username === '' && url.password === '' && url.port === '' && hosts.some((s) => h === s || h.endsWith(`.${s}`)) && !/^[\d.]+$/.test(h);
+    return url.protocol === 'https:' && url.username === '' && url.password === '' && url.port === '' && hosts.some((s) => (s.startsWith('*.') ? h.endsWith(s.slice(1)) && h.length > s.length - 1 : h === s)) && !/^[\d.]+$/.test(h);
   }));
   await prop('F4b', 'validatePushKeys / QuietHours / Kinds only throw PushValidationError; inQuietHours total over all numbers', RUNS * 2, fc.property(fc.anything(), fc.anything(), fc.double(), (a: unknown, b: unknown, t: number) => only(() => push.validatePushKeys(a, b)) && only(() => push.validateQuietHours(a)) && only(() => push.validateKinds(b)) && typeof push.inQuietHours(t, { startMinute: 0, endMinute: 100, utcOffsetMinutes: 0 }) === 'boolean'));
 }

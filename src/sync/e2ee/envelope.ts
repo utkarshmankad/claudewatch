@@ -17,6 +17,7 @@ export type Envelope = {
   sender: string; // opaque device id, so receivers can check each device's chain
   deviceSeq: number; // per-device counter inside the ciphertext; the server sequence still orders delivery
   prev_hash: string; // sha256 of this device's previous uploaded ciphertext, '' for the first
+  vouch?: Array<{ enc: string; sign: string }>; // keys of devices the sender just approved, so peers pin them before those devices have uploaded anything
   keys?: { enc: string; sign: string }; // the sender's public keys, so peers can pin them (authenticated by the envelope encryption)
   baseSeq?: number; // highest server sequence the sender had applied; lets receivers tell concurrent writes from sequential ones
 } & EnvelopeItems;
@@ -30,7 +31,7 @@ export function validateEnvelope(input: unknown): Envelope {
   if (typeof input !== 'object' || input === null) throw new AllowListError('envelope: must be an object');
   const e = input as Record<string, unknown>;
   if (typeof e['v'] === 'number' && e['v'] > ENVELOPE_VERSION) throw new NewerSchemaError('envelope: written by a newer client');
-  const allowed = ['v', 'epoch', 'sender', 'deviceSeq', 'prev_hash', 'kind', 'items', 'baseSeq', 'keys'];
+  const allowed = ['v', 'epoch', 'sender', 'deviceSeq', 'prev_hash', 'kind', 'items', 'baseSeq', 'keys', 'vouch'];
   for (const key of Object.keys(e)) if (!allowed.includes(key)) throw new AllowListError(`envelope: unknown key "${key}"`);
   if (e['v'] !== ENVELOPE_VERSION) throw new AllowListError('envelope: unsupported version');
   if (!Number.isInteger(e['epoch']) || (e['epoch'] as number) < 1) throw new AllowListError('envelope.epoch invalid');
@@ -49,10 +50,23 @@ export function validateEnvelope(input: unknown): Envelope {
     if (typeof enc !== 'string' || typeof sign !== 'string' || !point.test(enc) || !point.test(sign)) throw new AllowListError('envelope.keys invalid');
     keys = { enc, sign };
   }
+  let vouch: Array<{ enc: string; sign: string }> | undefined;
+  if (e['vouch'] !== undefined) {
+    const point = /^[A-Za-z0-9+/]{80,100}={0,2}$/;
+    const v = e['vouch'];
+    if (!Array.isArray(v) || v.length === 0 || v.length > 8) throw new AllowListError('envelope.vouch invalid');
+    vouch = v.map((entry) => {
+      if (typeof entry !== 'object' || entry === null || Array.isArray(entry) || Object.keys(entry).some((x) => x !== 'enc' && x !== 'sign')) throw new AllowListError('envelope.vouch invalid');
+      const { enc, sign } = entry as Record<string, unknown>;
+      if (typeof enc !== 'string' || typeof sign !== 'string' || !point.test(enc) || !point.test(sign)) throw new AllowListError('envelope.vouch invalid');
+      return { enc, sign };
+    });
+  }
   const base = {
     v: ENVELOPE_VERSION, epoch: e['epoch'] as number, sender: e['sender'], deviceSeq: e['deviceSeq'] as number, prev_hash: e['prev_hash'],
     ...(e['baseSeq'] === undefined ? {} : { baseSeq: e['baseSeq'] as number }),
     ...(keys ? { keys } : {}),
+    ...(vouch ? { vouch } : {}),
   } as const;
   switch (e['kind']) {
     case 'ledger_batch':

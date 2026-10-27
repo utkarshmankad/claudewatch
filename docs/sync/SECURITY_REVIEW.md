@@ -47,10 +47,10 @@ Owner for every item: the repository owner (`utkarshmankad`). Next review date: 
 | --- | --- | --- | --- |
 | R1 | A compromised enrolled device can call `notify` to spam the account's other devices (12/hour/device, 30/hour/account, generic text only). | Needs a device key; impact is annoyance; limits bound it. | 2027-01-24 |
 | R2 | Quiet hours and a UTC offset are visible to the service (coarse sleep pattern). | Needed so the service can suppress while clients are asleep; devices can omit it and lose suppression only. Disclosed in COMPANION.md. | 2027-01-24 |
-| R3 | The companion's view model is plaintext in IndexedDB on the user's device. | A malware-compromised or unlocked device is out of scope (threat T7). No "forget this device" button yet; disabling alerts removes the subscription but not the cached view. Should be added before release. | 2027-01-24 |
-| R4 | The push transport is not in the repo, so redirect handling, payload encryption and VAPID key custody are unreviewed. | Owner supplies it with secrets this routine does not hold. **Must be reviewed before enabling push in production.** | Before deploy |
+| R3 | The companion's view model is plaintext in IndexedDB on the user's device. | A malware-compromised or unlocked device is out of scope (threat T7). **Mitigated 2026-10-27:** the companion has a two-step "Forget this device" button that erases the view, subscription, caches and worker. | 2027-01-24 |
+| R4 | The push transport is not in the repo, so redirect handling, payload encryption and VAPID key custody are unreviewed. | **Sender added 2026-10-27** (`src/sync/service/webpush.ts`, RFC 8291/8292, vector-tested; key from the environment). Still **test one real push per push service before enabling in production.** | Before deploy |
 | R5 | A push endpoint is a capability URL held by the service; a service compromise lets an attacker send generic wake-ups to those devices. | Payload is generic and carries no data; the attacker already holds the ciphertext log in that scenario (threat T1). | 2027-01-24 |
-| R6 | Allow-listed push hosts include whole suffixes (for example `notify.windows.com`); a takeover of a subdomain under a suffix would be a valid target. | Those domains are operated by the browser vendors; the alternative is a brittle exact list. | 2027-01-24 |
+| R6 | **Closed 2026-10-27:** hosts are exact; only `*.notify.windows.com` is a wildcard. | 2027-01-24 |
 | R7 | The in-memory store and sessions are per process. A Worker deployment needs a durable store and shared rate-limit state, which are not written. | Known gap from 3.2 (DEPLOYMENT.md). Per-instance limits are weaker than global ones. | Before deploy |
 
 ## Not covered

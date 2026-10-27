@@ -35,6 +35,8 @@ interface OutboxItem {
   items: unknown[];
   baseSeq?: number; // server sequence this device had applied when the change was made
   queuedAt?: number;
+  /** Keys of devices this one approved, carried in this item's envelope so peers pin them (R10). Taken when the item is first sealed. */
+  vouch?: Array<{ enc: string; sign: string }>;
   /** The bytes already sealed for this item. A retry resends exactly these, so a lost response cannot fork the hash chain. */
   sealed?: { epoch: number; deviceSeq: number; prevHash: string; nonce: string; ciphertext: string };
 }
@@ -92,6 +94,7 @@ interface SyncState {
   // Added by the Phase 3 security review.
   trustedKeys?: string[]; // encPublic values this device has pinned; key distribution goes only to these
   signKeys?: Record<string, string>; // pinned encPublic -> signPublic, used to check who signed a key wrap
+  pendingVouch?: Array<{ enc: string; sign: string }>; // approved devices not yet announced to peers
   revokedKeys?: string[]; // keys of devices that were revoked; never re-pinned, whatever the service's device list says
   pendingRotation?: { kind: 'rotate' | 'revoke'; epoch: number; key: string; deviceId?: string }; // survives a crash between the epoch bump and the key hand-out
   keylessSeqs?: Array<{ seq: number; epoch: number }>; // objects skipped for want of an epoch key, retried once the key arrives
@@ -139,6 +142,7 @@ const defaultTransport: Transport = (url, init) => fetch(url, init);
 export class SyncClient {
   private session: { token: string; expiresAt: number } | null = null;
   private skippedKeyRecipients: string[] = [];
+  private seenCommit: { epoch: number; commit: string } | null = null; // the service's commitment for the epoch, from the last page
 
   private constructor(private state: SyncState | null, private readonly deps: Required<ClientDeps>) {}
 
@@ -342,6 +346,7 @@ export class SyncClient {
     const wrapped = await wrapAccountKey(ring, joined.encPublic, await SyncClient.enrollBinding(this.s.accountId, epoch, secret));
     await this.api('POST', '/v1/enrollments/approve', { token, wrapped, epoch });
     this.pinKeys(joined.encPublic, joined.signPublic);
+    (this.s.pendingVouch ??= []).push({ enc: joined.encPublic, sign: joined.signPublic });
     await this.save();
   }
 
@@ -594,9 +599,11 @@ export class SyncClient {
         const epoch = s.epoch;
         const count = (s.seals[String(epoch)] ?? 0) + 1;
         if (count > MAX_SEALS_PER_EPOCH) throw new Error('key epoch exhausted; rotate the key');
+        if (!next.vouch && s.pendingVouch?.length) next.vouch = s.pendingVouch.splice(0, 8);
         const envelope = {
           v: ENVELOPE_VERSION, epoch, sender: s.deviceId, deviceSeq: s.deviceSeq + 1, prev_hash: s.prevHash, kind: next.kind, items: next.items,
           keys: { enc: s.deviceKeys.encPublic, sign: s.deviceKeys.signPublic },
+          ...(next.vouch ? { vouch: next.vouch } : {}),
           ...(next.baseSeq === undefined ? {} : { baseSeq: next.baseSeq }),
         } as Envelope;
         validateEnvelope(envelope); // never upload something the allow-list would reject
@@ -653,6 +660,8 @@ export class SyncClient {
       if (!signer || typeof w.signature !== 'string' || !(await verify(signer, signed, w.signature))) { this.fail('undecryptable'); continue; }
       try {
         const ak = await unwrapAccountKey(w.wrapped, s.deviceKeys.encPrivateJwk, await SyncClient.rotationBinding(s.accountId, s.deviceId, w.epoch, previous));
+        // The rotation the service recorded for this epoch is the one that won; a key that does not match belongs to a rotation that lost.
+        if (this.seenCommit?.epoch === w.epoch && this.seenCommit.commit !== (await sha256Hex(ak))) { this.fail('undecryptable'); continue; }
         s.keys[String(w.epoch)] = toB64(ak);
         if (w.epoch > s.epoch) s.epoch = w.epoch;
       } catch {
@@ -678,6 +687,7 @@ export class SyncClient {
       const body = await SyncClient.reply(res);
       const page = { head: body['head'] as number, epoch: body['epoch'] as number, objects: SyncClient.list(body, 'objects') as unknown as ServerObject[] };
       if (!Number.isInteger(page.head) || page.head < 0 || !Number.isInteger(page.epoch)) throw new SyncUnavailableError('bad_response');
+      this.seenCommit = typeof body['epochCommit'] === 'string' && /^[0-9a-f]{64}$/.test(body['epochCommit']) ? { epoch: page.epoch, commit: body['epochCommit'] } : null;
       if (page.head < s.head || page.head < s.lastSeq) {
         if (!result.warnings.includes('rollback')) result.warnings.push('rollback');
         break; // keep local state; do not trust a shorter log
@@ -786,6 +796,7 @@ export class SyncClient {
   private async apply(env: Envelope, seq: number, result: PullResult): Promise<number> {
     const s = this.s;
     let applied = 0;
+    for (const v of env.vouch ?? []) this.pinKeys(v.enc, v.sign); // the sender approved these devices (confirmed by their enrollment secret)
     if (env.keys) this.pinKeys(env.keys.enc, env.keys.sign); // stamped inside the encrypted envelope, so only an account-key holder could have written it
     if (env.kind === 'ledger_batch') {
       const ledger = { records: s.ledger, conflicts: s.ledgerConflicts ?? (s.ledgerConflicts = []) };
@@ -952,18 +963,33 @@ export class SyncClient {
     const s = this.s;
     const p = s.pendingRotation;
     if (!p) throw new Error('no rotation pending');
-    const info = await SyncClient.reply(await this.api('GET', '/v1/devices'));
-    const serverEpoch = info['epoch'];
-    if (!Number.isInteger(serverEpoch)) throw new SyncUnavailableError('bad_response');
-    if ((serverEpoch as number) > p.epoch) {
-      // Another device rotated first. Drop this attempt; the caller can try again after a pull.
+    const commit = await sha256Hex(fromB64(p.key));
+    const state = async (): Promise<{ epoch: number; commit: string | null }> => {
+      const info = await SyncClient.reply(await this.api('GET', '/v1/devices'));
+      if (!Number.isInteger(info['epoch'])) throw new SyncUnavailableError('bad_response');
+      return { epoch: info['epoch'] as number, commit: typeof info['epochCommit'] === 'string' ? info['epochCommit'] : null };
+    };
+    const superseded = async (): Promise<never> => {
+      // Another device moved the account to this epoch (or past it) with a different key. This attempt is dropped; the
+      // caller can try again after a pull. Two devices can therefore never end up holding different keys for one epoch.
       delete s.pendingRotation;
       await this.save();
       throw new SyncUnavailableError('rotation superseded by another device');
-    }
-    if ((serverEpoch as number) < p.epoch) {
-      if (p.kind === 'rotate') await this.api('POST', '/v1/epoch', { newEpoch: p.epoch });
-      else await this.api('POST', `/v1/devices/${encodeURIComponent(p.deviceId ?? '')}/revoke`, { newEpoch: p.epoch });
+    };
+    let server = await state();
+    if (server.epoch > p.epoch || (server.epoch === p.epoch && server.commit !== commit)) await superseded();
+    if (server.epoch < p.epoch) {
+      const body = { newEpoch: p.epoch, commit };
+      try {
+        if (p.kind === 'rotate') await this.api('POST', '/v1/epoch', body);
+        else await this.api('POST', `/v1/devices/${encodeURIComponent(p.deviceId ?? '')}/revoke`, body);
+      } catch (error) {
+        // Refused: either the other device won the race, or our own earlier request landed and its reply was lost.
+        if (!(error instanceof SyncUnavailableError) || !error.message.startsWith('HTTP 400')) throw error;
+        server = await state();
+        if (server.epoch < p.epoch) throw error; // nothing changed on the service: a real refusal, not a race
+        if (server.epoch !== p.epoch || server.commit !== commit) await superseded();
+      }
     }
     s.keys[String(p.epoch)] = p.key;
     s.epoch = Math.max(s.epoch, p.epoch);

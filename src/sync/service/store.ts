@@ -43,6 +43,8 @@ export interface AccountRecord {
   createdAt: number;
   lastActiveAt: number;
   epoch: number;
+  /** sha256 of the account key for the current epoch, set by whoever bumped it. Whoever's commitment is stored won the rotation. */
+  epochCommit: string | null;
   nextSeq: number;
   storageBytes: number;
   devices: Map<string, DeviceRecord>;
