@@ -9,7 +9,7 @@
 // whole run and executes its own slice; a leg ends by closing the browser, and the next one reopens the same profile, which
 // is itself a browser-restart test.
 import { chromium } from 'playwright';
-import { mkdirSync, appendFileSync, writeFileSync, readFileSync } from 'node:fs';
+import { mkdirSync, appendFileSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -171,6 +171,7 @@ globalThis.self = globalThis.self ?? globalThis;
 new Function('self', policySrc)(globalThis.self);
 const policy = globalThis.self.TokenWatcherRefresh;
 
+if (OFFSET > 0 && !existsSync(PROFILE)) console.log(JSON.stringify({ type: 'profile_missing', note: 'the previous leg left no browser profile; starting a fresh one' }));
 await launch();
 log({ type: 'leg_start', offsetMinutes: OFFSET, legMinutes: MINUTES, totalMinutes: TOTAL, plan: plan.length, extensionId });
 
