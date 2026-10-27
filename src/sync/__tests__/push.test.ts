@@ -3,7 +3,7 @@ import { MemoryStorage, SyncClient } from '../client/client.js';
 import type { ClientDeps, Transport } from '../client/client.js';
 import { createSyncService } from '../service/handler.js';
 import type { SyncService } from '../service/handler.js';
-import { DEFAULT_PUSH_HOST_SUFFIXES, inQuietHours, pushPayload, validateKinds, validatePushEndpoint, validatePushKeys, validateQuietHours } from '../service/push.js';
+import { DEFAULT_PUSH_HOSTS, hostAllowed, inQuietHours, pushPayload, validateKinds, validatePushEndpoint, validatePushKeys, validateQuietHours } from '../service/push.js';
 import type { PushMessage, PushSender } from '../service/push.js';
 
 const BASE = 'https://sync.test';
@@ -47,7 +47,7 @@ describe('push validation', () => {
       expect(() => validatePushEndpoint(bad), String(bad)).toThrow();
     }
     expect(() => validatePushEndpoint(`https://fcm.googleapis.com/${'a'.repeat(600)}`)).toThrow();
-    expect(DEFAULT_PUSH_HOST_SUFFIXES.every((s) => !s.includes('/'))).toBe(true);
+    expect(DEFAULT_PUSH_HOSTS.every((s) => !s.includes('/'))).toBe(true);
   });
 
   it('validates keys, quiet hours and kinds', () => {
@@ -313,6 +313,24 @@ describe('service hardening found in the 3.4 security review', () => {
     r.clock.t += 61 * MIN;
     r.service.runRetention();
     expect(r.service.rateLimitEntries()).toBe(0);
+  });
+
+  it('R6: matches exact hosts, and sub-domains only where the service really hands them out', () => {
+    // Windows sub-domains are per device; they are the only wildcard.
+    expect(validatePushEndpoint('https://db5p.notify.windows.com/?token=abc')).toContain('notify.windows.com');
+    expect(validatePushEndpoint('https://wns2-par02p.notify.windows.com/w/?token=abc')).toContain('notify.windows.com');
+    for (const bad of [
+      'https://notify.windows.com/x', // the bare domain is not a push host
+      'https://evil.notify.windows.com.evil.example/x', 'https://-x.notify.windows.com/x', 'https://x_y.notify.windows.com/x',
+      'https://takeover.googleapis.com/x', 'https://x.fcm.googleapis.com/x', 'https://x.updates.push.services.mozilla.com/x',
+      'https://sub.web.push.apple.com/x', 'https://push.services.mozilla.com/x', 'https://web.push.apple.com.evil.example/x',
+    ]) {
+      expect(() => validatePushEndpoint(bad), bad).toThrow();
+    }
+    expect(hostAllowed('a.b.notify.windows.com', ['*.notify.windows.com'])).toBe(true);
+    expect(hostAllowed('notify.windows.com', ['*.notify.windows.com'])).toBe(false);
+    expect(hostAllowed('fcm.googleapis.com', ['fcm.googleapis.com'])).toBe(true);
+    expect(hostAllowed('x.fcm.googleapis.com', ['fcm.googleapis.com'])).toBe(false);
   });
 
   it('rejects look-alike and parser-confusion endpoints, and stores only the normalised host', () => {

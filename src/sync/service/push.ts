@@ -34,16 +34,30 @@ export interface PushMessage {
 export type PushSender = (message: PushMessage) => Promise<{ status: number }>;
 
 // Only hosted browser push services may be targeted, so a registered endpoint cannot make the service call an arbitrary URL.
-export const DEFAULT_PUSH_HOST_SUFFIXES = [
+// An entry is an exact host, or "*.example.com" for one or more labels in front of example.com (never example.com itself).
+// Only Windows hands out per-device sub-domains; the other services use one fixed host, so a take-over of some other
+// sub-domain of googleapis.com, mozilla.com or apple.com is not a valid target.
+export const DEFAULT_PUSH_HOSTS: readonly string[] = [
   'fcm.googleapis.com',
   'updates.push.services.mozilla.com',
   'web.push.apple.com',
-  'notify.windows.com',
+  '*.notify.windows.com',
 ];
+/** @deprecated kept for older imports; the list is now exact hosts plus one wildcard. */
+export const DEFAULT_PUSH_HOST_SUFFIXES = DEFAULT_PUSH_HOSTS;
+
+const LABEL = '[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?';
+export function hostAllowed(host: string, hosts: readonly string[]): boolean {
+  return hosts.some((h) => {
+    if (!h.startsWith('*.')) return host === h;
+    const base = h.slice(2).replace(/[.]/g, '\\.');
+    return new RegExp(`^(?:${LABEL}\\.)+${base}$`).test(host);
+  });
+}
 
 export class PushValidationError extends Error {}
 
-export function validatePushEndpoint(raw: unknown, suffixes: readonly string[] = DEFAULT_PUSH_HOST_SUFFIXES): string {
+export function validatePushEndpoint(raw: unknown, hosts: readonly string[] = DEFAULT_PUSH_HOSTS): string {
   if (typeof raw !== 'string' || raw.length === 0 || raw.length > 512) throw new PushValidationError('endpoint');
   let url: URL;
   try {
@@ -54,8 +68,7 @@ export function validatePushEndpoint(raw: unknown, suffixes: readonly string[] =
   if (url.protocol !== 'https:' || url.username !== '' || url.password !== '' || url.port !== '' || url.hash !== '') throw new PushValidationError('endpoint');
   const host = url.hostname.toLowerCase();
   if (/^[\d.]+$/.test(host) || host.includes(':') || host.includes('[')) throw new PushValidationError('endpoint'); // IP literals
-  const allowed = suffixes.some((s) => host === s || host.endsWith(`.${s}`));
-  if (!allowed) throw new PushValidationError('endpoint_host');
+  if (!hostAllowed(host, hosts)) throw new PushValidationError('endpoint_host');
   return url.toString();
 }
 

@@ -4,7 +4,7 @@ import { randomId, sha256Hex, verify } from '../e2ee/crypto.js';
 import { MemoryStore } from './store.js';
 import type { AccountRecord, AuditEvent, DeviceRecord, KeyWrapRecord } from './store.js';
 import {
-  DEFAULT_PUSH_HOST_SUFFIXES, PUSH_KINDS, PushValidationError, inQuietHours, pushPayload, pushTtlSeconds,
+  DEFAULT_PUSH_HOSTS, PUSH_KINDS, PushValidationError, inQuietHours, pushPayload, pushTtlSeconds,
   validateKinds, validatePushEndpoint, validatePushKeys, validateQuietHours,
 } from './push.js';
 import type { PushKind, PushSender } from './push.js';
@@ -30,7 +30,7 @@ export interface SyncServiceConfig {
   auditRetentionMs: number;
   backupExpiryDays: number;
   clockWindowMs: number;
-  pushHostSuffixes: string[];
+  pushHosts: string[]; // exact hosts, or "*.example.com"; see push.ts
   pushSubscriptionTtlMs: number;
   pushDedupeMs: number;
   pushPerDevicePerHour: number;
@@ -56,7 +56,7 @@ export const DEFAULT_CONFIG: SyncServiceConfig = {
   auditRetentionMs: 30 * DAY,
   backupExpiryDays: 35,
   clockWindowMs: 2 * MINUTE,
-  pushHostSuffixes: DEFAULT_PUSH_HOST_SUFFIXES,
+  pushHosts: [...DEFAULT_PUSH_HOSTS],
   pushSubscriptionTtlMs: 30 * DAY,
   pushDedupeMs: 6 * 60 * MINUTE,
   pushPerDevicePerHour: 12,
@@ -182,6 +182,11 @@ export function createSyncService(options: { store?: MemoryStore; now?: () => nu
     if (typeof v !== 'string' || v.length === 0 || v.length > max) throw new HttpError(400, 'bad_request');
     return v;
   };
+  const commitment = (v: unknown): string => {
+    const c = str(v, 64);
+    if (!/^[0-9a-f]{64}$/.test(c)) throw new HttpError(400, 'bad_request');
+    return c;
+  };
   const int = (v: unknown, min: number, max: number): number => {
     if (typeof v !== 'number' || !Number.isInteger(v) || v < min || v > max) throw new HttpError(400, 'bad_request');
     return v;
@@ -241,7 +246,7 @@ export function createSyncService(options: { store?: MemoryStore; now?: () => nu
       const region = str(body['region'], 16);
       if (!config.regions.includes(region)) throw new HttpError(400, 'unknown_region');
       const account: AccountRecord = {
-        accountId: randomId(), region, createdAt: now(), lastActiveAt: now(), epoch: 1, nextSeq: 1, storageBytes: 0,
+        accountId: randomId(), region, createdAt: now(), lastActiveAt: now(), epoch: 1, epochCommit: null, nextSeq: 1, storageBytes: 0,
         devices: new Map(), objects: [], objectIds: new Map(), keyWraps: [], push: new Map(), pushSent: new Map(),
       };
       store.accounts.set(account.accountId, account);
@@ -339,6 +344,7 @@ export function createSyncService(options: { store?: MemoryStore; now?: () => nu
     if (method === 'GET' && path === '/v1/devices') {
       return json(200, {
         epoch: account.epoch,
+        epochCommit: account.epochCommit,
         devices: [...account.devices.values()].map((d) => ({
           deviceId: d.deviceId, encPublic: d.encPublic, enrolledAt: d.enrolledAt, lastSeenAt: d.lastSeenAt, revoked: d.revoked,
         })),
@@ -364,10 +370,12 @@ export function createSyncService(options: { store?: MemoryStore; now?: () => nu
       if (!target) throw new HttpError(404, 'unknown_device');
       const body = await readJson(request);
       const newEpoch = int(body['newEpoch'], account.epoch + 1, account.epoch + 1);
+      const commit = commitment(body['commit']);
       target.revoked = true;
       account.push.delete(target.deviceId);
       for (const [hash, s] of sessions) if (s.deviceId === target.deviceId) sessions.delete(hash);
       account.epoch = newEpoch;
+      account.epochCommit = commit;
       audit({ type: 'device_revoked', accountId: account.accountId, deviceId: target.deviceId });
       audit({ type: 'epoch_rotated', accountId: account.accountId });
       return json(200, { epoch: account.epoch });
@@ -375,7 +383,9 @@ export function createSyncService(options: { store?: MemoryStore; now?: () => nu
 
     if (method === 'POST' && path === '/v1/epoch') {
       const body = await readJson(request);
-      account.epoch = int(body['newEpoch'], account.epoch + 1, account.epoch + 1);
+      const next = int(body['newEpoch'], account.epoch + 1, account.epoch + 1);
+      account.epochCommit = commitment(body['commit']);
+      account.epoch = next;
       audit({ type: 'epoch_rotated', accountId: account.accountId });
       return json(200, { epoch: account.epoch });
     }
@@ -420,7 +430,7 @@ export function createSyncService(options: { store?: MemoryStore; now?: () => nu
       const max = Math.min(Number(url.searchParams.get('limit') ?? '100'), 200);
       if (!Number.isInteger(after) || after < 0 || !Number.isInteger(max) || max < 1) throw new HttpError(400, 'bad_request');
       const objects = account.objects.filter((o) => o.seq > after).slice(0, max);
-      return json(200, { head: account.nextSeq - 1, epoch: account.epoch, objects });
+      return json(200, { head: account.nextSeq - 1, epoch: account.epoch, epochCommit: account.epochCommit, objects });
     }
 
     if (method === 'PUT' && path === '/v1/push/subscription') {
@@ -429,7 +439,7 @@ export function createSyncService(options: { store?: MemoryStore; now?: () => nu
       try {
         const keys = validatePushKeys(body['p256dh'], body['auth']);
         sub = {
-          deviceId: device.deviceId, endpoint: validatePushEndpoint(body['endpoint'], config.pushHostSuffixes), ...keys,
+          deviceId: device.deviceId, endpoint: validatePushEndpoint(body['endpoint'], config.pushHosts), ...keys,
           createdAt: now(), expiresAt: now() + config.pushSubscriptionTtlMs,
           quietHours: validateQuietHours(body['quietHours']), kinds: validateKinds(body['kinds']),
         };
