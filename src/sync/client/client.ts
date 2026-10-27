@@ -1,8 +1,8 @@
 // Sync client: opt-in, enrollment, encrypted upload/download, retry, rotation, backup.
 // Local-only (the default) never touches the network: every networked method checks `enabled` first.
 import {
-  decryptBackup, encryptBackup, fromB64, generateAccountKey, generateDeviceKeys, MAX_SEALS_PER_EPOCH, open, randomBytes, randomId, seal, sha256Hex,
-  shortAuthString, sign, toB64, unwrapAccountKey, wrapAccountKey,
+  decryptBackup, encryptBackup, enrollmentTag, fromB64, generateAccountKey, generateDeviceKeys, MAX_SEALS_PER_EPOCH, open, randomBytes, randomId, seal, sha256Hex,
+  shortAuthString, sign, toB64, unwrapAccountKey, verify, wrapAccountKey,
 } from '../e2ee/crypto.js';
 import type { BackupBlob, DeviceKeys, WrappedKey } from '../e2ee/crypto.js';
 import { validateDeviceEntry, validateLedgerRecord, validatePrefs } from '../e2ee/allowlist.js';
@@ -35,6 +35,8 @@ interface OutboxItem {
   items: unknown[];
   baseSeq?: number; // server sequence this device had applied when the change was made
   queuedAt?: number;
+  /** The bytes already sealed for this item. A retry resends exactly these, so a lost response cannot fork the hash chain. */
+  sealed?: { epoch: number; deviceSeq: number; prevHash: string; nonce: string; ciphertext: string };
 }
 
 /** What this device knows about a device's user-chosen name, published by that device. */
@@ -87,6 +89,12 @@ interface SyncState {
   metrics?: SyncMetrics;
   localChangeAt?: number | null;
   heldSeqs?: number[];
+  // Added by the Phase 3 security review.
+  trustedKeys?: string[]; // encPublic values this device has pinned; key distribution goes only to these
+  signKeys?: Record<string, string>; // pinned encPublic -> signPublic, used to check who signed a key wrap
+  revokedKeys?: string[]; // keys of devices that were revoked; never re-pinned, whatever the service's device list says
+  pendingRotation?: { kind: 'rotate' | 'revoke'; epoch: number; key: string; deviceId?: string }; // survives a crash between the epoch bump and the key hand-out
+  keylessSeqs?: Array<{ seq: number; epoch: number }>; // objects skipped for want of an epoch key, retried once the key arrives
 }
 
 export interface KeyValueStorage {
@@ -130,6 +138,7 @@ const defaultTransport: Transport = (url, init) => fetch(url, init);
 
 export class SyncClient {
   private session: { token: string; expiresAt: number } | null = null;
+  private skippedKeyRecipients: string[] = [];
 
   private constructor(private state: SyncState | null, private readonly deps: Required<ClientDeps>) {}
 
@@ -148,6 +157,9 @@ export class SyncClient {
     state.directory ??= {};
     state.metrics ??= { syncAttempts: 0, syncFailures: 0, uploads: 0, lastUploadLatencyMs: null, lastConvergenceMs: null, heldForUpgrade: 0 };
     state.localChangeAt ??= null;
+    state.trustedKeys ??= [state.deviceKeys.encPublic];
+    state.signKeys ??= { [state.deviceKeys.encPublic]: state.deviceKeys.signPublic };
+    state.keylessSeqs ??= [];
   }
 
   private static fill(deps: ClientDeps): Required<ClientDeps> {
@@ -167,6 +179,21 @@ export class SyncClient {
   private get s(): SyncState {
     if (!this.state) throw new SyncDisabledError();
     return this.state;
+  }
+
+  /** A reply body must be a JSON object. Anything else is a misbehaving service, reported as an ordinary failure rather than a crash. */
+  private static async reply(res: Response): Promise<Record<string, unknown>> {
+    let body: unknown;
+    try { body = await res.json(); } catch { throw new SyncUnavailableError('bad_response'); }
+    if (typeof body !== 'object' || body === null || Array.isArray(body)) throw new SyncUnavailableError('bad_response');
+    return body as Record<string, unknown>;
+  }
+
+  /** The array members of a reply that are plain objects; a missing or non-array field is a bad response. */
+  private static list(body: Record<string, unknown>, field: string): Array<Record<string, unknown>> {
+    const value = body[field];
+    if (!Array.isArray(value)) throw new SyncUnavailableError('bad_response');
+    return value.filter((v): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v));
   }
 
   private async save(): Promise<void> {
@@ -233,7 +260,8 @@ export class SyncClient {
     const res = await SyncClient.rawPost(full, `${baseUrl}/v1/accounts`, {
       region: options.region, signPublic: deviceKeys.signPublic, encPublic: deviceKeys.encPublic,
     });
-    const data = (await res.json()) as { accountId: string; deviceId: string; epoch: number };
+    const data = (await SyncClient.reply(res)) as { accountId: string; deviceId: string; epoch: number };
+    if (typeof data.accountId !== 'string' || typeof data.deviceId !== 'string' || !Number.isInteger(data.epoch)) throw new SyncUnavailableError('bad_response');
     const client = new SyncClient(
       SyncClient.freshState(baseUrl, options.region, data.accountId, data.deviceId, deviceKeys, data.epoch, toB64(generateAccountKey())),
       full,
@@ -248,6 +276,7 @@ export class SyncClient {
       deviceKeys, keys: { [String(epoch)]: ak }, epoch, seals: {}, outbox: [], deviceSeq: 0, prevHash: '', lastSeq: 0, head: 0,
       chains: {}, ledger: {}, prefs: {}, lastSyncAt: null, failures: {},
       prefsState: { register: {}, conflicts: [] }, ledgerConflicts: [], directory: {}, localChangeAt: null,
+      trustedKeys: [deviceKeys.encPublic], signKeys: { [deviceKeys.encPublic]: deviceKeys.signPublic }, keylessSeqs: [],
       metrics: { syncAttempts: 0, syncFailures: 0, uploads: 0, lastUploadLatencyMs: null, lastConvergenceMs: null, heldForUpgrade: 0 },
     };
   }
@@ -263,61 +292,126 @@ export class SyncClient {
     return res;
   }
 
-  /** Existing device: create a one-time enrollment code (token + this device's public key). */
+  /**
+   * Existing device: create a one-time enrollment code (token . this device's public key . confirmation secret).
+   * The secret never goes to the service. Show the code to the new device out of band (QR or typing), not through the service.
+   */
   async createEnrollmentCode(): Promise<{ code: string; expiresAt: number }> {
     const res = await this.api('POST', '/v1/enrollments', {});
-    const { token, expiresAt } = (await res.json()) as { token: string; expiresAt: number };
-    return { code: `${token}.${Buffer.from(this.s.deviceKeys.encPublic).toString('base64url')}`, expiresAt };
+    const { token, expiresAt } = (await SyncClient.reply(res)) as { token: string; expiresAt: number };
+    if (typeof token !== 'string' || typeof expiresAt !== 'number') throw new SyncUnavailableError('bad_response');
+    const b64 = (v: string): string => Buffer.from(v).toString('base64url');
+    return { code: `${token}.${b64(this.s.deviceKeys.encPublic)}.${b64(this.s.deviceKeys.signPublic)}.${randomId(16)}`, expiresAt };
+  }
+
+  private static parseCode(code: string): { token: string; encoded: string; signEncoded: string; secret: string } {
+    const [token, encoded, signEncoded, secret, extra] = code.split('.');
+    if (!token || !encoded || !signEncoded || !secret || extra !== undefined) throw new Error('malformed enrollment code');
+    return { token, encoded, signEncoded, secret };
+  }
+
+  /** The joining device's keys, accepted only if it proved knowledge of the code's secret (the service cannot substitute keys). */
+  private async fetchJoin(code: string): Promise<{ signPublic: string; encPublic: string } | null> {
+    const { token, secret } = SyncClient.parseCode(code);
+    const res = await this.api('POST', '/v1/enrollments/pending', { token });
+    const { joined } = (await SyncClient.reply(res)) as { joined: { signPublic: string; encPublic: string; confirm: string } | null };
+    if (!joined) return null;
+    if (typeof joined !== 'object' || typeof joined.signPublic !== 'string' || typeof joined.encPublic !== 'string' || typeof joined.confirm !== 'string') throw new SyncUnavailableError('bad_response');
+    if (joined.confirm !== (await enrollmentTag(secret, 'join', joined.signPublic, joined.encPublic))) {
+      throw new Error('joining device failed key confirmation; enrollment aborted');
+    }
+    return joined;
   }
 
   /** Existing device: the joining device's short authentication string, or null if nobody has joined yet. */
   async pendingJoin(code: string): Promise<{ sas: string } | null> {
-    const res = await this.api('POST', '/v1/enrollments/pending', { token: code.split('.')[0] });
-    const { joined } = (await res.json()) as { joined: { signPublic: string; encPublic: string } | null };
-    if (!joined) return null;
-    return { sas: await shortAuthString(this.s.deviceKeys.encPublic, joined.encPublic) };
+    const joined = await this.fetchJoin(code);
+    return joined ? { sas: await shortAuthString(this.s.deviceKeys.encPublic, joined.encPublic) } : null;
   }
 
   /** Existing device: call only after the user confirmed both devices show the same SAS. */
   async approveJoin(code: string, expectedSas: string): Promise<void> {
-    const pending = await this.pendingJoin(code);
-    if (!pending || pending.sas !== expectedSas) throw new Error('short authentication string mismatch; enrollment aborted');
-    const res = await this.api('POST', '/v1/enrollments/pending', { token: code.split('.')[0] });
-    const { joined } = (await res.json()) as { joined: { encPublic: string } };
-    const ak = this.accountKey(this.s.epoch);
-    const wrapped = await wrapAccountKey(ak, joined.encPublic, `enroll|${this.s.accountId}|${this.s.epoch}`);
-    await this.api('POST', '/v1/enrollments/approve', { token: code.split('.')[0], wrapped });
+    const { token, secret } = SyncClient.parseCode(code);
+    const joined = await this.fetchJoin(code); // one fetch: the key that was checked is the key that is wrapped
+    if (!joined || (await shortAuthString(this.s.deviceKeys.encPublic, joined.encPublic)) !== expectedSas) {
+      throw new Error('short authentication string mismatch; enrollment aborted');
+    }
+    const epoch = this.s.epoch;
+    // The new device receives every epoch key this device holds, so it can read history from before it joined.
+    const ring = new TextEncoder().encode(JSON.stringify(this.s.keys));
+    const wrapped = await wrapAccountKey(ring, joined.encPublic, await SyncClient.enrollBinding(this.s.accountId, epoch, secret));
+    await this.api('POST', '/v1/enrollments/approve', { token, wrapped, epoch });
+    this.pinKeys(joined.encPublic, joined.signPublic);
+    await this.save();
+  }
+
+  private static async enrollBinding(accountId: string, epoch: number, secret: string): Promise<string> {
+    return `enroll|${accountId}|${epoch}|${await enrollmentTag(secret, 'wrap', accountId, String(epoch))}`;
+  }
+
+  private pinKeys(encPublic: string, signPublic: string): void {
+    if (this.s.revokedKeys?.includes(encPublic)) return;
+    const keys = (this.s.trustedKeys ??= [this.s.deviceKeys.encPublic]);
+    if (!keys.includes(encPublic)) keys.push(encPublic);
+    (this.s.signKeys ??= {})[encPublic] = signPublic;
+  }
+
+  /** Stop trusting a key: a revoked device must not receive new keys or have its key wraps accepted. */
+  private unpinKey(encPublic: string): void {
+    const s = this.s;
+    (s.revokedKeys ??= []).includes(encPublic) || s.revokedKeys.push(encPublic);
+    s.trustedKeys = (s.trustedKeys ?? []).filter((k) => k !== encPublic);
+    if (s.signKeys) delete s.signKeys[encPublic];
   }
 
   /** New device: present the code. The returned `sas` must be compared with the existing device's. */
   static async startJoin(deps: ClientDeps, options: { baseUrl: string; code: string; region: string }): Promise<{ sas: string; finish: () => Promise<SyncClient> }> {
     const full = SyncClient.fill(deps);
     const baseUrl = options.baseUrl.replace(/\/$/, '');
-    const [token, encoded] = options.code.split('.');
-    if (!token || !encoded) throw new Error('malformed enrollment code');
+    const { token, encoded, signEncoded, secret } = SyncClient.parseCode(options.code);
     const fromEncPublic = Buffer.from(encoded, 'base64url').toString();
+    const fromSignPublic = Buffer.from(signEncoded, 'base64url').toString();
     const deviceKeys = await generateDeviceKeys();
     const res = await SyncClient.rawPost(full, `${baseUrl}/v1/enrollments/join`, {
       token, signPublic: deviceKeys.signPublic, encPublic: deviceKeys.encPublic,
+      confirm: await enrollmentTag(secret, 'join', deviceKeys.signPublic, deviceKeys.encPublic),
     });
-    const { accountId } = (await res.json()) as { accountId: string };
+    const { accountId } = (await SyncClient.reply(res)) as { accountId: string };
+    if (typeof accountId !== 'string') throw new SyncUnavailableError('bad_response');
     const sas = await shortAuthString(fromEncPublic, deviceKeys.encPublic);
     const finish = async (): Promise<SyncClient> => {
       const status = await SyncClient.rawPost(full, `${baseUrl}/v1/enrollments/status`, { token });
-      const data = (await status.json()) as {
+      const data = (await SyncClient.reply(status)) as {
         status: string; deviceId?: string; epoch?: number; fromEncPublic?: string; wrapped?: WrappedKey;
       };
       if (data.status !== 'approved' || !data.deviceId || !data.epoch || !data.wrapped) throw new SyncUnavailableError('enrollment not approved yet');
       if (data.fromEncPublic !== fromEncPublic) throw new Error('enrollment key does not match the code; aborted');
-      const ak = await unwrapAccountKey(data.wrapped, deviceKeys.encPrivateJwk, `enroll|${accountId}|${data.epoch}`);
-      const client = new SyncClient(
-        SyncClient.freshState(baseUrl, options.region, accountId, data.deviceId, deviceKeys, data.epoch, toB64(ak)),
-        full,
-      );
+      // The binding contains a tag only the code's holder can compute, so a key wrapped by the service itself fails to open.
+      const ringBytes = await unwrapAccountKey(data.wrapped, deviceKeys.encPrivateJwk, await SyncClient.enrollBinding(accountId, data.epoch, secret));
+      const ring = SyncClient.parseKeyRing(ringBytes, data.epoch);
+      const state = SyncClient.freshState(baseUrl, options.region, accountId, data.deviceId, deviceKeys, data.epoch, ring[String(data.epoch)] as string);
+      state.keys = ring;
+      state.trustedKeys = [deviceKeys.encPublic, fromEncPublic];
+      state.signKeys = { [deviceKeys.encPublic]: deviceKeys.signPublic, [fromEncPublic]: fromSignPublic };
+      const client = new SyncClient(state, full);
       await client.save();
       return client;
     };
     return { sas, finish };
+  }
+
+  /** The key ring a new device receives: epoch -> base64 32 byte key, and it must contain the epoch it was enrolled at. */
+  private static parseKeyRing(bytes: Uint8Array, epoch: number): Record<string, string> {
+    let parsed: unknown;
+    try { parsed = JSON.parse(new TextDecoder().decode(bytes)); } catch { throw new Error('enrollment key ring is malformed; aborted'); }
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new Error('enrollment key ring is malformed; aborted');
+    const ring: Record<string, string> = {};
+    for (const [e, k] of Object.entries(parsed)) {
+      if (!/^[1-9][0-9]{0,8}$/.test(e) || typeof k !== 'string' || fromB64(k).length !== 32) throw new Error('enrollment key ring is malformed; aborted');
+      ring[e] = k;
+    }
+    if (!ring[String(epoch)]) throw new Error('enrollment key ring lacks the current epoch; aborted');
+    return ring;
   }
 
   // ---- queueing ----
@@ -364,10 +458,19 @@ export class SyncClient {
 
   /** Publish this device's own name. Other devices show it as written here; there is no remote rename. */
   async nameDevice(name: string): Promise<void> {
+    await this.publishDeviceEntry(name);
+  }
+
+  /** Queue this device's directory entry: its name, its public key, and the keys of devices it revoked (peers stop trusting those). */
+  private async publishDeviceEntry(name?: string): Promise<void> {
     const s = this.s;
     const now = this.deps.now();
-        const dir = s.directory ?? (s.directory = {});
-    const entry = { devicePseudonym: s.devicePseudonym, name, createdDay: dir[s.deviceId]?.createdDay ?? dayOf(now), lastSeenDay: dayOf(now) };
+    const dir = s.directory ?? (s.directory = {});
+    const entry = {
+      devicePseudonym: s.devicePseudonym, name: name ?? dir[s.deviceId]?.name ?? 'Device', createdDay: dir[s.deviceId]?.createdDay ?? dayOf(now), lastSeenDay: dayOf(now),
+      encPublic: s.deviceKeys.encPublic,
+      ...(s.revokedKeys && s.revokedKeys.length > 0 ? { revokedKeys: s.revokedKeys.slice(-50) } : {}),
+    };
     validateDeviceEntry(entry);
     dir[s.deviceId] = { ...entry, seq: PENDING_SEQ };
     s.outbox.push({ objectId: randomId(), kind: 'devices', items: [entry], baseSeq: s.lastSeq, queuedAt: now });
@@ -414,7 +517,8 @@ export class SyncClient {
       body: JSON.stringify({ accountId: s.accountId, deviceId: s.deviceId, timestamp, nonce, signature }),
     });
     await this.raiseForStatus(res);
-    const data = (await res.json()) as { token: string; expiresAt: number };
+    const data = (await SyncClient.reply(res)) as { token: string; expiresAt: number };
+    if (typeof data.token !== 'string' || data.token === '' || typeof data.expiresAt !== 'number') throw new SyncUnavailableError('bad_response');
     this.session = data;
     return data.token;
   }
@@ -479,27 +583,46 @@ export class SyncClient {
     }
   }
 
-  /** Upload queued batches in order. A batch keeps its object id across retries so duplicates are harmless. */
+  /** Upload queued batches in order. A batch is sealed once and a retry resends the same bytes, so duplicates are harmless and the hash chain cannot fork. */
   async flush(): Promise<number> {
     const s = this.s;
     let sent = 0;
+    let staleRetries = 0;
     while (s.outbox.length > 0) {
       const next = s.outbox[0] as OutboxItem;
-      const epoch = s.epoch;
-      const count = (s.seals[String(epoch)] ?? 0) + 1;
-      if (count > MAX_SEALS_PER_EPOCH) throw new Error('key epoch exhausted; rotate the key');
-      const envelope = {
-        v: ENVELOPE_VERSION, epoch, sender: s.deviceId, deviceSeq: s.deviceSeq + 1, prev_hash: s.prevHash, kind: next.kind, items: next.items,
-        ...(next.baseSeq === undefined ? {} : { baseSeq: next.baseSeq }),
-      } as Envelope;
-      validateEnvelope(envelope); // never upload something the allow-list would reject
-      const sealed = await seal(this.accountKey(epoch), { accountId: s.accountId, objectId: next.objectId, epoch, schemaVersion: ENVELOPE_VERSION }, envelope);
-      const res = await this.api('PUT', '/v1/objects', { objectId: next.objectId, epoch, schemaVersion: ENVELOPE_VERSION, ...sealed });
+      if (!next.sealed) {
+        const epoch = s.epoch;
+        const count = (s.seals[String(epoch)] ?? 0) + 1;
+        if (count > MAX_SEALS_PER_EPOCH) throw new Error('key epoch exhausted; rotate the key');
+        const envelope = {
+          v: ENVELOPE_VERSION, epoch, sender: s.deviceId, deviceSeq: s.deviceSeq + 1, prev_hash: s.prevHash, kind: next.kind, items: next.items,
+          keys: { enc: s.deviceKeys.encPublic, sign: s.deviceKeys.signPublic },
+          ...(next.baseSeq === undefined ? {} : { baseSeq: next.baseSeq }),
+        } as Envelope;
+        validateEnvelope(envelope); // never upload something the allow-list would reject
+        const sealed = await seal(this.accountKey(epoch), { accountId: s.accountId, objectId: next.objectId, epoch, schemaVersion: ENVELOPE_VERSION }, envelope);
+        next.sealed = { epoch, deviceSeq: s.deviceSeq + 1, prevHash: s.prevHash, nonce: sealed.nonce, ciphertext: sealed.ciphertext };
+        s.seals[String(epoch)] = count;
+        await this.save();
+      }
+      const sealed = next.sealed;
+      let res: Response;
+      try {
+        res = await this.api('PUT', '/v1/objects', { objectId: next.objectId, epoch: sealed.epoch, schemaVersion: ENVELOPE_VERSION, nonce: sealed.nonce, ciphertext: sealed.ciphertext });
+      } catch (error) {
+        // The account moved to a newer epoch while this was queued: learn the key, then seal it again under the new epoch.
+        if (error instanceof SyncUnavailableError && error.message.includes('stale_epoch') && staleRetries < 3) {
+          staleRetries += 1;
+          delete next.sealed;
+          await this.collectKeys();
+          continue;
+        }
+        throw error;
+      }
       await res.arrayBuffer();
-      s.deviceSeq += 1;
+      s.deviceSeq = sealed.deviceSeq;
       s.prevHash = await sha256Hex(sealed.ciphertext);
       s.chains[s.deviceId] = { seq: s.deviceSeq, hash: s.prevHash };
-      s.seals[String(epoch)] = count;
       s.outbox.shift();
       sent += 1;
       const m = this.metricsRef();
@@ -510,15 +633,26 @@ export class SyncClient {
     return sent;
   }
 
-  /** Fetch key wraps addressed to this device (after a rotation or revocation elsewhere). */
+  /** Binds a key wrap to the epoch before it: only a holder of an account key can compute the tag, so the service cannot inject a key. */
+  private static async rotationBinding(accountId: string, deviceId: string, epoch: number, previousKeyB64: string): Promise<string> {
+    return `keywrap|${accountId}|${deviceId}|${epoch}|${await enrollmentTag(previousKeyB64, 'rotation', accountId, deviceId, String(epoch))}`;
+  }
+
+  /** Fetch key wraps addressed to this device (after a rotation or revocation elsewhere). Only wraps made by a holder of the previous epoch's key open. */
   private async collectKeys(): Promise<void> {
     const s = this.s;
     const res = await this.api('GET', '/v1/keywraps');
-    const { wraps } = (await res.json()) as { wraps: Array<{ epoch: number; wrapped: WrappedKey }> };
-    for (const w of wraps) {
-      if (s.keys[String(w.epoch)]) continue;
+    const wraps = SyncClient.list(await SyncClient.reply(res), 'wraps') as Array<{ epoch: number; wrapped: WrappedKey; fromEncPublic: string; signature: string }>;
+    for (const w of [...wraps].sort((a, b) => a.epoch - b.epoch)) {
+      if (!Number.isInteger(w.epoch) || w.epoch < 1 || s.keys[String(w.epoch)]) continue;
+      const previous = s.keys[String(w.epoch - 1)];
+      if (!previous) { this.fail('undecryptable'); continue; }
+      // The sender must be a device this one pinned, and must have signed exactly this wrap. A revoked device or the service cannot.
+      const signer = typeof w.fromEncPublic === 'string' ? s.signKeys?.[w.fromEncPublic] : undefined;
+      const signed = `keywrap|${s.accountId}|${s.deviceId}|${w.epoch}|${w.wrapped?.ephemeralPublic}|${w.wrapped?.nonce}|${w.wrapped?.ciphertext}`;
+      if (!signer || typeof w.signature !== 'string' || !(await verify(signer, signed, w.signature))) { this.fail('undecryptable'); continue; }
       try {
-        const ak = await unwrapAccountKey(w.wrapped, s.deviceKeys.encPrivateJwk, `keywrap|${s.accountId}|${s.deviceId}|${w.epoch}`);
+        const ak = await unwrapAccountKey(w.wrapped, s.deviceKeys.encPrivateJwk, await SyncClient.rotationBinding(s.accountId, s.deviceId, w.epoch, previous));
         s.keys[String(w.epoch)] = toB64(ak);
         if (w.epoch > s.epoch) s.epoch = w.epoch;
       } catch {
@@ -536,13 +670,14 @@ export class SyncClient {
   async pull(): Promise<PullResult> {
     const s = this.s;
     const result: PullResult = { applied: 0, duplicates: 0, corrupt: 0, undecryptable: 0, held: 0, conflicts: 0, warnings: [] };
-    await this.collectKeys();
+    // Apply what can be read now (this may include a revocation), then take key wraps, then apply what was waiting for them.
+    const waitingBefore = new Set((s.keylessSeqs ?? []).map((w) => w.seq));
+    await this.retryKeyless(result);
     for (;;) {
       const res = await this.api('GET', `/v1/objects?after=${s.lastSeq}&limit=100`);
-      const page = (await res.json()) as {
-        head: number; epoch: number;
-        objects: Array<ServerObject>;
-      };
+      const body = await SyncClient.reply(res);
+      const page = { head: body['head'] as number, epoch: body['epoch'] as number, objects: SyncClient.list(body, 'objects') as unknown as ServerObject[] };
+      if (!Number.isInteger(page.head) || page.head < 0 || !Number.isInteger(page.epoch)) throw new SyncUnavailableError('bad_response');
       if (page.head < s.head || page.head < s.lastSeq) {
         if (!result.warnings.includes('rollback')) result.warnings.push('rollback');
         break; // keep local state; do not trust a shorter log
@@ -551,11 +686,20 @@ export class SyncClient {
       if (page.epoch > s.epoch && s.keys[String(page.epoch)]) s.epoch = page.epoch;
       const ordered = [...page.objects].sort((a, b) => a.seq - b.seq);
       for (const obj of ordered) {
+        // A sequence that is not a positive integer would poison the cursor and hide every later object.
+        if (!Number.isSafeInteger(obj.seq) || obj.seq < 1) { result.corrupt += 1; this.fail('corrupt'); continue; }
         if (obj.seq <= s.lastSeq) { result.duplicates += 1; continue; }
         s.lastSeq = obj.seq;
         await this.processObject(obj, result);
       }
       if (page.objects.length < 100) break;
+    }
+    await this.collectKeys();
+    await this.retryKeyless(result);
+    for (const w of s.keylessSeqs ?? []) {
+      if (waitingBefore.has(w.seq)) continue;
+      result.undecryptable += 1;
+      this.fail('undecryptable');
     }
     s.lastSyncAt = this.deps.now();
     result.conflicts = (s.prefsState?.conflicts.length ?? 0) + (s.ledgerConflicts?.length ?? 0);
@@ -566,7 +710,11 @@ export class SyncClient {
   private async processObject(obj: ServerObject, result: PullResult): Promise<void> {
     const s = this.s;
     const keyB64 = s.keys[String(obj.epoch)];
-    if (!keyB64) { result.undecryptable += 1; this.fail('undecryptable'); return; }
+    if (!keyB64) {
+      const waiting = (s.keylessSeqs ??= []);
+      if (!waiting.some((w) => w.seq === obj.seq)) waiting.push({ seq: obj.seq, epoch: obj.epoch });
+      return;
+    }
     let envelope: Envelope;
     try {
       const plain = await open<unknown>(fromB64(keyB64), { accountId: s.accountId, objectId: obj.objectId, epoch: obj.epoch, schemaVersion: obj.schemaVersion }, obj);
@@ -589,6 +737,22 @@ export class SyncClient {
     result.applied += await this.apply(envelope, obj.seq, result);
   }
 
+  /** Objects skipped because their epoch key had not arrived yet are applied once it has. */
+  private async retryKeyless(result: PullResult): Promise<void> {
+    const s = this.s;
+    const waiting = s.keylessSeqs ?? [];
+    if (waiting.length === 0) return;
+    const still: Array<{ seq: number; epoch: number }> = [];
+    s.keylessSeqs = still;
+    for (const entry of waiting) {
+      if (!s.keys[String(entry.epoch)]) { still.push(entry); continue; }
+      const res = await this.api('GET', `/v1/objects?after=${entry.seq - 1}&limit=1`);
+      const page = { objects: SyncClient.list(await SyncClient.reply(res), 'objects') as unknown as ServerObject[] };
+      const obj = page.objects.find((o) => o.seq === entry.seq);
+      if (obj) await this.processObject(obj, result);
+    }
+  }
+
   /** After upgrading the client, fetch and apply the objects an older version had to hold back. */
   async replayHeld(): Promise<PullResult> {
     const s = this.s;
@@ -597,7 +761,7 @@ export class SyncClient {
     s.heldSeqs = [];
     for (const seq of seqs) {
       const res = await this.api('GET', `/v1/objects?after=${seq - 1}&limit=1`);
-      const page = (await res.json()) as { objects: ServerObject[] };
+      const page = { objects: SyncClient.list(await SyncClient.reply(res), 'objects') as unknown as ServerObject[] };
       const obj = page.objects.find((o) => o.seq === seq);
       if (obj) await this.processObject(obj, result);
     }
@@ -622,11 +786,13 @@ export class SyncClient {
   private async apply(env: Envelope, seq: number, result: PullResult): Promise<number> {
     const s = this.s;
     let applied = 0;
+    if (env.keys) this.pinKeys(env.keys.enc, env.keys.sign); // stamped inside the encrypted envelope, so only an account-key holder could have written it
     if (env.kind === 'ledger_batch') {
       const ledger = { records: s.ledger, conflicts: s.ledgerConflicts ?? (s.ledgerConflicts = []) };
       for (const record of env.items) {
-        const outcome = await mergeRecord(ledger, record);
+        const outcome = await mergeRecord(ledger, record, { strictIds: true }); // a peer cannot claim another record's id
         if (outcome === 'applied') applied += 1;
+        else if (outcome === 'rejected') { result.corrupt += 1; this.fail('corrupt'); }
         else result.duplicates += 1;
       }
     } else if (env.kind === 'prefs') {
@@ -641,6 +807,7 @@ export class SyncClient {
       const entry = env.items[0];
       const dir = s.directory ?? (s.directory = {});
       const known = dir[env.sender];
+      for (const key of entry?.revokedKeys ?? []) this.unpinKey(key); // a device was revoked elsewhere
       if (entry && !(known && known.seq !== PENDING_SEQ && known.seq > seq)) {
         dir[env.sender] = {
           ...entry, seq,
@@ -653,13 +820,22 @@ export class SyncClient {
     return applied;
   }
 
+  private static mergeResults(a: PullResult, b: PullResult): PullResult {
+    return {
+      applied: a.applied + b.applied, duplicates: a.duplicates + b.duplicates, corrupt: a.corrupt + b.corrupt, undecryptable: a.undecryptable + b.undecryptable,
+      held: a.held + b.held, conflicts: b.conflicts, warnings: [...new Set([...a.warnings, ...b.warnings])],
+    };
+  }
+
   /** Upload, then catch up. Counts attempts and failures, and times how long a queued change took to land. */
   async sync(): Promise<PullResult> {
     const oldest = this.s.outbox.reduce<number | null>((min, item) => (item.queuedAt === undefined ? min : min === null ? item.queuedAt : Math.min(min, item.queuedAt)), null);
     this.metricsRef().syncAttempts += 1;
     try {
-      await this.flush();
-      const result = await this.pull();
+      await this.resumeRotation();
+      const first = await this.pull(); // learns revocations and rotations before anything is sealed
+      const sent = await this.flush();
+      const result = sent > 0 ? SyncClient.mergeResults(first, await this.pull()) : first;
       const m = this.metricsRef();
       if (oldest !== null) m.lastConvergenceMs = Math.max(0, this.deps.now() - oldest);
       await this.save();
@@ -677,7 +853,7 @@ export class SyncClient {
 
   async listDevices(): Promise<Array<{ deviceId: string; enrolledAt: number; lastSeenAt: number; revoked: boolean; current: boolean }>> {
     const res = await this.api('GET', '/v1/devices');
-    const { devices } = (await res.json()) as { devices: Array<{ deviceId: string; enrolledAt: number; lastSeenAt: number; revoked: boolean }> };
+    const devices = SyncClient.list(await SyncClient.reply(res), 'devices') as Array<{ deviceId: string; enrolledAt: number; lastSeenAt: number; revoked: boolean }>;
     return devices.map((d) => ({ ...d, current: d.deviceId === this.s.deviceId }));
   }
 
@@ -714,41 +890,88 @@ export class SyncClient {
     return (await res.json()) as { sent: number; suppressed: { quietHours: number; duplicate: number }; failed: number };
   }
 
+  /** Device ids the last rotation could not wrap for because their key was never pinned. Confirm them with a fresh enrollment. */
+  unverifiedDevices(): string[] {
+    return [...this.skippedKeyRecipients];
+  }
+
   private async distribute(epoch: number, ak: Uint8Array, exceptDeviceId?: string): Promise<void> {
     const s = this.s;
+    const previous = s.keys[String(epoch - 1)];
+    if (!previous) throw new KeyMissingError(`no key for epoch ${epoch - 1}`);
     const res = await this.api('GET', '/v1/devices');
-    const { devices } = (await res.json()) as { devices: Array<{ deviceId: string; encPublic: string; revoked: boolean }> };
+    const devices = SyncClient.list(await SyncClient.reply(res), 'devices') as Array<{ deviceId: string; encPublic: string; revoked: boolean }>;
+    const trusted = new Set(s.trustedKeys ?? [s.deviceKeys.encPublic]);
+    this.skippedKeyRecipients = [];
     for (const d of devices) {
       if (d.revoked || d.deviceId === s.deviceId || d.deviceId === exceptDeviceId) continue;
-      const wrapped = await wrapAccountKey(ak, d.encPublic, `keywrap|${s.accountId}|${d.deviceId}|${epoch}`);
-      await this.api('PUT', '/v1/keywraps', { deviceId: d.deviceId, epoch, wrapped });
+      // The service supplies this list. A key it substituted, a device it invented, or a device revoked elsewhere gets nothing.
+      if (!trusted.has(d.encPublic)) { this.skippedKeyRecipients.push(d.deviceId); continue; }
+      const wrapped = await wrapAccountKey(ak, d.encPublic, await SyncClient.rotationBinding(s.accountId, d.deviceId, epoch, previous));
+      const signature = await sign(s.deviceKeys.signPrivateJwk, `keywrap|${s.accountId}|${d.deviceId}|${epoch}|${wrapped.ephemeralPublic}|${wrapped.nonce}|${wrapped.ciphertext}`);
+      await this.api('PUT', '/v1/keywraps', { deviceId: d.deviceId, epoch, wrapped, signature });
     }
   }
 
   /** Rotate to a fresh account key. Old epochs stay readable for devices that hold them. */
   async rotateKey(): Promise<number> {
     const s = this.s;
-    const epoch = s.epoch + 1;
-    const ak = generateAccountKey();
-    await this.api('POST', '/v1/epoch', { newEpoch: epoch });
-    s.keys[String(epoch)] = toB64(ak);
-    s.epoch = epoch;
+    await this.resumeRotation();
+    s.pendingRotation = { kind: 'rotate', epoch: s.epoch + 1, key: toB64(generateAccountKey()) };
     await this.save();
-    await this.distribute(epoch, ak);
-    return epoch;
+    return this.runRotation();
   }
 
   /** Revoke a device and rotate so it cannot read anything written afterwards. */
   async revokeDevice(deviceId: string): Promise<number> {
     const s = this.s;
-    const epoch = s.epoch + 1;
-    const ak = generateAccountKey();
-    await this.api('POST', `/v1/devices/${encodeURIComponent(deviceId)}/revoke`, { newEpoch: epoch });
-    s.keys[String(epoch)] = toB64(ak);
-    s.epoch = epoch;
+    await this.resumeRotation();
+    // Peers must hear about the revocation under the old key, before the rotation, so they reject anything the revoked device or the service forges.
+    const listed = SyncClient.list(await SyncClient.reply(await this.api('GET', '/v1/devices')), 'devices') as Array<{ deviceId: string; encPublic: string }>;
+    const revokedKey = listed.find((d) => d.deviceId === deviceId)?.encPublic;
+    if (revokedKey) {
+      this.unpinKey(revokedKey);
+      await this.publishDeviceEntry();
+      await this.flush();
+    }
+    s.pendingRotation = { kind: 'revoke', epoch: s.epoch + 1, key: toB64(generateAccountKey()), deviceId };
     await this.save();
-    await this.distribute(epoch, ak, deviceId);
-    return epoch;
+    return this.runRotation();
+  }
+
+  /** Finish a rotation that a crash or a network failure interrupted. Safe to call at any time. */
+  private async resumeRotation(): Promise<void> {
+    if (this.s.pendingRotation) await this.runRotation();
+  }
+
+  /**
+   * Bump the epoch (once), adopt the new key, and hand it to every pinned device. The intent is saved first, so a failure
+   * between the steps is resumed instead of leaving the account at an epoch nobody holds a key for.
+   */
+  private async runRotation(): Promise<number> {
+    const s = this.s;
+    const p = s.pendingRotation;
+    if (!p) throw new Error('no rotation pending');
+    const info = await SyncClient.reply(await this.api('GET', '/v1/devices'));
+    const serverEpoch = info['epoch'];
+    if (!Number.isInteger(serverEpoch)) throw new SyncUnavailableError('bad_response');
+    if ((serverEpoch as number) > p.epoch) {
+      // Another device rotated first. Drop this attempt; the caller can try again after a pull.
+      delete s.pendingRotation;
+      await this.save();
+      throw new SyncUnavailableError('rotation superseded by another device');
+    }
+    if ((serverEpoch as number) < p.epoch) {
+      if (p.kind === 'rotate') await this.api('POST', '/v1/epoch', { newEpoch: p.epoch });
+      else await this.api('POST', `/v1/devices/${encodeURIComponent(p.deviceId ?? '')}/revoke`, { newEpoch: p.epoch });
+    }
+    s.keys[String(p.epoch)] = p.key;
+    s.epoch = Math.max(s.epoch, p.epoch);
+    await this.save();
+    await this.distribute(p.epoch, fromB64(p.key), p.deviceId);
+    delete s.pendingRotation;
+    await this.save();
+    return p.epoch;
   }
 
   // ---- export, deletion, local-only, backup ----

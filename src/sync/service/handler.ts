@@ -11,6 +11,9 @@ import type { PushKind, PushSender } from './push.js';
 
 const MINUTE = 60_000;
 const DAY = 24 * 60 * MINUTE;
+const MAX_AUDIT_EVENTS = 50_000;
+const MAX_AUDIT_KEYS = 10_000;
+const HARD_WINDOW_CAP = 500_000;
 
 export interface SyncServiceConfig {
   regions: string[];
@@ -32,6 +35,9 @@ export interface SyncServiceConfig {
   pushDedupeMs: number;
   pushPerDevicePerHour: number;
   notifyPerHour: number;
+  accountsPerHourPerIp: number;
+  sessionsPerMinutePerIp: number;
+  sweepAbove: number; // expired rate-limit windows and sessions are dropped once the tables hold more than this many entries
   trustForwardedFor: boolean; // only behind a proxy that overwrites X-Forwarded-For; otherwise a client could pick its own rate-limit bucket
 }
 
@@ -55,6 +61,9 @@ export const DEFAULT_CONFIG: SyncServiceConfig = {
   pushDedupeMs: 6 * 60 * MINUTE,
   pushPerDevicePerHour: 12,
   notifyPerHour: 30,
+  accountsPerHourPerIp: 10,
+  sessionsPerMinutePerIp: 30,
+  sweepAbove: 20_000,
   trustForwardedFor: false,
 };
 
@@ -91,19 +100,48 @@ export function createSyncService(options: { store?: MemoryStore; now?: () => nu
   const config: SyncServiceConfig = { ...DEFAULT_CONFIG, ...options.config };
   const sessions = new Map<string, Session>();
   const seenNonces = new Map<string, number>();
-  const windows = new Map<string, { start: number; count: number }>();
+  const windows = new Map<string, { start: number; count: number; ms: number }>();
+  let lastSweep = 0;
   const salt = randomId(16); // rotates on restart; rate-limit keys never persist
 
+  // Repeats of one event for one account within a minute are folded into a count, and the log is capped, so traffic that
+  // anyone can send (bad tokens, rate-limited calls) cannot grow it without bound (load test L1/L2d).
+  const auditTail = new Map<string, AuditEvent>();
   const audit = (event: Omit<AuditEvent, 'at'>): void => {
-    store.audit.push({ at: now(), ...event });
+    const at = now();
+    const key = `${event.type}|${event.accountId ?? ''}|${event.deviceId ?? ''}|${event.bytesBucket ?? ''}`;
+    const last = auditTail.get(key);
+    if (last && at - last.at < MINUTE) {
+      last.count = (last.count ?? 1) + (event.count ?? 1);
+      return;
+    }
+    const entry: AuditEvent = { at, ...event };
+    store.audit.push(entry);
+    auditTail.set(key, entry);
+    if (auditTail.size > MAX_AUDIT_KEYS) auditTail.clear();
+    if (store.audit.length > MAX_AUDIT_EVENTS) { store.audit.splice(0, store.audit.length - MAX_AUDIT_EVENTS); auditTail.clear(); }
   };
+
+  /** Drops expired rate-limit windows and sessions as the tables grow, so many distinct client addresses cannot hold memory until the hourly clean-up. */
+  function sweep(t: number): void {
+    if (windows.size + sessions.size < config.sweepAbove || t - lastSweep < 5_000) return;
+    lastSweep = t;
+    for (const [key, w] of windows) if (t - w.start >= w.ms) windows.delete(key);
+    for (const [hash, session] of sessions) if (session.expiresAt <= t) sessions.delete(hash);
+    // Still over the cap after dropping everything expired: evict the oldest quarter rather than grow without bound.
+    if (windows.size > HARD_WINDOW_CAP) {
+      let drop = Math.floor(windows.size / 4);
+      for (const key of windows.keys()) { if (drop-- <= 0) break; windows.delete(key); }
+    }
+  }
 
   async function limit(key: string, max: number, windowMs: number, accountId?: string): Promise<void> {
     const k = await sha256Hex(`${salt}|${key}`);
     const w = windows.get(k);
     const t = now();
     if (!w || t - w.start >= windowMs) {
-      windows.set(k, { start: t, count: 1 });
+      windows.set(k, { start: t, count: 1, ms: windowMs });
+      sweep(t);
       return;
     }
     w.count += 1;
@@ -188,7 +226,7 @@ export function createSyncService(options: { store?: MemoryStore; now?: () => nu
   const wrapShape = (v: unknown): KeyWrapRecord['wrapped'] => {
     if (typeof v !== 'object' || v === null) throw new HttpError(400, 'bad_request');
     const w = v as Record<string, unknown>;
-    return { ephemeralPublic: str(w['ephemeralPublic'], 256), nonce: str(w['nonce'], 64), ciphertext: str(w['ciphertext'], 512) };
+    return { ephemeralPublic: str(w['ephemeralPublic'], 256), nonce: str(w['nonce'], 64), ciphertext: str(w['ciphertext'], 16_384) };
   };
 
   async function route(request: Request): Promise<Response> {
@@ -198,7 +236,7 @@ export function createSyncService(options: { store?: MemoryStore; now?: () => nu
     const ipKey = request.headers.get('cf-connecting-ip') ?? (config.trustForwardedFor ? request.headers.get('x-forwarded-for') : null) ?? 'unknown';
 
     if (method === 'POST' && path === '/v1/accounts') {
-      await limit(`create:${ipKey}`, 10, 60 * MINUTE);
+      await limit(`create:${ipKey}`, config.accountsPerHourPerIp, 60 * MINUTE);
       const body = await readJson(request);
       const region = str(body['region'], 16);
       if (!config.regions.includes(region)) throw new HttpError(400, 'unknown_region');
@@ -213,7 +251,7 @@ export function createSyncService(options: { store?: MemoryStore; now?: () => nu
     }
 
     if (method === 'POST' && path === '/v1/session') {
-      await limit(`session:${ipKey}`, 30, MINUTE);
+      await limit(`session:${ipKey}`, config.sessionsPerMinutePerIp, MINUTE);
       const body = await readJson(request);
       const accountId = str(body['accountId'], 64);
       const deviceId = str(body['deviceId'], 64);
@@ -247,7 +285,7 @@ export function createSyncService(options: { store?: MemoryStore; now?: () => nu
         await limit(`join-wrong:${ipKey}`, config.joinAttemptsPerHour, 60 * MINUTE);
         throw new HttpError(404, 'invalid_token');
       }
-      enrollment.joined = { signPublic: str(body['signPublic'], 256), encPublic: str(body['encPublic'], 256) };
+      enrollment.joined = { signPublic: str(body['signPublic'], 256), encPublic: str(body['encPublic'], 256), confirm: str(body['confirm'], 128) };
       return json(200, { accountId: enrollment.accountId });
     }
 
@@ -257,7 +295,7 @@ export function createSyncService(options: { store?: MemoryStore; now?: () => nu
       const enrollment = store.enrollments.get(tokenHash);
       if (!enrollment || enrollment.expiresAt <= now()) throw new HttpError(404, 'invalid_token');
       if (!enrollment.approved) return json(200, { status: 'pending' });
-      store.enrollments.delete(tokenHash); // single use
+      // Kept until it expires so a lost response does not strand the new device. Only the joining device's private key opens the wrap.
       const a = enrollment.approved;
       return json(200, {
         status: 'approved', accountId: enrollment.accountId, deviceId: a.deviceId, epoch: a.epoch,
@@ -290,9 +328,11 @@ export function createSyncService(options: { store?: MemoryStore; now?: () => nu
       if (!enrollment || enrollment.accountId !== account.accountId || enrollment.expiresAt <= now() || !enrollment.joined || enrollment.approved) {
         throw new HttpError(404, 'invalid_token');
       }
-      const newDevice = addDevice(account, enrollment.joined.signPublic, enrollment.joined.encPublic);
+      // Validate everything before registering the device, so a malformed request cannot leave an orphan active device behind.
       const wrapped = wrapShape(body['wrapped']);
-      enrollment.approved = { deviceId: newDevice.deviceId, epoch: account.epoch, fromEncPublic: device.encPublic, wrapped };
+      const epoch = int(body['epoch'], 1, account.epoch);
+      const newDevice = addDevice(account, enrollment.joined.signPublic, enrollment.joined.encPublic);
+      enrollment.approved = { deviceId: newDevice.deviceId, epoch, fromEncPublic: device.encPublic, wrapped };
       return json(200, { deviceId: newDevice.deviceId });
     }
 
@@ -346,7 +386,7 @@ export function createSyncService(options: { store?: MemoryStore; now?: () => nu
       if (!target || target.revoked) throw new HttpError(404, 'unknown_device');
       const epoch = int(body['epoch'], 1, account.epoch);
       account.keyWraps = account.keyWraps.filter((w) => !(w.deviceId === target.deviceId && w.epoch === epoch));
-      account.keyWraps.push({ deviceId: target.deviceId, epoch, fromEncPublic: device.encPublic, wrapped: wrapShape(body['wrapped']) });
+      account.keyWraps.push({ deviceId: target.deviceId, epoch, fromEncPublic: device.encPublic, signature: str(body['signature'], 256), wrapped: wrapShape(body['wrapped']) });
       return json(200, { ok: true });
     }
 
@@ -555,10 +595,12 @@ export function createSyncService(options: { store?: MemoryStore; now?: () => nu
         }
       }
       store.audit = store.audit.filter((e) => t - e.at < config.auditRetentionMs);
+      auditTail.clear(); // entries it points at may have been dropped
       for (const [id, at] of store.deleted) if (t - at >= config.backupExpiryDays * DAY) store.deleted.delete(id);
       for (const [key, w] of windows) if (t - w.start >= 60 * MINUTE) windows.delete(key);
       for (const [key, at] of seenNonces) if (t - at > config.clockWindowMs * 2) seenNonces.delete(key);
       for (const [hash, s] of sessions) if (s.expiresAt <= t) sessions.delete(hash);
+      for (const [hash, e] of store.enrollments) if (e.expiresAt <= t) store.enrollments.delete(hash);
       return { objectsPruned, accountsDeleted, warned };
     },
   };

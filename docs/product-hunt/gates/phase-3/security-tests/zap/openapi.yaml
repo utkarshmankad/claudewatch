@@ -1,0 +1,213 @@
+openapi: 3.0.3
+info:
+  title: Token Watcher sync service (ciphertext log)
+  version: "1.0"
+  description: >
+    Description of the HTTP API in src/sync/service/handler.ts, used to drive the OWASP ZAP scan.
+    Destructive routes are left out on purpose so the scan keeps a working account:
+    DELETE /v1/account, DELETE /v1/devices/{id}, POST /v1/devices/{id}/revoke, POST /v1/epoch.
+servers:
+  - url: http://127.0.0.1:8795
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+  schemas:
+    Wrapped:
+      type: object
+      required: [ephemeralPublic, nonce, ciphertext]
+      properties:
+        ephemeralPublic: { type: string, example: "BEx0ZXN0LWVwaGVtZXJhbA==" }
+        nonce: { type: string, example: "bm9uY2U=" }
+        ciphertext: { type: string, example: "Y2lwaGVydGV4dA==" }
+paths:
+  /v1/accounts:
+    post:
+      summary: Create an account with its first device
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [region, signPublic, encPublic]
+              properties:
+                region: { type: string, example: eu }
+                signPublic: { type: string, example: "BEx0ZXN0LXNpZ24=" }
+                encPublic: { type: string, example: "BEx0ZXN0LWVuYw==" }
+      responses: { "201": { description: created }, "400": { description: bad request }, "429": { description: rate limited } }
+  /v1/session:
+    post:
+      summary: Exchange a signed challenge for a short-lived bearer token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [accountId, deviceId, timestamp, nonce, signature]
+              properties:
+                accountId: { type: string, example: "AAAAAAAAAAAAAAAAAAAAAA" }
+                deviceId: { type: string, example: "BBBBBBBBBBBBBBBBBBBBBB" }
+                timestamp: { type: integer, example: 1800000000000 }
+                nonce: { type: string, example: "bm9uY2U" }
+                signature: { type: string, example: "c2lnbmF0dXJl" }
+      responses: { "200": { description: ok }, "401": { description: unauthorized } }
+  /v1/enrollments/join:
+    post:
+      summary: New device presents a one-time enrollment token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, signPublic, encPublic, confirm]
+              properties:
+                token: { type: string, example: "dG9rZW4" }
+                signPublic: { type: string, example: "BEx0ZXN0LXNpZ24=" }
+                encPublic: { type: string, example: "BEx0ZXN0LWVuYw==" }
+                confirm: { type: string, example: "00" }
+      responses: { "200": { description: ok }, "404": { description: invalid token } }
+  /v1/enrollments/status:
+    post:
+      summary: New device polls for its approval
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [token], properties: { token: { type: string, example: "dG9rZW4" } } }
+      responses: { "200": { description: ok }, "404": { description: invalid token } }
+  /v1/enrollments:
+    post:
+      summary: Existing device creates a one-time enrollment token
+      security: [{ bearer: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses: { "201": { description: created }, "401": { description: unauthorized } }
+  /v1/enrollments/pending:
+    post:
+      summary: Existing device checks whether someone joined
+      security: [{ bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [token], properties: { token: { type: string, example: "dG9rZW4" } } }
+      responses: { "200": { description: ok }, "404": { description: invalid token } }
+  /v1/enrollments/approve:
+    post:
+      summary: Existing device approves the joining device
+      security: [{ bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, epoch, wrapped]
+              properties:
+                token: { type: string, example: "dG9rZW4" }
+                epoch: { type: integer, example: 1 }
+                wrapped: { $ref: "#/components/schemas/Wrapped" }
+      responses: { "200": { description: ok }, "404": { description: invalid token } }
+  /v1/devices:
+    get:
+      summary: List the account's devices
+      security: [{ bearer: [] }]
+      responses: { "200": { description: ok }, "401": { description: unauthorized } }
+  /v1/keywraps:
+    get:
+      summary: Key wraps addressed to the calling device
+      security: [{ bearer: [] }]
+      responses: { "200": { description: ok } }
+    put:
+      summary: Store a key wrap for a device
+      security: [{ bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deviceId, epoch, wrapped, signature]
+              properties:
+                deviceId: { type: string, example: "BBBBBBBBBBBBBBBBBBBBBB" }
+                epoch: { type: integer, example: 1 }
+                wrapped: { $ref: "#/components/schemas/Wrapped" }
+                signature: { type: string, example: "c2lnbmF0dXJl" }
+      responses: { "200": { description: ok }, "404": { description: unknown device } }
+  /v1/objects:
+    get:
+      summary: Read encrypted objects after a sequence number
+      security: [{ bearer: [] }]
+      parameters:
+        - { name: after, in: query, schema: { type: integer, example: 0 } }
+        - { name: limit, in: query, schema: { type: integer, example: 100 } }
+      responses: { "200": { description: ok } }
+    put:
+      summary: Store one encrypted object
+      security: [{ bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [objectId, epoch, schemaVersion, nonce, ciphertext]
+              properties:
+                objectId: { type: string, example: "zap-object-1" }
+                epoch: { type: integer, example: 1 }
+                schemaVersion: { type: integer, example: 1 }
+                nonce: { type: string, example: "bm9uY2U=" }
+                ciphertext: { type: string, example: "Y2lwaGVydGV4dA==" }
+      responses: { "201": { description: created }, "400": { description: bad request } }
+  /v1/push/subscription:
+    get:
+      summary: Push subscription status
+      security: [{ bearer: [] }]
+      responses: { "200": { description: ok } }
+    put:
+      summary: Register a push subscription
+      security: [{ bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [endpoint, p256dh, auth]
+              properties:
+                endpoint: { type: string, example: "https://fcm.googleapis.com/fcm/send/zap" }
+                p256dh: { type: string, example: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" }
+                auth: { type: string, example: "BBBBBBBBBBBBBBBB" }
+      responses: { "200": { description: ok }, "400": { description: bad request } }
+    delete:
+      summary: Remove the push subscription
+      security: [{ bearer: [] }]
+      responses: { "200": { description: ok } }
+  /v1/push/renew:
+    post:
+      summary: Extend the push subscription
+      security: [{ bearer: [] }]
+      responses: { "200": { description: ok }, "404": { description: none } }
+  /v1/push/notify:
+    post:
+      summary: Wake the account's other devices
+      security: [{ bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, dedupeKey]
+              properties:
+                kind: { type: string, example: quota_risk }
+                dedupeKey: { type: string, example: "abcdef" }
+      responses: { "200": { description: ok }, "503": { description: push unavailable } }
+  /v1/export:
+    get:
+      summary: Export the account's ciphertext and device list
+      security: [{ bearer: [] }]
+      responses: { "200": { description: ok } }

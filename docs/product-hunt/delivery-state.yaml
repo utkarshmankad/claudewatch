@@ -21,7 +21,7 @@ last_checkpoint:
   base_sha: 82a4db3
   worktree_path: null
   pending_operation: null
-next_action: Phase 3 promoted (PR #66 merged into main, sync-back PR #68 merged into develop). Phase 4 promotion PR #76 merged into main; sync-back PR #81 merged into develop (replaces #78, which was blocked as behind; #80 also superseded). Phase 4 is promoted; Phase 5 is unblocked.
+next_action: Phase 3 promoted (PR #66 merged into main, sync-back PR #68 merged into develop). Phase 4 promotion PR #76 merged into main; sync-back PR #81 merged into develop (replaces #78, which was blocked as behind; #80 also superseded). Phase 4 is promoted. Phase 5 promotion PR #89 merged into main; sync-back PR #94 merged into develop (replaces #91, which was blocked as behind). Phase 5 is promoted. Phase 6 is prohibited; the final consolidated gate (including deferred 4.4) is the owner's.
 next_wake_time: null
 release_status: prohibited_during_pilot
 phases:
@@ -78,10 +78,10 @@ phases:
     pilot_eligible: true
   - id: 5
     title: Usage Wrapped and Plan ROI
-    promotion_pr: null
-    promotion_status: not_opened
-    sync_back_pr: null
-    sync_back_status: not_opened
+    promotion_pr: https://github.com/utkarshmankad/claudewatch/pull/89
+    promotion_status: merged
+    sync_back_pr: https://github.com/utkarshmankad/claudewatch/pull/94
+    sync_back_status: merged
     status: completed
     gate_status: deferred_to_final_gate
     evidence_files: []

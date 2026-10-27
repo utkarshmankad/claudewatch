@@ -29,8 +29,10 @@ export function emptyPrefs(): PrefsState {
 
 const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
 
+/** `a` is the write being applied. Two writes from one device with the same sequence (both pending): the later call wins. */
 function newer(a: PrefWrite, b: PrefWrite): boolean {
-  return a.seq !== b.seq ? a.seq > b.seq : a.by > b.by;
+  if (a.seq !== b.seq) return a.seq > b.seq;
+  return a.by === b.by ? true : a.by > b.by;
 }
 
 /** Each writer had not seen the other's write. */
