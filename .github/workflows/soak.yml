@@ -81,7 +81,7 @@ jobs:
       - name: Restore the previous leg's browser profile
         if: ${{ matrix.leg.leg > 0 }}
         continue-on-error: true   # if the previous leg failed there is no profile; this leg starts a fresh one and logs it
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: soak-profile-${{ matrix.leg.prev }}
           path: soak-profile
@@ -125,7 +125,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           pattern: soak-leg-*
           path: legs
